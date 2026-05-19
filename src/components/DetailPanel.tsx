@@ -10,23 +10,23 @@ interface Props {
 }
 
 const AnalysisBlock = ({ title, children }: { title: string; children: React.ReactNode }) => (
-  <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-4 mb-3">
-    <div className="text-[10px] tracking-[2px] uppercase text-amber-400 mb-3">{title}</div>
+  <div className="bg-white border border-slate-200 rounded-lg p-4 mb-3">
+    <div className="text-[10px] tracking-[2px] uppercase text-blue-900 mb-3">{title}</div>
     {children}
   </div>
 )
 
 const Row = ({ label, value, valueClass = '' }: { label: string; value: string; valueClass?: string }) => (
   <div className="flex justify-between items-center py-1.5 border-b border-white/[0.03] text-xs last:border-0">
-    <span className="text-zinc-500">{label}</span>
-    <span className={`font-semibold ${valueClass || 'text-zinc-100'}`}>{value}</span>
+    <span className="text-slate-500">{label}</span>
+    <span className={`font-semibold ${valueClass || 'text-slate-900'}`}>{value}</span>
   </div>
 )
 
 const GaugeCard = ({ value, label, cls = '' }: { value: string; label: string; cls?: string }) => (
-  <div className="bg-zinc-950 border border-zinc-800 rounded-lg p-3 text-center">
+  <div className="bg-white border border-slate-200 rounded-lg p-3 text-center">
     <div className={`text-xl font-semibold leading-tight ${cls}`}>{value}</div>
-    <div className="text-[9px] tracking-widest uppercase text-zinc-600 mt-1">{label}</div>
+    <div className="text-[9px] tracking-widest uppercase text-slate-500 mt-1">{label}</div>
   </div>
 )
 
@@ -61,14 +61,14 @@ export default function DetailPanel({ property: p, onClose }: Props) {
   }
 
   return (
-    <div className="fixed top-[65px] right-0 bottom-0 w-[560px] bg-zinc-900 border-l border-zinc-800 z-50 flex flex-col slide-in shadow-2xl">
+    <div className="fixed top-[65px] right-0 bottom-0 w-[560px] bg-slate-50 border-l border-slate-200 z-50 flex flex-col slide-in shadow-2xl">
       {/* Header */}
-      <div className="flex items-start justify-between p-5 border-b border-zinc-800 sticky top-0 bg-zinc-900 z-10">
+      <div className="flex items-start justify-between p-5 border-b border-slate-200 sticky top-0 bg-slate-50 z-10">
         <div>
-          <div className="text-sm font-semibold text-zinc-100">{p.addr}</div>
-          <div className="text-[11px] text-zinc-500 mt-0.5">{p.city}, {p.state} {p.zip} · {p.propType}</div>
+          <div className="text-sm font-semibold text-slate-900">{p.addr}</div>
+          <div className="text-[11px] text-slate-500 mt-0.5">{p.city}, {p.state} {p.zip} · {p.propType}</div>
         </div>
-        <button onClick={onClose} className="text-[11px] text-zinc-500 hover:text-zinc-300 border border-zinc-800 hover:border-zinc-700 rounded px-3 py-1.5 transition-colors cursor-pointer bg-transparent">✕ Close</button>
+        <button onClick={onClose} className="text-[11px] text-slate-500 hover:text-slate-700 border border-slate-200 hover:border-slate-300 rounded px-3 py-1.5 transition-colors cursor-pointer bg-transparent">✕ Close</button>
       </div>
 
       {/* Body */}
@@ -82,12 +82,12 @@ export default function DetailPanel({ property: p, onClose }: Props) {
         </div>
 
         {/* Quick Insight */}
-        <div className="bg-amber-500/5 border border-amber-500/30 rounded-lg p-4 mb-3">
-          <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-amber-400 mb-2">
-            <div className="w-1.5 h-1.5 rounded-full bg-amber-400 pulse-dot" />
+        <div className="bg-blue-900/5 border border-blue-900/30 rounded-lg p-4 mb-3">
+          <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-blue-900 mb-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-blue-800 pulse-dot" />
             Deal Intelligence
           </div>
-          <p className="text-xs text-zinc-300 leading-relaxed">{generateQuickInsight(p)}</p>
+          <p className="text-xs text-slate-700 leading-relaxed">{generateQuickInsight(p)}</p>
         </div>
 
         {/* P&L */}
@@ -96,19 +96,19 @@ export default function DetailPanel({ property: p, onClose }: Props) {
           <Row label="Est. Rehab Cost" value={`-${fmt$(p.rehabCost)}`} valueClass="text-red-400" />
           <Row label="Closing Costs (buy 3%)" value={`-${fmt$(p.closingBuyNum)}`} valueClass="text-red-400" />
           <Row label={`Holding Costs (${p.holdMonths}mo)`} value={`-${fmt$(p.holdingCost)}`} valueClass="text-red-400" />
-          <div className="border-t border-zinc-700 my-1" />
+          <div className="border-t border-slate-300 my-1" />
           <Row label="Total Investment" value={fmt$(p.totalInvested)} />
-          <Row label="Est. ARV" value={fmt$(p.arv)} valueClass="text-amber-400" />
+          <Row label="Est. ARV" value={fmt$(p.arv)} valueClass="text-blue-900" />
           <Row label="Selling Commission (6%)" value={`-${fmt$(p.sellingComm)}`} valueClass="text-red-400" />
           <Row label="Closing Costs (sell 2%)" value={`-${fmt$(p.closingSell)}`} valueClass="text-red-400" />
-          <div className="border-t border-amber-500/30 mt-2 pt-2">
+          <div className="border-t border-blue-900/30 mt-2 pt-2">
             <div className="flex justify-between items-center">
-              <span className="text-xs font-semibold text-zinc-300">NET PROFIT</span>
+              <span className="text-xs font-semibold text-slate-700">NET PROFIT</span>
               <span className={`text-lg font-semibold ${p.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt$(p.profit)}</span>
             </div>
           </div>
           <div className="mt-3">
-            <div className="flex justify-between text-[10px] text-zinc-600 mb-1">
+            <div className="flex justify-between text-[10px] text-slate-500 mb-1">
               <span>Cost basis</span><span>Profit margin {profitPct.toFixed(1)}%</span>
             </div>
             <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
@@ -119,7 +119,7 @@ export default function DetailPanel({ property: p, onClose }: Props) {
 
         {/* 70% Rule */}
         <AnalysisBlock title="70% Rule Analysis">
-          <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} valueClass="text-amber-400" />
+          <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} valueClass="text-blue-900" />
           <Row label="List Price" value={fmt$(p.price)} />
           <Row label="Spread vs Max Offer" value={`${fmt$(p.momsRule - p.price)} ${p.underMoms ? '✓' : '✗'}`} valueClass={p.underMoms ? 'text-green-400' : 'text-red-400'} />
           <Row label="Equity Position" value={fmtPct(p.equityPct)} />
@@ -137,22 +137,22 @@ export default function DetailPanel({ property: p, onClose }: Props) {
 
         {/* Action Buttons */}
         <div className="flex gap-2 mt-1 mb-3">
-          <button onClick={handleAI} disabled={aiLoading} className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 text-xs font-semibold tracking-widest uppercase py-2.5 rounded transition-colors cursor-pointer">
+          <button onClick={handleAI} disabled={aiLoading} className="flex-1 bg-blue-900 hover:bg-blue-800 disabled:bg-slate-200 disabled:text-slate-500 text-white text-xs font-semibold tracking-widest uppercase py-2.5 rounded transition-colors cursor-pointer">
             {aiLoading ? '⏳ Analyzing...' : '⬡ Deep AI Analysis'}
           </button>
-          <button onClick={handleComps} disabled={compsLoading} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs py-2.5 px-4 rounded border border-zinc-700 transition-colors cursor-pointer">
+          <button onClick={handleComps} disabled={compsLoading} className="bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-800 text-xs py-2.5 px-4 rounded border border-slate-300 transition-colors cursor-pointer">
             {compsLoading ? '...' : 'Fetch Comps'}
           </button>
         </div>
 
         {/* AI Result */}
         {(aiText || aiError) && (
-          <div className={`rounded-lg p-4 mb-3 ${aiError ? 'bg-red-500/10 border border-red-500/30' : 'bg-amber-500/5 border border-amber-500/30'}`}>
-            <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-amber-400 mb-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+          <div className={`rounded-lg p-4 mb-3 ${aiError ? 'bg-red-500/10 border border-red-500/30' : 'bg-blue-900/5 border border-blue-900/30'}`}>
+            <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-blue-900 mb-2">
+              <div className="w-1.5 h-1.5 rounded-full bg-blue-800" />
               Deep AI Analysis
             </div>
-            <p className={`text-xs leading-relaxed whitespace-pre-wrap ${aiError ? 'text-red-400' : 'text-zinc-300'}`}>{aiError || aiText}</p>
+            <p className={`text-xs leading-relaxed whitespace-pre-wrap ${aiError ? 'text-red-400' : 'text-slate-700'}`}>{aiError || aiText}</p>
           </div>
         )}
 
@@ -164,7 +164,7 @@ export default function DetailPanel({ property: p, onClose }: Props) {
               <thead>
                 <tr>
                   {['Address', 'Price', 'Bd/Ba', 'SqFt', '$/SqFt'].map(h => (
-                    <th key={h} className="text-left text-zinc-600 text-[10px] tracking-wide uppercase pb-2 font-normal">{h}</th>
+                    <th key={h} className="text-left text-slate-500 text-[10px] tracking-wide uppercase pb-2 font-normal">{h}</th>
                   ))}
                 </tr>
               </thead>
@@ -173,8 +173,8 @@ export default function DetailPanel({ property: p, onClose }: Props) {
                   const psf = c.squareFootage ? (c.price / c.squareFootage) : 0
                   return (
                     <tr key={i} className="border-t border-white/[0.03]">
-                      <td className="py-1.5 text-zinc-400 max-w-[120px] truncate">{c.formattedAddress || c.addressLine1 || '—'}</td>
-                      <td className="py-1.5 text-amber-400">{fmt$(c.price)}</td>
+                      <td className="py-1.5 text-slate-600 max-w-[120px] truncate">{c.formattedAddress || c.addressLine1 || '—'}</td>
+                      <td className="py-1.5 text-blue-900">{fmt$(c.price)}</td>
                       <td className="py-1.5">{c.bedrooms || '?'}/{c.bathrooms || '?'}</td>
                       <td className="py-1.5">{c.squareFootage ? c.squareFootage.toLocaleString() : '—'}</td>
                       <td className="py-1.5">{psf ? fmt$(psf) : '—'}</td>
