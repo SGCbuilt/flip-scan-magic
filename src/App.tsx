@@ -218,7 +218,7 @@ export default function App() {
   const ErrorState = () => (
     <div className="m-6 space-y-2">
       {errors.map((e, i) => (
-        <div key={i} className="p-3 bg-red-950/30 border border-red-800/40 rounded-lg text-xs text-red-400 font-mono">
+        <div key={i} className="p-3 bg-red-950/30 border border-red-800/40 rounded-lg text-xs text-red-400">
           ⚠ {e}
         </div>
       ))}
@@ -232,14 +232,14 @@ export default function App() {
   )
 
   return (
-    <div className="flex flex-col h-screen bg-white font-mono overflow-hidden">
+    <div className="flex flex-col h-screen bg-white overflow-hidden">
       {/* HEADER */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white z-50 flex-shrink-0">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
           <img src={sgcLogo} alt="SGC Built" className="h-10 w-auto" width={120} height={40} />
           <div className="pl-3 border-l border-slate-200">
-            <div className="text-blue-900 font-bold tracking-[2px] uppercase text-sm">FlipScan Pro</div>
-            <div className="text-[10px] text-slate-500 tracking-wide">Multi-Source Deal Intelligence · SGC General Contractors</div>
+            <div className="text-blue-900 font-bold tracking-[1.5px] uppercase text-sm">FlipScan Pro</div>
+            <div className="text-[11px] text-slate-500 tracking-wide">Multi-Source Deal Intelligence · SGC General Contractors</div>
           </div>
         </div>
         <div className="flex items-center gap-4">
@@ -409,7 +409,7 @@ export default function App() {
       <DetailPanel property={selected} onClose={() => setSelected(null)} />
 
       {toast && (
-        <div className={`fixed bottom-5 right-5 z-[999] px-4 py-3 rounded-lg border text-xs font-mono shadow-xl max-w-sm
+        <div className={`fixed bottom-5 right-5 z-[999] px-4 py-3 rounded-lg border text-xs shadow-xl max-w-sm
           ${toast.err ? 'bg-slate-50 border-red-500/50 text-red-400' : 'bg-slate-50 border-blue-900/40 text-slate-700'}`}>
           {toast.msg}
         </div>
