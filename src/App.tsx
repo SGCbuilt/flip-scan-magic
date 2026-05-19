@@ -179,28 +179,28 @@ export default function App() {
   const statsData = results.length ? [
     { label: 'Deals Found', value: String(results.length), sub: allAnalyzed.length ? `of ${allAnalyzed.length} analyzed` : '' },
     { label: 'Hot Deals', value: String(results.filter(r => r.flipScore >= 70).length), color: 'text-green-400' },
-    { label: 'Avg Score', value: String(Math.round(avg(results.map(r => r.flipScore)))), color: 'text-amber-400' },
+    { label: 'Avg Score', value: String(Math.round(avg(results.map(r => r.flipScore)))), color: 'text-blue-900' },
     { label: 'Avg Profit', value: fmt$(avg(results.map(r => r.profit))), color: avg(results.map(r => r.profit)) >= 0 ? 'text-green-400' : 'text-red-400' },
     { label: 'Best ROI', value: results.length ? results.reduce((b, r) => r.roi > b.roi ? r : b).roi.toFixed(1) + '%' : '—', color: 'text-green-400' },
     { label: 'Avg Price', value: fmt$(avg(results.map(r => r.price))) },
   ] : []
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 font-mono overflow-hidden">
+    <div className="flex flex-col h-screen bg-white font-mono overflow-hidden">
       {/* Header */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800 bg-zinc-950 z-50 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white z-50 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-amber-500 rounded-md flex items-center justify-center text-zinc-950 font-bold text-base leading-none">⬡</div>
+          <div className="w-8 h-8 bg-blue-900 rounded-md flex items-center justify-center text-white font-bold text-base leading-none">⬡</div>
           <div>
-            <div className="text-amber-400 font-bold tracking-[2px] uppercase text-sm">FlipScan Pro</div>
-            <div className="text-[10px] text-zinc-600 tracking-wide">Real Estate Flip Intelligence · SGC General Contractors</div>
+            <div className="text-blue-900 font-bold tracking-[2px] uppercase text-sm">FlipScan Pro</div>
+            <div className="text-[10px] text-slate-500 tracking-wide">Real Estate Flip Intelligence · SGC General Contractors</div>
           </div>
         </div>
         <div className="flex items-center gap-4">
           {searchTime && appState === 'results' && (
-            <div className="text-[10px] text-zinc-600">{(searchTime / 1000).toFixed(1)}s scan</div>
+            <div className="text-[10px] text-slate-500">{(searchTime / 1000).toFixed(1)}s scan</div>
           )}
-          <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <div className="flex items-center gap-2 text-[11px] text-slate-500">
             <div className="w-2 h-2 rounded-full bg-green-400 pulse-dot" />
             RentCast Live · AI Active
           </div>
@@ -214,14 +214,14 @@ export default function App() {
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Tabs */}
-          <div className="flex items-center border-b border-zinc-800 bg-zinc-950 flex-shrink-0 px-1">
+          <div className="flex items-center border-b border-slate-200 bg-white flex-shrink-0 px-1">
             {TABS.map(t => (
               <button key={t.id} onClick={() => setTab(t.id)}
                 className={`px-4 py-3 text-[11px] tracking-wider border-b-2 transition-colors cursor-pointer bg-transparent flex items-center gap-1.5
-                  ${tab === t.id ? 'text-amber-400 border-amber-500' : 'text-zinc-600 border-transparent hover:text-zinc-400'}`}>
+                  ${tab === t.id ? 'text-blue-900 border-blue-900' : 'text-slate-500 border-transparent hover:text-slate-600'}`}>
                 {t.label}
                 {t.count !== undefined && t.count > 0 && (
-                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-amber-500/20 text-amber-400' : 'bg-zinc-800 text-zinc-600'}`}>
+                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full ${tab === t.id ? 'bg-blue-900/10 text-blue-900' : 'bg-slate-100 text-slate-500'}`}>
                     {t.count}
                   </span>
                 )}
@@ -238,34 +238,34 @@ export default function App() {
                 {appState === 'idle' && (
                   <div className="flex flex-col items-center justify-center h-72 text-center px-8">
                     <div className="text-6xl mb-5 opacity-20">🎯</div>
-                    <div className="text-base font-semibold text-zinc-200 mb-2">Ready to Scan</div>
-                    <div className="text-xs text-zinc-600 max-w-sm leading-relaxed">Configure your search on the left and hit <span className="text-amber-400">Scan for Deals</span>. We'll pull live listings, score every property, and surface the best flip opportunities.</div>
+                    <div className="text-base font-semibold text-slate-800 mb-2">Ready to Scan</div>
+                    <div className="text-xs text-slate-500 max-w-sm leading-relaxed">Configure your search on the left and hit <span className="text-blue-900">Scan for Deals</span>. We'll pull live listings, score every property, and surface the best flip opportunities.</div>
                   </div>
                 )}
                 {appState === 'loading' && (
                   <div className="flex flex-col items-center justify-center h-72">
-                    <div className="w-12 h-12 border-2 border-zinc-700 border-t-amber-400 rounded-full spin mb-4" />
-                    <div className="text-sm text-zinc-400 mb-1">{loadingMsg}</div>
-                    <div className="text-xs text-zinc-600">Connecting to RentCast & running deal analysis...</div>
+                    <div className="w-12 h-12 border-2 border-slate-300 border-t-blue-900 rounded-full spin mb-4" />
+                    <div className="text-sm text-slate-600 mb-1">{loadingMsg}</div>
+                    <div className="text-xs text-slate-500">Connecting to RentCast & running deal analysis...</div>
                   </div>
                 )}
                 {appState === 'error' && (
                   <div className="m-6 p-4 bg-red-950/30 border border-red-800/50 rounded-lg">
                     <div className="text-sm text-red-400 font-semibold mb-1">⚠️ Search Failed</div>
                     <div className="text-xs text-red-400/70">{error}</div>
-                    <div className="text-xs text-zinc-600 mt-2">Try "City, ST" format (e.g. "Norfolk, VA") or a 5-digit zip.</div>
+                    <div className="text-xs text-slate-500 mt-2">Try "City, ST" format (e.g. "Norfolk, VA") or a 5-digit zip.</div>
                   </div>
                 )}
                 {appState === 'results' && (
                   <>
                     {/* Stats strip */}
                     {statsData.length > 0 && (
-                      <div className="grid grid-cols-6 border-b border-zinc-800">
+                      <div className="grid grid-cols-6 border-b border-slate-200">
                         {statsData.map(s => (
-                          <div key={s.label} className="p-3 border-r border-zinc-800 last:border-0">
-                            <div className="text-[9px] tracking-widest uppercase text-zinc-600 mb-0.5">{s.label}</div>
-                            <div className={`text-base font-bold ${s.color || 'text-amber-400'}`}>{s.value}</div>
-                            {s.sub && <div className="text-[9px] text-zinc-700">{s.sub}</div>}
+                          <div key={s.label} className="p-3 border-r border-slate-200 last:border-0">
+                            <div className="text-[9px] tracking-widest uppercase text-slate-500 mb-0.5">{s.label}</div>
+                            <div className={`text-base font-bold ${s.color || 'text-blue-900'}`}>{s.value}</div>
+                            {s.sub && <div className="text-[9px] text-slate-400">{s.sub}</div>}
                           </div>
                         ))}
                       </div>
@@ -282,13 +282,13 @@ export default function App() {
                 {appState === 'idle' && (
                   <div className="flex flex-col items-center justify-center h-64 text-center px-8">
                     <div className="text-4xl mb-4 opacity-20">📋</div>
-                    <div className="text-sm text-zinc-300">Run a search to see results</div>
+                    <div className="text-sm text-slate-700">Run a search to see results</div>
                   </div>
                 )}
                 {appState === 'loading' && (
                   <div className="flex flex-col items-center justify-center h-64">
-                    <div className="w-10 h-10 border-2 border-zinc-700 border-t-amber-400 rounded-full spin mb-4" />
-                    <div className="text-xs text-zinc-500">{loadingMsg}</div>
+                    <div className="w-10 h-10 border-2 border-slate-300 border-t-blue-900 rounded-full spin mb-4" />
+                    <div className="text-xs text-slate-500">{loadingMsg}</div>
                   </div>
                 )}
                 {appState === 'error' && (
@@ -297,24 +297,24 @@ export default function App() {
                 {appState === 'results' && (
                   <>
                     {/* Sort + view toggle */}
-                    <div className="flex items-center justify-between px-5 py-2.5 border-b border-zinc-800/60 sticky top-0 bg-zinc-950 z-10">
-                      <div className="text-xs text-zinc-500">
-                        <span className="text-amber-400 font-semibold">{results.length}</span> deal{results.length !== 1 ? 's' : ''}
-                        {allAnalyzed.length > results.length && <span className="text-zinc-700"> (filtered from {allAnalyzed.length})</span>}
+                    <div className="flex items-center justify-between px-5 py-2.5 border-b border-slate-200/70 sticky top-0 bg-white z-10">
+                      <div className="text-xs text-slate-500">
+                        <span className="text-blue-900 font-semibold">{results.length}</span> deal{results.length !== 1 ? 's' : ''}
+                        {allAnalyzed.length > results.length && <span className="text-slate-400"> (filtered from {allAnalyzed.length})</span>}
                       </div>
                       <div className="flex items-center gap-3">
                         <div className="flex items-center gap-1">
                           {SORT_KEYS.map(({ key, label }) => (
                             <button key={key} onClick={() => handleSort(key)}
                               className={`px-2 py-1 rounded border text-[9px] tracking-wide uppercase cursor-pointer transition-colors
-                                ${sortKey === key ? 'border-amber-500/50 text-amber-400 bg-amber-500/10' : 'border-zinc-800 text-zinc-600 hover:text-zinc-400 bg-transparent'}`}>
+                                ${sortKey === key ? 'border-blue-900/40 text-blue-900 bg-blue-900/10' : 'border-slate-200 text-slate-500 hover:text-slate-600 bg-transparent'}`}>
                               {label}
                             </button>
                           ))}
                         </div>
-                        <div className="flex border border-zinc-800 rounded overflow-hidden">
-                          <button onClick={() => setViewMode('cards')} className={`px-2.5 py-1 text-xs cursor-pointer transition-colors ${viewMode === 'cards' ? 'bg-zinc-700 text-zinc-200' : 'bg-transparent text-zinc-600 hover:text-zinc-400'}`}>▦</button>
-                          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1 text-xs cursor-pointer transition-colors ${viewMode === 'table' ? 'bg-zinc-700 text-zinc-200' : 'bg-transparent text-zinc-600 hover:text-zinc-400'}`}>≡</button>
+                        <div className="flex border border-slate-200 rounded overflow-hidden">
+                          <button onClick={() => setViewMode('cards')} className={`px-2.5 py-1 text-xs cursor-pointer transition-colors ${viewMode === 'cards' ? 'bg-slate-200 text-slate-800' : 'bg-transparent text-slate-500 hover:text-slate-600'}`}>▦</button>
+                          <button onClick={() => setViewMode('table')} className={`px-2.5 py-1 text-xs cursor-pointer transition-colors ${viewMode === 'table' ? 'bg-slate-200 text-slate-800' : 'bg-transparent text-slate-500 hover:text-slate-600'}`}>≡</button>
                         </div>
                       </div>
                     </div>
@@ -322,16 +322,16 @@ export default function App() {
                     {results.length === 0 ? (
                       <div className="flex flex-col items-center justify-center h-48 text-center px-8">
                         <div className="text-3xl mb-3 opacity-30">🔍</div>
-                        <div className="text-sm text-zinc-400 mb-1">No deals match your filters</div>
-                        <div className="text-xs text-zinc-600">Try lowering Min Score, Min Profit, or Min ROI thresholds</div>
+                        <div className="text-sm text-slate-600 mb-1">No deals match your filters</div>
+                        <div className="text-xs text-slate-500">Try lowering Min Score, Min Profit, or Min ROI thresholds</div>
                       </div>
                     ) : viewMode === 'table' ? (
                       <div className="overflow-x-auto">
                         <table className="w-full">
                           <thead>
-                            <tr className="border-b border-zinc-800 bg-zinc-900/50">
+                            <tr className="border-b border-slate-200 bg-slate-50">
                               {['Property', 'Price', 'ARV', 'Profit', 'ROI', 'DOM', 'Score', 'Tags'].map(h => (
-                                <th key={h} className="text-left text-[10px] uppercase tracking-widest text-zinc-600 py-2.5 px-2 font-normal first:pl-4 last:pr-4">{h}</th>
+                                <th key={h} className="text-left text-[10px] uppercase tracking-widest text-slate-500 py-2.5 px-2 font-normal first:pl-4 last:pr-4">{h}</th>
                               ))}
                             </tr>
                           </thead>
@@ -366,7 +366,7 @@ export default function App() {
       {/* Toast */}
       {toast && (
         <div className={`fixed bottom-5 right-5 z-[999] px-4 py-3 rounded-lg border text-xs font-mono shadow-xl
-          ${toast.err ? 'bg-zinc-900 border-red-500/50 text-red-400' : 'bg-zinc-900 border-amber-500/40 text-zinc-300'}`}>
+          ${toast.err ? 'bg-slate-50 border-red-500/50 text-red-400' : 'bg-slate-50 border-blue-900/40 text-slate-700'}`}>
           {toast.msg}
         </div>
       )}
