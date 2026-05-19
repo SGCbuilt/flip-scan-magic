@@ -140,7 +140,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* Data Sources */}
-        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true}>
+        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true} isOpen={isOpen} onToggle={toggle}>
           <div className="flex gap-2 mb-1">
             <button onClick={() => toggleAll(true)}
               className="text-xs cursor-pointer bg-transparent border-none font-semibold"
@@ -172,7 +172,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Location */}
-        <Section id="loc" title="Location" def={true}>
+        <Section id="loc" title="Location" def={true} isOpen={isOpen} onToggle={toggle}>
           <div>
             <FL>Search Mode</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -255,7 +255,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Property Filters */}
-        <Section id="prop" title="Property" def={true}>
+        <Section id="prop" title="Property" def={true} isOpen={isOpen} onToggle={toggle}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
