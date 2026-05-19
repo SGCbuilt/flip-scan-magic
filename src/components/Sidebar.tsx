@@ -31,6 +31,24 @@ const PRESETS: Record<string, Partial<SearchParams>> = {
   distressed: { rehabLevel: 'gut', daysOnMarketMin: 60, maxYearBuilt: 1980, minROI: 18, strategy: 'all', arvMethod: 'conservative' },
 }
 
+const CollapsibleSection = ({
+  id, icon, title, collapsed, onToggle, children,
+}: {
+  id: string; icon: string; title: string;
+  collapsed: boolean; onToggle: (id: string) => void;
+  children: React.ReactNode;
+}) => (
+  <div className="mb-1">
+    <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2 mt-4 cursor-pointer bg-transparent border-none text-left">
+      <span className="text-sm">{icon}</span>
+      <span className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold">{title}</span>
+      <div className="flex-1 h-px bg-amber-500/20" />
+      <span className="text-zinc-600 text-xs">{collapsed ? '▸' : '▾'}</span>
+    </button>
+    {!collapsed && <div className="space-y-3">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -47,18 +65,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const applyPreset = (key: string) => {
     onChange({ ...params, ...PRESETS[key] })
   }
-
-  const CollapsibleSection = ({ id, icon, title, children }: { id: string; icon: string; title: string; children: React.ReactNode }) => (
-    <div className="mb-1">
-      <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2 mt-4 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-sm">{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold">{title}</span>
-        <div className="flex-1 h-px bg-amber-500/20" />
-        <span className="text-zinc-600 text-xs">{collapsed[id] ? '▸' : '▾'}</span>
-      </button>
-      {!collapsed[id] && <div className="space-y-3">{children}</div>}
-    </div>
-  )
 
   return (
     <div className="w-[300px] flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto h-full flex flex-col">
@@ -83,7 +89,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* LOCATION */}
-        <CollapsibleSection id="loc" icon="📍" title="Location">
+        <CollapsibleSection collapsed={!!collapsed["loc"]} onToggle={toggle} id="loc" icon="📍" title="Location">
           <div>
             <FL>City, State or Zip</FL>
             <input className={ic} value={params.city} onChange={set('city')} placeholder="Norfolk, VA or 23501"
@@ -96,7 +102,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* PROPERTY */}
-        <CollapsibleSection id="prop" icon="🏠" title="Property">
+        <CollapsibleSection collapsed={!!collapsed["prop"]} onToggle={toggle} id="prop" icon="🏠" title="Property">
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -138,7 +144,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* MARKET SIGNALS */}
-        <CollapsibleSection id="mkt" icon="📡" title="Market Signals">
+        <CollapsibleSection collapsed={!!collapsed["mkt"]} onToggle={toggle} id="mkt" icon="📡" title="Market Signals">
           <div>
             <div className="flex justify-between mb-1"><FL>Max Days on Market</FL><span className="text-amber-400 text-[10px]">{params.daysOnMarketMax}d</span></div>
             <input type="range" className="w-full" min="0" max="365" step="5" value={params.daysOnMarketMax} onChange={set('daysOnMarketMax')} />
@@ -154,7 +160,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* FLIP CRITERIA */}
-        <CollapsibleSection id="flip" icon="🎯" title="Flip Criteria">
+        <CollapsibleSection collapsed={!!collapsed["flip"]} onToggle={toggle} id="flip" icon="🎯" title="Flip Criteria">
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL><span className="text-amber-400 text-[10px]">{params.minFlipScore}</span></div>
             <input type="range" className="w-full" min="0" max="100" value={params.minFlipScore} onChange={set('minFlipScore')} />
@@ -178,7 +184,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* DEAL MATH */}
-        <CollapsibleSection id="deal" icon="🔢" title="Deal Math">
+        <CollapsibleSection collapsed={!!collapsed["deal"]} onToggle={toggle} id="deal" icon="🔢" title="Deal Math">
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
