@@ -9,6 +9,7 @@ import { SearchParams, AnalyzedProperty, MarketStats, SortKey, TabId, ViewMode }
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
+import sgcLogo from './assets/sgc-logo.png'
 
 const DEFAULT_PARAMS: SearchParams = {
   searchMode: 'city',
@@ -235,8 +236,8 @@ export default function App() {
       {/* HEADER */}
       <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white z-50 flex-shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-blue-900 rounded-md flex items-center justify-center text-white font-bold text-base">⬡</div>
-          <div>
+          <img src={sgcLogo} alt="SGC Built" className="h-10 w-auto" width={120} height={40} />
+          <div className="pl-3 border-l border-slate-200">
             <div className="text-blue-900 font-bold tracking-[2px] uppercase text-sm">FlipScan Pro</div>
             <div className="text-[10px] text-slate-500 tracking-wide">Multi-Source Deal Intelligence · SGC General Contractors</div>
           </div>
