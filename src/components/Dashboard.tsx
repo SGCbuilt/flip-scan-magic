@@ -209,8 +209,8 @@ export default function Dashboard(props: Props) {
             <line x1="40" y1="8" x2="8" y2="32" stroke="currentColor" strokeWidth="3"/>
             <rect x="30" y="50" width="20" height="22" fill="none" stroke="currentColor" strokeWidth="2.5"/>
           </svg>
-          <h2 className="text-xl font-bold text-white mb-2">FlipScan Pro</h2>
-          <p className="text-sm text-zinc-500 max-w-sm">Multi-source real estate deal intelligence. Configure your search on the left and scan.</p>
+          <h2 className="text-xl font-bold text-[#0a1f4d] mb-2">FlipScan Pro</h2>
+          <p className="text-sm text-slate-500 max-w-sm">Multi-source real estate deal intelligence. Configure your search on the left and scan.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4 max-w-xl w-full text-left">
@@ -219,10 +219,10 @@ export default function Dashboard(props: Props) {
             { icon: '🔒', t: 'Off-Market Deals', d: 'Recently delisted, property records, and corporate-owned' },
             { icon: '🤖', t: 'AI Deal Analysis', d: 'Deep deal analysis and strategy recommendations per property' },
           ].map(({ icon, t, d }) => (
-            <div key={t} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div key={t} className="bg-white border border-slate-200 rounded-xl p-4 shadow-sm">
               <div className="text-2xl mb-2">{icon}</div>
-              <div className="text-sm font-semibold text-white mb-1">{t}</div>
-              <div className="text-[11px] text-zinc-600 leading-relaxed">{d}</div>
+              <div className="text-sm font-semibold text-[#0a1f4d] mb-1">{t}</div>
+              <div className="text-[11px] text-slate-500 leading-relaxed">{d}</div>
             </div>
           ))}
         </div>
@@ -234,9 +234,9 @@ export default function Dashboard(props: Props) {
   if (appState === 'loading') {
     return (
       <div className="h-full flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-2 border-zinc-700 border-t-[#1a3a8f] rounded-full spin mb-5" />
-        <div className="text-sm font-semibold text-white mb-1">{loadingMsg}</div>
-        <div className="text-xs text-zinc-600">Pulling live data · Running deal analysis</div>
+        <div className="w-12 h-12 border-2 border-slate-200 border-t-[#0a1f4d] rounded-full spin mb-5" />
+        <div className="text-sm font-semibold text-[#0a1f4d] mb-1">{loadingMsg}</div>
+        <div className="text-xs text-slate-500">Pulling live data · Running deal analysis</div>
       </div>
     )
   }
