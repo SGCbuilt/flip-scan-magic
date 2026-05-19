@@ -321,7 +321,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
       {/* ── SEARCH BUTTON ── */}
       <div className="p-4 border-t border-slate-200 bg-white flex-shrink-0">
         <button onClick={onSearch} disabled={loading}
-          className="w-full bg-gold-500 hover:bg-gold-400 active:bg-gold-500 disabled:bg-blue-900 disabled:text-slate-500 text-blue-950 font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
+          className="w-full bg-gradient-to-b from-gold-400 to-gold-600 hover:from-gold-300 hover:to-gold-500 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-500 text-[#0a1f4d] font-bold text-xs tracking-widest uppercase py-3 rounded-md shadow-sm ring-1 ring-gold-700/30 transition-all cursor-pointer flex items-center justify-center gap-2">
           {loading
             ? <><span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-zinc-900 rounded-full spin inline-block" /> Scanning {activeSourceCount} sources...</>
             : `⬡ Scan ${params.searchMode === 'state' ? 'Statewide' : `${params.radius}mi`} · ${activeSourceCount} Sources`}
