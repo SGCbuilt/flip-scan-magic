@@ -16,15 +16,17 @@
  * dataType param: "Sale" | "Rental" | "All"
  */
 
-const KEY = 'a03153e34276e4d75b0548add458816de'
-const BASE = 'https://api.rentcast.io/v1'
-const H = { 'X-Api-Key': KEY }
+import { supabase } from '@/integrations/supabase/client'
 
 async function get(path: string, params: Record<string, string>): Promise<any> {
-  const qs = new URLSearchParams(params)
-  const res = await fetch(`${BASE}${path}?${qs}`, { headers: H })
-  if (!res.ok) throw new Error(`RentCast ${res.status}`)
-  return res.json()
+  const { data, error } = await supabase.functions.invoke('rentcast', {
+    body: { path, params },
+  })
+  if (error) throw new Error(`RentCast [${path}]: ${error.message}`)
+  if (data && typeof data === 'object' && 'error' in data && data.error) {
+    throw new Error(`RentCast [${path}]: ${data.error}`)
+  }
+  return data
 }
 
 export interface HistoricalPoint {
