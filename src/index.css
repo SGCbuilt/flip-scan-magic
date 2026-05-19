@@ -11,6 +11,64 @@ body {
   margin: 0;
 }
 
+/* ───────────────────────── DARK MODE OVERRIDES ─────────────────────────
+   The app was originally built with hardcoded light surfaces. Instead of
+   refactoring every component, we re-map the most common Tailwind utility
+   classes when the root <html> has the `dark` class. The header stays
+   navy in both themes (already high-contrast with gold/white).
+   ──────────────────────────────────────────────────────────────────── */
+
+:root { color-scheme: light; }
+html.dark { color-scheme: dark; }
+
+/* Surfaces */
+html.dark .bg-white            { background-color: #0f1115 !important; }
+html.dark .bg-slate-50         { background-color: #131722 !important; }
+html.dark .bg-slate-100        { background-color: #1a1f2e !important; }
+html.dark .bg-slate-200        { background-color: #1f2433 !important; }
+html.dark .bg-gray-50          { background-color: #131722 !important; }
+html.dark .bg-gray-100         { background-color: #1a1f2e !important; }
+
+/* Borders */
+html.dark .border-slate-100    { border-color: #1f2433 !important; }
+html.dark .border-slate-200    { border-color: #262c3d !important; }
+html.dark .border-slate-300    { border-color: #2e3548 !important; }
+html.dark .border-gray-200     { border-color: #262c3d !important; }
+html.dark .border-gray-300     { border-color: #2e3548 !important; }
+
+/* Text — keep strong contrast */
+html.dark .text-slate-900,
+html.dark .text-\[\#0a1f4d\]   { color: #f1f5f9 !important; }
+html.dark .text-slate-800      { color: #e2e8f0 !important; }
+html.dark .text-slate-700      { color: #cbd5e1 !important; }
+html.dark .text-slate-600      { color: #b4bccc !important; }
+html.dark .text-slate-500      { color: #98a2b8 !important; }
+html.dark .text-slate-400      { color: #8892a6 !important; }
+html.dark .placeholder\:text-slate-400::placeholder { color: #8892a6 !important; }
+html.dark .text-gray-900       { color: #f1f5f9 !important; }
+html.dark .text-gray-800       { color: #e2e8f0 !important; }
+html.dark .text-gray-700       { color: #cbd5e1 !important; }
+html.dark .text-gray-600       { color: #b4bccc !important; }
+html.dark .text-gray-500       { color: #98a2b8 !important; }
+
+/* Gold contrast tune — light text-gold-600/700 used on white surfaces
+   becomes hard to read on dark; lift it to gold-300/400. */
+html.dark .text-gold-600       { color: #e0c160 !important; }
+html.dark .text-gold-700       { color: #ecd88f !important; }
+
+/* Inputs / form controls keep readable dark surfaces */
+html.dark input.bg-white,
+html.dark select.bg-white,
+html.dark textarea.bg-white {
+  background-color: #161a24 !important;
+  color: #f1f5f9 !important;
+}
+
+/* Scrollbar in dark */
+html.dark ::-webkit-scrollbar-track { background: #0f1115; }
+html.dark ::-webkit-scrollbar-thumb { background: #2e3548; }
+html.dark ::-webkit-scrollbar-thumb:hover { background: #3f4762; }
+
 ::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: #18181b; }
 ::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
