@@ -11,7 +11,7 @@ interface Props {
 const FL = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1">{children}</div>
 )
-const ic = "w-full bg-white border border-slate-200 rounded text-slate-900 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-amber-500/60 transition-colors placeholder:text-slate-400"
+const ic = "w-full bg-white border border-slate-200 rounded text-slate-900 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-gold-500/60 transition-colors placeholder:text-slate-400"
 const sc = ic + " cursor-pointer"
 
 const PRESETS: Record<string, Partial<SearchParams>> = {
@@ -35,7 +35,7 @@ const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: stri
   { key: 'shortSales',        icon: '📉', label: 'Short Sales',       desc: 'Pre-foreclosure, below-market sales',    color: 'border-orange-500/40 text-orange-600' },
   { key: 'recentlyOffMarket', icon: '🔒', label: 'Off-Market Recent', desc: 'Delisted in last 90 days — motivated',   color: 'border-purple-500/40 text-purple-700' },
   { key: 'propertyRecords',   icon: '📋', label: 'Property Records',  desc: '140M records — find non-listed owners',  color: 'border-green-500/40 text-emerald-700' },
-  { key: 'corporateOwned',    icon: '🏢', label: 'Corporate Owned',   desc: 'Org-owned — often motivated sellers',    color: 'border-amber-500 text-amber-600' },
+  { key: 'corporateOwned',    icon: '🏢', label: 'Corporate Owned',   desc: 'Org-owned — often motivated sellers',    color: 'border-gold-500 text-gold-600' },
 ]
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
@@ -69,7 +69,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     <div className="border-t border-slate-200 pt-3 mt-3">
       <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
         <span>{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-amber-600 font-semibold flex-1">{title}</span>
+        <span className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold flex-1">{title}</span>
         <span className="text-slate-400 text-[10px]">{isOpen(id, def) ? '▾' : '▸'}</span>
       </button>
       {isOpen(id, def) && <div className="space-y-3">{children}</div>}
@@ -84,7 +84,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
 
         {/* ── PRESETS ── */}
         <div className="mb-1">
-          <div className="text-[10px] tracking-[2px] uppercase text-amber-600 font-semibold mb-2">⚡ Strategy</div>
+          <div className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold mb-2">⚡ Strategy</div>
           <div className="grid grid-cols-2 gap-1.5">
             {[
               { k: 'quickflip',  l: '⚡ Quick Flip'  },
@@ -104,7 +104,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         {/* ── DATA SOURCES ── */}
         <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
           <div className="flex justify-between mb-1">
-            <button onClick={() => toggleAll(true)}  className="text-[10px] text-amber-600 cursor-pointer bg-transparent border-none hover:text-amber-700">All On</button>
+            <button onClick={() => toggleAll(true)}  className="text-[10px] text-gold-600 cursor-pointer bg-transparent border-none hover:text-gold-700">All On</button>
             <button onClick={() => toggleAll(false)} className="text-[10px] text-slate-400 cursor-pointer bg-transparent border-none hover:text-slate-500">All Off</button>
           </div>
           <div className="space-y-1.5">
@@ -143,7 +143,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                 <button key={mode} onClick={() => onChange(prev => ({ ...prev, searchMode: mode, locationQuery: '' }))}
                   className={`py-1.5 rounded border text-[10px] uppercase tracking-wide cursor-pointer transition-all
                     ${params.searchMode === mode
-                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-600'
+                      ? 'bg-gold-500/20 border-gold-500/60 text-gold-600'
                       : 'bg-transparent border-slate-200 text-slate-400 hover:text-slate-500'}`}>
                   {mode}
                 </button>
@@ -166,7 +166,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <div>
               <div className="flex justify-between mb-1">
                 <FL>Radius</FL>
-                <span className={`text-[11px] font-bold ${params.radius >= 100 ? 'text-emerald-700' : 'text-amber-600'}`}>
+                <span className={`text-[11px] font-bold ${params.radius >= 100 ? 'text-emerald-700' : 'text-gold-600'}`}>
                   {params.radius >= 100 ? '100 mi MAX' : `${params.radius} mi`}
                 </span>
               </div>
@@ -175,13 +175,13 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                 {RADIUS_MARKS.map(m => (
                   <button key={m} onClick={() => onChange(prev => ({ ...prev, radius: m }))}
                     className={`text-[9px] px-1 py-0.5 rounded cursor-pointer transition-colors
-                      ${params.radius === m ? 'text-amber-600 bg-amber-500/10' : 'text-slate-400 hover:text-slate-500'}`}>
+                      ${params.radius === m ? 'text-gold-600 bg-gold-500/10' : 'text-slate-400 hover:text-slate-500'}`}>
                     {m}
                   </button>
                 ))}
               </div>
               {params.radius >= 75 && (
-                <div className="text-[10px] text-amber-700/80 mt-1.5 bg-amber-500/5 border border-amber-400/60 rounded px-2 py-1.5">
+                <div className="text-[10px] text-gold-700/80 mt-1.5 bg-gold-500/5 border border-gold-400/60 rounded px-2 py-1.5">
                   ⚠️ Large radius — expect many results & more API calls
                 </div>
               )}
@@ -237,14 +237,14 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
           <div>
             <div className="flex justify-between mb-1">
               <FL>Max DOM</FL>
-              <span className="text-amber-600 text-[10px]">{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
+              <span className="text-gold-600 text-[10px]">{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
             </div>
             <input type="range" className="w-full" min="0" max="365" step="5" value={params.daysOnMarketMax} onChange={set('daysOnMarketMax')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min DOM (motivated sellers)</FL>
-              <span className="text-amber-600 text-[10px]">{params.daysOnMarketMin === 0 ? 'Any' : `${params.daysOnMarketMin}d+`}</span>
+              <span className="text-gold-600 text-[10px]">{params.daysOnMarketMin === 0 ? 'Any' : `${params.daysOnMarketMin}d+`}</span>
             </div>
             <input type="range" className="w-full" min="0" max="180" step="5" value={params.daysOnMarketMin} onChange={set('daysOnMarketMin')} />
           </div>
@@ -259,21 +259,21 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Flip Score</FL>
-              <span className="text-amber-600 text-[10px] font-bold">{params.minFlipScore}</span>
+              <span className="text-gold-600 text-[10px] font-bold">{params.minFlipScore}</span>
             </div>
             <input type="range" className="w-full" min="0" max="100" value={params.minFlipScore} onChange={set('minFlipScore')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Net Profit</FL>
-              <span className="text-amber-600 text-[10px]">${(params.minProfit / 1000).toFixed(0)}K</span>
+              <span className="text-gold-600 text-[10px]">${(params.minProfit / 1000).toFixed(0)}K</span>
             </div>
             <input type="range" className="w-full" min="0" max="150000" step="2500" value={params.minProfit} onChange={set('minProfit')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min ROI %</FL>
-              <span className="text-amber-600 text-[10px]">{params.minROI}%</span>
+              <span className="text-gold-600 text-[10px]">{params.minROI}%</span>
             </div>
             <input type="range" className="w-full" min="0" max="60" step="1" value={params.minROI} onChange={set('minROI')} />
           </div>
@@ -321,7 +321,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
       {/* ── SEARCH BUTTON ── */}
       <div className="p-4 border-t border-slate-200 bg-white flex-shrink-0">
         <button onClick={onSearch} disabled={loading}
-          className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-500 disabled:bg-blue-900 disabled:text-slate-500 text-blue-950 font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
+          className="w-full bg-gold-500 hover:bg-gold-400 active:bg-gold-500 disabled:bg-blue-900 disabled:text-slate-500 text-blue-950 font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
           {loading
             ? <><span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-zinc-900 rounded-full spin inline-block" /> Scanning {activeSourceCount} sources...</>
             : `⬡ Scan ${params.searchMode === 'state' ? 'Statewide' : `${params.radius}mi`} · ${activeSourceCount} Sources`}

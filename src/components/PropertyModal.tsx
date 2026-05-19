@@ -112,7 +112,7 @@ function CalcTab({ p }: { p: AnalyzedProperty }) {
         <Row label="Closing Costs (buy)" value={`-${fmt$(closingBuy)}`} cls="text-red-600" />
         <Row label="Total Investment" value={fmt$(totalIn)} />
         <Row label="Commission + Closing (sell)" value={`-${fmt$(sellComm + closingS)}`} cls="text-red-600" />
-        <Row label="70% Rule Max Offer" value={fmt$(momsMax)} cls="text-amber-600" />
+        <Row label="70% Rule Max Offer" value={fmt$(momsMax)} cls="text-gold-600" />
         <Row
           label="vs 70% Rule"
           value={purchase <= momsMax ? `✓ Under by ${fmt$(momsMax - purchase)}` : `✗ Over by ${fmt$(purchase - momsMax)}`}
@@ -168,7 +168,7 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
       <div className="grid grid-cols-3 gap-3 mb-4">
         <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
           <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-1">Avg Sale</div>
-          <div className="text-base font-bold text-amber-600">{fmt$(avgSale)}</div>
+          <div className="text-base font-bold text-gold-600">{fmt$(avgSale)}</div>
         </div>
         <div className="bg-white border border-slate-200 rounded-xl p-3 text-center">
           <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-1">Subject Price</div>
@@ -196,7 +196,7 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
               return (
                 <tr key={i} className="border-b border-slate-200/70 last:border-0 hover:bg-slate-50">
                   <td className="py-2 px-3 pl-4 text-slate-500 max-w-[200px] truncate">{c.formattedAddress || c.addressLine1}</td>
-                  <td className="py-2 px-3 text-amber-600 font-semibold">{fmt$(c.price)}</td>
+                  <td className="py-2 px-3 text-gold-600 font-semibold">{fmt$(c.price)}</td>
                   <td className="py-2 px-3 text-slate-500">{c.bedrooms || '?'}/{c.bathrooms || '?'}</td>
                   <td className="py-2 px-3 text-slate-500">{c.squareFootage?.toLocaleString() || '—'}</td>
                   <td className="py-2 px-3 text-slate-500">{psf ? fmt$(psf) : '—'}</td>
@@ -323,7 +323,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
               </div>
               <div className="flex items-center gap-3 flex-shrink-0">
                 <div className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center
-                  ${p.flipScore >= 80 ? 'border-emerald-500' : p.flipScore >= 65 ? 'border-amber-500' : 'border-slate-300'}`}>
+                  ${p.flipScore >= 80 ? 'border-emerald-500' : p.flipScore >= 65 ? 'border-gold-500' : 'border-slate-300'}`}>
                   <span className={`text-lg font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
                   <span className={`text-[9px] font-bold ${p.scoreClass}`}>{p.scoreGrade}</span>
                 </div>
@@ -335,7 +335,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
             <div className="grid grid-cols-5 gap-2 mt-3">
               {[
                 { l: 'List Price', v: fmt$(p.price), c: 'text-slate-800' },
-                { l: 'Est ARV', v: fmt$(p.arv), c: 'text-amber-600' },
+                { l: 'Est ARV', v: fmt$(p.arv), c: 'text-gold-600' },
                 { l: 'Net Profit', v: fmt$(p.profit), c: p.profit >= 0 ? 'text-emerald-700' : 'text-red-600' },
                 { l: 'ROI', v: p.roi.toFixed(1)+'%', c: p.roi >= 0 ? 'text-emerald-700' : 'text-red-600' },
                 { l: 'Rehab Est', v: fmt$(p.rehabCost), c: 'text-orange-600' },
@@ -387,7 +387,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
                     { label: '70% Rule Score',  score: p.scoreBreakdown.rule70, color: 'bg-[#1a3a8f]',  weight: '28%' },
                     { label: 'Profit Score',    score: p.scoreBreakdown.profit, color: 'bg-teal-500',    weight: '15%' },
                     { label: 'DOM Score',       score: p.scoreBreakdown.dom,    color: 'bg-violet-500',  weight: '15%' },
-                    { label: 'Equity Score',    score: p.scoreBreakdown.equity, color: 'bg-amber-500',   weight: '12%' },
+                    { label: 'Equity Score',    score: p.scoreBreakdown.equity, color: 'bg-gold-500',   weight: '12%' },
                   ].map(b => (
                     <div key={b.label} className="flex items-center gap-3">
                       <div className="text-xs text-slate-500 w-36 flex-shrink-0">{b.label}</div>
@@ -417,7 +417,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
               <Section title="Market Scenarios">
                 <div className="px-4 py-2">
                   <Row label="Conservative ARV (−10%)" value={fmt$(p.arvConservative)} cls="text-orange-600" />
-                  <Row label="Base ARV (market rate)" value={fmt$(p.arv)} cls="text-amber-600" />
+                  <Row label="Base ARV (market rate)" value={fmt$(p.arv)} cls="text-gold-600" />
                   <Row label="Aggressive ARV (+12%)" value={fmt$(p.arvAggressive)} cls="text-emerald-700" />
                 </div>
               </Section>
@@ -435,7 +435,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
                   <Row label={`Holding Costs (${p.holdMonths}mo)`} value={`− ${fmt$(p.holdingCost)}`} cls="text-red-600" />
                   <div className="border-t border-slate-300 my-1.5" />
                   <Row label="Total Invested" value={fmt$(p.totalInvested)} />
-                  <Row label="Est ARV" value={fmt$(p.arv)} cls="text-amber-600" />
+                  <Row label="Est ARV" value={fmt$(p.arv)} cls="text-gold-600" />
                   <Row label="Agent Commission (6%)" value={`− ${fmt$(p.sellingComm)}`} cls="text-red-600" />
                   <Row label="Closing Costs (sell)" value={`− ${fmt$(p.closingSell)}`} cls="text-red-600" />
                   <div className="border-t border-slate-300 my-1.5" />
@@ -455,11 +455,11 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
               <Section title="70% Rule">
                 <div className="px-4 py-2">
-                  <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} cls="text-amber-600" />
+                  <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} cls="text-gold-600" />
                   <Row label="List Price" value={fmt$(p.price)} />
                   <Row label="Spread vs Max" value={`${fmt$(Math.abs(p.momsRule - p.price))} ${p.underMoms ? '✓ under' : '✗ over'}`} cls={p.underMoms ? 'text-emerald-700' : 'text-red-600'} />
                   <Row label="Equity Gap" value={`${p.equityPct.toFixed(1)}%`} />
-                  <Row label="ARV Spread" value={fmt$(p.spread)} cls="text-amber-600" />
+                  <Row label="ARV Spread" value={fmt$(p.spread)} cls="text-gold-600" />
                 </div>
               </Section>
 
