@@ -9,9 +9,9 @@ interface Props {
 }
 
 const FL = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[10px] tracking-widest uppercase text-zinc-500 mb-1">{children}</div>
+  <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1">{children}</div>
 )
-const ic = "w-full bg-zinc-950 border border-zinc-800 rounded text-zinc-100 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-amber-500/60 transition-colors placeholder:text-zinc-700"
+const ic = "w-full bg-[#0a1f4d] border border-[#0a1f4d] rounded text-gold-400 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-gold-500 transition-colors placeholder:text-gold-400/50"
 const sc = ic + " cursor-pointer"
 
 const PRESETS: Record<string, Partial<SearchParams>> = {
@@ -30,15 +30,34 @@ const MODE_INFO: Record<SearchMode, { placeholder: string; hint: string }> = {
 }
 
 const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: string; color: string }[] = [
-  { key: 'activeMLS',         icon: '🏠', label: 'Active MLS',        desc: 'Listed on MLS — standard listings',      color: 'border-blue-500/40 text-blue-400' },
-  { key: 'foreclosures',      icon: '🔨', label: 'Foreclosures',      desc: 'Bank-owned REO & court-ordered sales',   color: 'border-red-500/40 text-red-400' },
-  { key: 'shortSales',        icon: '📉', label: 'Short Sales',       desc: 'Pre-foreclosure, below-market sales',    color: 'border-orange-500/40 text-orange-400' },
-  { key: 'recentlyOffMarket', icon: '🔒', label: 'Off-Market Recent', desc: 'Delisted in last 90 days — motivated',   color: 'border-purple-500/40 text-purple-400' },
-  { key: 'propertyRecords',   icon: '📋', label: 'Property Records',  desc: '140M records — find non-listed owners',  color: 'border-green-500/40 text-green-400' },
-  { key: 'corporateOwned',    icon: '🏢', label: 'Corporate Owned',   desc: 'Org-owned — often motivated sellers',    color: 'border-amber-500/40 text-amber-400' },
+  { key: 'activeMLS',         icon: '🏠', label: 'Active MLS',        desc: 'Listed on MLS — standard listings',      color: 'border-blue-500/40 text-blue-700' },
+  { key: 'foreclosures',      icon: '🔨', label: 'Foreclosures',      desc: 'Bank-owned REO & court-ordered sales',   color: 'border-red-500/40 text-red-600' },
+  { key: 'shortSales',        icon: '📉', label: 'Short Sales',       desc: 'Pre-foreclosure, below-market sales',    color: 'border-orange-500/40 text-orange-600' },
+  { key: 'recentlyOffMarket', icon: '🔒', label: 'Off-Market Recent', desc: 'Delisted in last 90 days — motivated',   color: 'border-purple-500/40 text-purple-700' },
+  { key: 'propertyRecords',   icon: '📋', label: 'Property Records',  desc: '140M records — find non-listed owners',  color: 'border-green-500/40 text-emerald-700' },
+  { key: 'corporateOwned',    icon: '🏢', label: 'Corporate Owned',   desc: 'Org-owned — often motivated sellers',    color: 'border-gold-500 text-gold-600' },
 ]
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
+
+interface SectionProps {
+  id: string
+  icon: string
+  title: string
+  open: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+}
+const Section = ({ id, icon, title, open, onToggle, children }: SectionProps) => (
+  <div className="border-t border-slate-200 pt-3 mt-3">
+    <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span>{icon}</span>
+      <span className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold flex-1">{title}</span>
+      <span className="text-slate-400 text-[10px]">{open ? '▾' : '▸'}</span>
+    </button>
+    {open && <div className="space-y-3">{children}</div>}
+  </div>
+)
 
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
@@ -65,26 +84,15 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
 
   const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
 
-  const Section = ({ id, icon, title, def = true, children }: { id: string; icon: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t border-zinc-800/60 pt-3 mt-3">
-      <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span>{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold flex-1">{title}</span>
-        <span className="text-zinc-600 text-[10px]">{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-3">{children}</div>}
-    </div>
-  )
-
   const activeSourceCount = Object.values(params.sources).filter(Boolean).length
 
   return (
-    <div className="w-[300px] flex-shrink-0 bg-zinc-900 border-r border-zinc-800 h-full flex flex-col">
+    <div className="w-[300px] flex-shrink-0 bg-white border-r border-slate-200 h-full flex flex-col">
       <div className="p-4 flex-1 overflow-y-auto min-h-0">
 
         {/* ── PRESETS ── */}
         <div className="mb-1">
-          <div className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold mb-2">⚡ Strategy</div>
+          <div className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold mb-2">⚡ Strategy</div>
           <div className="grid grid-cols-2 gap-1.5">
             {[
               { k: 'quickflip',  l: '⚡ Quick Flip'  },
@@ -94,7 +102,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               { k: 'distressed', l: '🏚️ Distressed'  },
             ].map(({ k, l }) => (
               <button key={k} onClick={() => applyPreset(k)}
-                className="text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 bg-transparent">
+                className="text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 bg-transparent">
                 {l}
               </button>
             ))}
@@ -102,40 +110,40 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* ── DATA SOURCES ── */}
-        <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
+        <Section open={isOpen("src")} onToggle={toggle} id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`}>
           <div className="flex justify-between mb-1">
-            <button onClick={() => toggleAll(true)}  className="text-[10px] text-amber-400 cursor-pointer bg-transparent border-none hover:text-amber-300">All On</button>
-            <button onClick={() => toggleAll(false)} className="text-[10px] text-zinc-600 cursor-pointer bg-transparent border-none hover:text-zinc-400">All Off</button>
+            <button onClick={() => toggleAll(true)}  className="text-[10px] text-gold-600 cursor-pointer bg-transparent border-none hover:text-gold-700">All On</button>
+            <button onClick={() => toggleAll(false)} className="text-[10px] text-slate-400 cursor-pointer bg-transparent border-none hover:text-slate-500">All Off</button>
           </div>
           <div className="space-y-1.5">
             {SOURCES.map(s => (
               <label key={s.key} className={`flex items-start gap-2.5 p-2 rounded border cursor-pointer transition-all
                 ${params.sources[s.key]
                   ? `${s.color} bg-opacity-10`
-                  : 'border-zinc-800 text-zinc-600'}`}>
+                  : 'border-slate-200 text-slate-400'}`}>
                 <input
                   type="checkbox"
                   checked={params.sources[s.key]}
                   onChange={e => setSource(s.key, e.target.checked)}
-                  className="accent-amber-500 mt-0.5 flex-shrink-0"
+                  className="accent-blue-900 mt-0.5 flex-shrink-0"
                 />
                 <div className="min-w-0">
                   <div className="text-[11px] font-medium flex items-center gap-1">
                     <span>{s.icon}</span>
-                    <span className={params.sources[s.key] ? '' : 'text-zinc-500'}>{s.label}</span>
+                    <span className={params.sources[s.key] ? '' : 'text-slate-500'}>{s.label}</span>
                   </div>
-                  <div className="text-[9px] text-zinc-600 leading-relaxed">{s.desc}</div>
+                  <div className="text-[9px] text-slate-400 leading-relaxed">{s.desc}</div>
                 </div>
               </label>
             ))}
           </div>
-          <div className="text-[10px] text-zinc-700 bg-zinc-800/40 rounded p-2 mt-1 leading-relaxed">
+          <div className="text-[10px] text-slate-400 bg-slate-100/50 rounded p-2 mt-1 leading-relaxed">
             💡 More sources = more deals found. Each source uses separate API calls.
           </div>
         </Section>
 
         {/* ── LOCATION ── */}
-        <Section id="loc" icon="📍" title="Location" def={true}>
+        <Section open={isOpen("loc")} onToggle={toggle} id="loc" icon="📍" title="Location">
           <div>
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -143,13 +151,13 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                 <button key={mode} onClick={() => onChange({ ...params, searchMode: mode, locationQuery: '' })}
                   className={`py-1.5 rounded border text-[10px] uppercase tracking-wide cursor-pointer transition-all
                     ${params.searchMode === mode
-                      ? 'bg-amber-500/20 border-amber-500/60 text-amber-400'
-                      : 'bg-transparent border-zinc-800 text-zinc-600 hover:text-zinc-400'}`}>
+                      ? 'bg-gold-500/20 border-gold-500/60 text-gold-600'
+                      : 'bg-transparent border-slate-200 text-slate-400 hover:text-slate-500'}`}>
                   {mode}
                 </button>
               ))}
             </div>
-            <div className="text-[10px] text-zinc-600 bg-zinc-800/50 rounded px-2 py-1.5 mb-2 leading-relaxed">
+            <div className="text-[10px] text-slate-400 bg-slate-100/70 rounded px-2 py-1.5 mb-2 leading-relaxed">
               {MODE_INFO[params.searchMode].hint}
             </div>
             <input
@@ -166,7 +174,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <div>
               <div className="flex justify-between mb-1">
                 <FL>Radius</FL>
-                <span className={`text-[11px] font-bold ${params.radius >= 100 ? 'text-green-400' : 'text-amber-400'}`}>
+                <span className={`text-[11px] font-bold ${params.radius >= 100 ? 'text-emerald-700' : 'text-gold-600'}`}>
                   {params.radius >= 100 ? '100 mi MAX' : `${params.radius} mi`}
                 </span>
               </div>
@@ -175,13 +183,13 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                 {RADIUS_MARKS.map(m => (
                   <button key={m} onClick={() => onChange({ ...params, radius: m })}
                     className={`text-[9px] px-1 py-0.5 rounded cursor-pointer transition-colors
-                      ${params.radius === m ? 'text-amber-400 bg-amber-500/10' : 'text-zinc-700 hover:text-zinc-500'}`}>
+                      ${params.radius === m ? 'text-gold-600 bg-gold-500/10' : 'text-slate-400 hover:text-slate-500'}`}>
                     {m}
                   </button>
                 ))}
               </div>
               {params.radius >= 75 && (
-                <div className="text-[10px] text-amber-400/70 mt-1.5 bg-amber-500/5 border border-amber-500/20 rounded px-2 py-1.5">
+                <div className="text-[10px] text-gold-700/80 mt-1.5 bg-gold-500/5 border border-gold-400/60 rounded px-2 py-1.5">
                   ⚠️ Large radius — expect many results & more API calls
                 </div>
               )}
@@ -190,7 +198,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── PROPERTY ── */}
-        <Section id="prop" icon="🏠" title="Property Filters" def={true}>
+        <Section open={isOpen("prop")} onToggle={toggle} id="prop" icon="🏠" title="Property Filters">
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -233,47 +241,47 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── MARKET SIGNALS ── */}
-        <Section id="mkt" icon="📡" title="Market Signals" def={true}>
+        <Section open={isOpen("mkt")} onToggle={toggle} id="mkt" icon="📡" title="Market Signals">
           <div>
             <div className="flex justify-between mb-1">
               <FL>Max DOM</FL>
-              <span className="text-amber-400 text-[10px]">{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
+              <span className="text-gold-600 text-[10px]">{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
             </div>
             <input type="range" className="w-full" min="0" max="365" step="5" value={params.daysOnMarketMax} onChange={set('daysOnMarketMax')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min DOM (motivated sellers)</FL>
-              <span className="text-amber-400 text-[10px]">{params.daysOnMarketMin === 0 ? 'Any' : `${params.daysOnMarketMin}d+`}</span>
+              <span className="text-gold-600 text-[10px]">{params.daysOnMarketMin === 0 ? 'Any' : `${params.daysOnMarketMin}d+`}</span>
             </div>
             <input type="range" className="w-full" min="0" max="180" step="5" value={params.daysOnMarketMin} onChange={set('daysOnMarketMin')} />
           </div>
           <label className="flex items-center gap-2 cursor-pointer select-none">
-            <input type="checkbox" checked={params.priceReduced} onChange={set('priceReduced')} className="accent-amber-500 w-3.5 h-3.5" />
-            <span className="text-[11px] text-zinc-400">Price-reduced only</span>
+            <input type="checkbox" checked={params.priceReduced} onChange={set('priceReduced')} className="accent-blue-900 w-3.5 h-3.5" />
+            <span className="text-[11px] text-slate-500">Price-reduced only</span>
           </label>
         </Section>
 
         {/* ── FLIP FILTERS ── */}
-        <Section id="flip" icon="🎯" title="Flip Filters" def={true}>
+        <Section open={isOpen("flip")} onToggle={toggle} id="flip" icon="🎯" title="Flip Filters">
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Flip Score</FL>
-              <span className="text-amber-400 text-[10px] font-bold">{params.minFlipScore}</span>
+              <span className="text-gold-600 text-[10px] font-bold">{params.minFlipScore}</span>
             </div>
             <input type="range" className="w-full" min="0" max="100" value={params.minFlipScore} onChange={set('minFlipScore')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Net Profit</FL>
-              <span className="text-amber-400 text-[10px]">${(params.minProfit / 1000).toFixed(0)}K</span>
+              <span className="text-gold-600 text-[10px]">${(params.minProfit / 1000).toFixed(0)}K</span>
             </div>
             <input type="range" className="w-full" min="0" max="150000" step="2500" value={params.minProfit} onChange={set('minProfit')} />
           </div>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min ROI %</FL>
-              <span className="text-amber-400 text-[10px]">{params.minROI}%</span>
+              <span className="text-gold-600 text-[10px]">{params.minROI}%</span>
             </div>
             <input type="range" className="w-full" min="0" max="60" step="1" value={params.minROI} onChange={set('minROI')} />
           </div>
@@ -288,7 +296,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DEAL MATH ── */}
-        <Section id="deal" icon="🔢" title="Deal Math" def={false}>
+        <Section open={isOpen("deal", false)} onToggle={toggle} id="deal" icon="🔢" title="Deal Math">
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
@@ -319,14 +327,14 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
       </div>
 
       {/* ── SEARCH BUTTON ── */}
-      <div className="p-4 border-t border-zinc-800 bg-zinc-900 flex-shrink-0">
+      <div className="p-4 border-t border-slate-200 bg-white flex-shrink-0">
         <button onClick={onSearch} disabled={loading}
-          className="w-full bg-amber-500 hover:bg-amber-400 active:bg-amber-600 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
+          className="w-full bg-gradient-to-b from-gold-400 to-gold-600 hover:from-gold-300 hover:to-gold-500 disabled:from-slate-200 disabled:to-slate-300 disabled:text-slate-500 text-[#0a1f4d] font-bold text-xs tracking-widest uppercase py-3 rounded-md shadow-sm ring-1 ring-gold-700/30 transition-all cursor-pointer flex items-center justify-center gap-2">
           {loading
-            ? <><span className="w-3.5 h-3.5 border-2 border-zinc-600 border-t-zinc-900 rounded-full spin inline-block" /> Scanning {activeSourceCount} sources...</>
+            ? <><span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-zinc-900 rounded-full spin inline-block" /> Scanning {activeSourceCount} sources...</>
             : `⬡ Scan ${params.searchMode === 'state' ? 'Statewide' : `${params.radius}mi`} · ${activeSourceCount} Sources`}
         </button>
-        <div className="text-[10px] text-zinc-700 text-center mt-1.5">↵ Enter in location field to search</div>
+        <div className="text-[10px] text-slate-400 text-center mt-1.5">↵ Enter in location field to search</div>
       </div>
     </div>
   )
