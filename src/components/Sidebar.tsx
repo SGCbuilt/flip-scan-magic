@@ -45,7 +45,6 @@ const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
 const cleanStateInput = (value: string) => value.replace(/[^a-z]/gi, '').toUpperCase().slice(-2)
 const cleanZipInput = (value: string) => value.replace(/\D/g, '').slice(-5)
-const selectOnFocus = (e: React.FocusEvent<HTMLInputElement>) => e.currentTarget.select()
 
 const splitCityState = (q: string): { city: string; state: string } => {
   const value = q || ''
@@ -192,7 +191,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                   <input className={ic} type="text" autoComplete="address-level2"
                     value={splitCityState(params.locationQuery).city}
                     onChange={e => setCity(e.target.value)}
-                    onFocus={selectOnFocus}
                     placeholder="Norfolk"
                     onKeyDown={e => e.key === 'Enter' && onSearch()} />
                 </div>
@@ -201,7 +199,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                   <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
                     value={splitCityState(params.locationQuery).state}
                     onChange={e => setStatePart(e.target.value)}
-                    onFocus={selectOnFocus}
                     placeholder="VA"
                     onKeyDown={e => e.key === 'Enter' && onSearch()} />
                 </div>
@@ -210,14 +207,12 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
                 value={params.locationQuery}
                 onChange={e => onChange({ ...params, locationQuery: cleanStateInput(e.target.value) })}
-                onFocus={selectOnFocus}
                 placeholder="VA"
                 onKeyDown={e => e.key === 'Enter' && onSearch()} />
             ) : params.searchMode === 'zip' ? (
               <input className={ic} type="text" inputMode="numeric" autoComplete="postal-code"
                 value={params.locationQuery}
                 onChange={e => onChange({ ...params, locationQuery: cleanZipInput(e.target.value) })}
-                onFocus={selectOnFocus}
                 placeholder="23501"
                 onKeyDown={e => e.key === 'Enter' && onSearch()} />
             ) : (
