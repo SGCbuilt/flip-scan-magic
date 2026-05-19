@@ -31,6 +31,24 @@ const PRESETS: Record<string, Partial<SearchParams>> = {
   distressed: { rehabLevel: 'gut', daysOnMarketMin: 60, maxYearBuilt: 1980, minROI: 18, strategy: 'all', arvMethod: 'conservative' },
 }
 
+const CollapsibleSection = ({
+  id, icon, title, collapsed, onToggle, children,
+}: {
+  id: string; icon: string; title: string;
+  collapsed: boolean; onToggle: (id: string) => void;
+  children: React.ReactNode;
+}) => (
+  <div className="mb-1">
+    <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2 mt-4 cursor-pointer bg-transparent border-none text-left">
+      <span className="text-sm">{icon}</span>
+      <span className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold">{title}</span>
+      <div className="flex-1 h-px bg-amber-500/20" />
+      <span className="text-zinc-600 text-xs">{collapsed ? '▸' : '▾'}</span>
+    </button>
+    {!collapsed && <div className="space-y-3">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({})
 
@@ -47,18 +65,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const applyPreset = (key: string) => {
     onChange({ ...params, ...PRESETS[key] })
   }
-
-  const CollapsibleSection = ({ id, icon, title, children }: { id: string; icon: string; title: string; children: React.ReactNode }) => (
-    <div className="mb-1">
-      <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2 mt-4 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-sm">{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-amber-400 font-semibold">{title}</span>
-        <div className="flex-1 h-px bg-amber-500/20" />
-        <span className="text-zinc-600 text-xs">{collapsed[id] ? '▸' : '▾'}</span>
-      </button>
-      {!collapsed[id] && <div className="space-y-3">{children}</div>}
-    </div>
-  )
 
   return (
     <div className="w-[300px] flex-shrink-0 bg-zinc-900 border-r border-zinc-800 overflow-y-auto h-full flex flex-col">
