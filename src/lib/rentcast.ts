@@ -15,9 +15,7 @@
  * - limit max = 500
  */
 
-const KEY = 'a03153e34276e4d75b0548add458816de'
-const BASE = 'https://api.rentcast.io/v1'
-const H = { 'X-Api-Key': KEY, 'Content-Type': 'application/json' }
+import { supabase } from '@/integrations/supabase/client'
 
 // ── State name → 2-letter abbrev ──────────────────────────────────────────
 const STATES: Record<string, string> = {
@@ -81,16 +79,17 @@ export function buildLocationParams(
   return p
 }
 
-// ── Generic GET helper ─────────────────────────────────────────────────────
+// ── Generic GET helper — routes through the rentcast edge function so the
+//    API key stays server-side and CORS works in the browser. ─────────────
 async function get(path: string, params: Record<string, string>): Promise<any> {
-  const qs = new URLSearchParams(params)
-  const url = `${BASE}${path}?${qs}`
-  const res = await fetch(url, { headers: H })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`RentCast ${res.status} [${path}]: ${body.slice(0, 200)}`)
+  const { data, error } = await supabase.functions.invoke('rentcast', {
+    body: { path, params },
+  })
+  if (error) throw new Error(`RentCast [${path}]: ${error.message}`)
+  if (data && typeof data === 'object' && 'error' in data && data.error) {
+    throw new Error(`RentCast [${path}]: ${data.error}`)
   }
-  return res.json()
+  return data
 }
 
 // ── Build common filter params ────────────────────────────────────────────
