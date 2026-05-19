@@ -3,6 +3,7 @@ import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
 import { getAIAnalysis, generateQuickInsight } from '../lib/aiAnalysis'
+import { fetchRentEstimate } from '../lib/market'
 
 interface Props {
   property: AnalyzedProperty
@@ -13,16 +14,16 @@ interface Props {
 type ModalTab = 'overview' | 'deal' | 'calculator' | 'comps' | 'ai'
 
 const Row = ({ label, value, cls = '' }: { label: string; value: string; cls?: string }) => (
-  <div className="flex justify-between items-center py-2 border-b border-zinc-800/60 last:border-0 text-sm">
-    <span className="text-zinc-500 text-xs">{label}</span>
-    <span className={`font-semibold text-xs ${cls || 'text-zinc-200'}`}>{value}</span>
+  <div className="flex justify-between items-center py-2 border-b border-[var(--sgc-gray-border)]/60 last:border-0 text-sm">
+    <span className="text-[var(--sgc-gray-mid)] text-xs">{label}</span>
+    <span className={`font-semibold text-xs ${cls || 'text-[var(--sgc-black)]'}`}>{value}</span>
   </div>
 )
 
 const Section = ({ title, children }: { title: string; children: React.ReactNode }) => (
   <div className="mb-5">
-    <div className="text-[10px] tracking-[2px] uppercase text-[#4a6fd8] font-semibold mb-2">{title}</div>
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">{children}</div>
+    <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] font-semibold mb-2">{title}</div>
+    <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl overflow-hidden">{children}</div>
   </div>
 )
 
@@ -52,13 +53,13 @@ function CalcTab({ p }: { p: AnalyzedProperty }) {
   const momsMax = arv * 0.70 - rehab
   const profitPct = arv > 0 ? Math.max(0, (profit / arv) * 100) : 0
 
-  const ic = "w-full bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-100 font-mono text-xs px-3 py-2 outline-none focus:border-[#1a3a8f]/60 transition-colors"
+  const ic = "w-full bg-[var(--sgc-gray-border)] border border-[var(--sgc-gray-border)] rounded-lg text-[var(--sgc-black)] font-mono text-xs px-3 py-2 outline-none focus:border-[var(--sgc-navy)]/60 transition-colors"
 
   return (
     <div>
       <div className="grid grid-cols-2 gap-4 mb-5">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="text-[10px] tracking-[2px] uppercase text-[#4a6fd8] mb-3">Acquisition</div>
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-4">
+          <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] mb-3">Acquisition</div>
           <div className="space-y-2">
             {[
               { label: 'Purchase Price', val: purchase, set: setPurchase },
@@ -67,14 +68,14 @@ function CalcTab({ p }: { p: AnalyzedProperty }) {
               { label: 'Closing Costs Buy %', val: closeBuy, set: setCloseBuy },
             ].map(f => (
               <div key={f.label}>
-                <div className="text-[10px] text-zinc-600 mb-1">{f.label}</div>
+                <div className="text-[10px] text-[var(--sgc-gray-mid)] mb-1">{f.label}</div>
                 <input className={ic} type="number" value={f.val} onChange={e => f.set(parseFloat(e.target.value) || 0)} />
               </div>
             ))}
           </div>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="text-[10px] tracking-[2px] uppercase text-[#4a6fd8] mb-3">Exit & Hold</div>
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-4">
+          <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] mb-3">Exit & Hold</div>
           <div className="space-y-2">
             {[
               { label: 'After Repair Value', val: arv, set: setArv },
@@ -84,7 +85,7 @@ function CalcTab({ p }: { p: AnalyzedProperty }) {
               { label: 'Closing Costs Sell %', val: closeSell, set: setCloseSell },
             ].map(f => (
               <div key={f.label}>
-                <div className="text-[10px] text-zinc-600 mb-1">{f.label}</div>
+                <div className="text-[10px] text-[var(--sgc-gray-mid)] mb-1">{f.label}</div>
                 <input className={ic} type="number" step="0.5" value={f.val} onChange={e => f.set(parseFloat(e.target.value) || 0)} />
               </div>
             ))}
@@ -93,37 +94,37 @@ function CalcTab({ p }: { p: AnalyzedProperty }) {
       </div>
 
       {/* Results */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 mb-4">
-        <div className="text-[10px] tracking-[2px] uppercase text-[#4a6fd8] mb-3">Deal Results</div>
+      <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-4 mb-4">
+        <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] mb-3">Deal Results</div>
         <div className="grid grid-cols-4 gap-3 mb-4">
           {[
-            { l: 'Net Profit',     v: fmt$(profit),         c: profit >= 0 ? 'text-emerald-400' : 'text-red-400' },
-            { l: 'Total ROI',      v: roi.toFixed(2) + '%', c: roi >= 0 ? 'text-emerald-400' : 'text-red-400' },
-            { l: 'Annualized ROI', v: annRoi.toFixed(2)+'%', c: 'text-[#7a9fe8]' },
-            { l: 'Cash Required',  v: fmt$(totalCash),       c: 'text-zinc-300' },
+            { l: 'Net Profit',     v: fmt$(profit),         c: profit >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]' },
+            { l: 'Total ROI',      v: roi.toFixed(2) + '%', c: roi >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]' },
+            { l: 'Annualized ROI', v: annRoi.toFixed(2)+'%', c: 'text-[var(--sgc-navy)]' },
+            { l: 'Cash Required',  v: fmt$(totalCash),       c: 'text-[var(--sgc-black)]' },
           ].map(m => (
-            <div key={m.l} className="bg-zinc-800/60 rounded-lg p-3 text-center">
-              <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">{m.l}</div>
+            <div key={m.l} className="bg-[var(--sgc-gray-border)]/60 rounded-lg p-3 text-center">
+              <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">{m.l}</div>
               <div className={`text-base font-bold ${m.c}`}>{m.v}</div>
             </div>
           ))}
         </div>
-        <Row label="Holding Costs" value={`-${fmt$(holdCost)}`} cls="text-red-400" />
-        <Row label="Closing Costs (buy)" value={`-${fmt$(closingBuy)}`} cls="text-red-400" />
+        <Row label="Holding Costs" value={`-${fmt$(holdCost)}`} cls="text-[var(--sgc-danger)]" />
+        <Row label="Closing Costs (buy)" value={`-${fmt$(closingBuy)}`} cls="text-[var(--sgc-danger)]" />
         <Row label="Total Investment" value={fmt$(totalIn)} />
-        <Row label="Commission + Closing (sell)" value={`-${fmt$(sellComm + closingS)}`} cls="text-red-400" />
-        <Row label="70% Rule Max Offer" value={fmt$(momsMax)} cls="text-amber-400" />
+        <Row label="Commission + Closing (sell)" value={`-${fmt$(sellComm + closingS)}`} cls="text-[var(--sgc-danger)]" />
+        <Row label="70% Rule Max Offer" value={fmt$(momsMax)} cls="text-[var(--sgc-navy)]" />
         <Row
           label="vs 70% Rule"
           value={purchase <= momsMax ? `✓ Under by ${fmt$(momsMax - purchase)}` : `✗ Over by ${fmt$(purchase - momsMax)}`}
-          cls={purchase <= momsMax ? 'text-emerald-400' : 'text-red-400'}
+          cls={purchase <= momsMax ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'}
         />
         <div className="mt-3">
-          <div className="flex justify-between text-[10px] text-zinc-600 mb-1.5">
+          <div className="flex justify-between text-[10px] text-[var(--sgc-gray-mid)] mb-1.5">
             <span>Profit margin</span><span>{profitPct.toFixed(1)}%</span>
           </div>
-          <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-            <div className={`h-full rounded-full ${profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`} style={{ width: `${Math.min(100, profitPct)}%` }} />
+          <div className="h-2 bg-[var(--sgc-gray-border)] rounded-full overflow-hidden">
+            <div className={`h-full rounded-full ${profit >= 0 ? 'bg-[var(--sgc-success)]' : 'bg-[var(--sgc-danger)]'}`} style={{ width: `${Math.min(100, profitPct)}%` }} />
           </div>
         </div>
       </div>
@@ -147,15 +148,15 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
 
   if (loading) return (
     <div className="flex flex-col items-center justify-center h-48">
-      <div className="w-8 h-8 border-2 border-zinc-700 border-t-[#1a3a8f] rounded-full spin mb-3" />
-      <div className="text-xs text-zinc-500">Fetching comparables...</div>
+      <div className="w-8 h-8 border-2 border-[var(--sgc-gray-border)] border-t-[#1a3a8f] rounded-full spin mb-3" />
+      <div className="text-xs text-[var(--sgc-gray-mid)]">Fetching comparables...</div>
     </div>
   )
 
-  if (error) return <div className="p-4 text-xs text-red-400">Error: {error}</div>
+  if (error) return <div className="p-4 text-xs text-[var(--sgc-danger)]">Error: {error}</div>
 
   if (!comps.length) return (
-    <div className="flex flex-col items-center justify-center h-48 text-zinc-600">
+    <div className="flex flex-col items-center justify-center h-48 text-[var(--sgc-gray-mid)]">
       <div className="text-3xl mb-2 opacity-30">🔍</div>
       <div className="text-sm">No comparables found in radius</div>
     </div>
@@ -166,27 +167,27 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
   return (
     <div>
       <div className="grid grid-cols-3 gap-3 mb-4">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
-          <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Avg Sale</div>
-          <div className="text-base font-bold text-amber-400">{fmt$(avgSale)}</div>
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-3 text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">Avg Sale</div>
+          <div className="text-base font-bold text-[var(--sgc-navy)]">{fmt$(avgSale)}</div>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
-          <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">Subject Price</div>
-          <div className="text-base font-bold text-zinc-200">{fmt$(p.price)}</div>
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-3 text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">Subject Price</div>
+          <div className="text-base font-bold text-[var(--sgc-black)]">{fmt$(p.price)}</div>
         </div>
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
-          <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-1">vs Comps</div>
-          <div className={`text-base font-bold ${p.price <= avgSale ? 'text-emerald-400' : 'text-red-400'}`}>
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-3 text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">vs Comps</div>
+          <div className={`text-base font-bold ${p.price <= avgSale ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'}`}>
             {p.price <= avgSale ? '↓ Below' : '↑ Above'} avg
           </div>
         </div>
       </div>
-      <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
+      <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl overflow-hidden">
         <table className="w-full text-xs">
           <thead>
-            <tr className="border-b border-zinc-800 bg-zinc-800/50">
+            <tr className="border-b border-[var(--sgc-gray-border)] bg-[var(--sgc-gray-border)]/50">
               {['Address','Price','Bd/Ba','SqFt','$/SqFt'].map(h => (
-                <th key={h} className="text-left text-[10px] uppercase tracking-widest text-zinc-600 py-2.5 px-3 font-normal first:pl-4">{h}</th>
+                <th key={h} className="text-left text-[10px] uppercase tracking-widest text-[var(--sgc-gray-mid)] py-2.5 px-3 font-normal first:pl-4">{h}</th>
               ))}
             </tr>
           </thead>
@@ -194,12 +195,12 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
             {comps.map((c, i) => {
               const psf = c.squareFootage ? c.price / c.squareFootage : 0
               return (
-                <tr key={i} className="border-b border-zinc-800/40 last:border-0 hover:bg-zinc-800/30">
-                  <td className="py-2 px-3 pl-4 text-zinc-400 max-w-[200px] truncate">{c.formattedAddress || c.addressLine1}</td>
-                  <td className="py-2 px-3 text-amber-400 font-semibold">{fmt$(c.price)}</td>
-                  <td className="py-2 px-3 text-zinc-400">{c.bedrooms || '?'}/{c.bathrooms || '?'}</td>
-                  <td className="py-2 px-3 text-zinc-400">{c.squareFootage?.toLocaleString() || '—'}</td>
-                  <td className="py-2 px-3 text-zinc-400">{psf ? fmt$(psf) : '—'}</td>
+                <tr key={i} className="border-b border-[var(--sgc-gray-border)]/40 last:border-0 hover:bg-[var(--sgc-gray-border)]/30">
+                  <td className="py-2 px-3 pl-4 text-[var(--sgc-gray-mid)] max-w-[200px] truncate">{c.formattedAddress || c.addressLine1}</td>
+                  <td className="py-2 px-3 text-[var(--sgc-navy)] font-semibold">{fmt$(c.price)}</td>
+                  <td className="py-2 px-3 text-[var(--sgc-gray-mid)]">{c.bedrooms || '?'}/{c.bathrooms || '?'}</td>
+                  <td className="py-2 px-3 text-[var(--sgc-gray-mid)]">{c.squareFootage?.toLocaleString() || '—'}</td>
+                  <td className="py-2 px-3 text-[var(--sgc-gray-mid)]">{psf ? fmt$(psf) : '—'}</td>
                 </tr>
               )
             })}
@@ -231,30 +232,30 @@ function AITab({ p }: { p: AnalyzedProperty }) {
 
   return (
     <div>
-      <div className="bg-[#1a3a8f]/10 border border-[#1a3a8f]/30 rounded-xl p-4 mb-4">
-        <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-[#7a9fe8] mb-2">
+      <div className="bg-[var(--sgc-navy)]/10 border border-[var(--sgc-navy)]/30 rounded-xl p-4 mb-4">
+        <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] mb-2">
           <div className="w-1.5 h-1.5 rounded-full bg-[#7a9fe8] pulse-dot" />
           Quick Intelligence
         </div>
-        <p className="text-xs text-zinc-300 leading-relaxed">{quickInsight}</p>
+        <p className="text-xs text-[var(--sgc-black)] leading-relaxed">{quickInsight}</p>
       </div>
 
       {!aiText && !loading && (
         <button onClick={run}
-          className="w-full bg-[#1a3a8f] hover:bg-[#2a4aaf] text-white text-xs font-bold tracking-widest uppercase py-3 rounded-xl transition-colors cursor-pointer mb-4">
+          className="w-full bg-[var(--sgc-navy)] hover:bg-[#2a4aaf] text-[var(--sgc-black)] text-xs font-bold tracking-widest uppercase py-3 rounded-xl transition-colors cursor-pointer mb-4">
           ⬡ Run Deep AI Analysis
         </button>
       )}
 
       {loading && (
-        <div className="flex items-center gap-3 p-4 bg-zinc-900 border border-zinc-800 rounded-xl mb-4">
-          <div className="w-5 h-5 border-2 border-zinc-700 border-t-[#7a9fe8] rounded-full spin flex-shrink-0" />
-          <div className="text-xs text-zinc-400">Claude is analyzing this deal...</div>
+        <div className="flex items-center gap-3 p-4 bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl mb-4">
+          <div className="w-5 h-5 border-2 border-[var(--sgc-gray-border)] border-t-[#7a9fe8] rounded-full spin flex-shrink-0" />
+          <div className="text-xs text-[var(--sgc-gray-mid)]">Claude is analyzing this deal...</div>
         </div>
       )}
 
       {error && (
-        <div className="p-4 bg-red-950/30 border border-red-800/40 rounded-xl text-xs text-red-400 mb-4">
+        <div className="p-4 bg-red-950/30 border border-red-800/40 rounded-xl text-xs text-[var(--sgc-danger)] mb-4">
           {error.includes('VITE_ANTHROPIC_API_KEY')
             ? '⚠️ Add your Anthropic API key to .env as VITE_ANTHROPIC_API_KEY'
             : `Error: ${error}`}
@@ -262,17 +263,94 @@ function AITab({ p }: { p: AnalyzedProperty }) {
       )}
 
       {aiText && (
-        <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
-          <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-[#7a9fe8] mb-3">
+        <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-4">
+          <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] mb-3">
             <div className="w-1.5 h-1.5 rounded-full bg-[#7a9fe8]" />
             Deep AI Analysis
           </div>
-          <div className="text-xs text-zinc-300 leading-relaxed whitespace-pre-wrap">{aiText}</div>
-          <button onClick={run} className="mt-3 text-[10px] text-zinc-600 hover:text-zinc-400 cursor-pointer bg-transparent border-none">
+          <div className="text-xs text-[var(--sgc-black)] leading-relaxed whitespace-pre-wrap">{aiText}</div>
+          <button onClick={run} className="mt-3 text-[10px] text-[var(--sgc-gray-mid)] hover:text-[var(--sgc-gray-mid)] cursor-pointer bg-transparent border-none">
             ↻ Re-analyze
           </button>
         </div>
       )}
+    </div>
+  )
+}
+
+// ── RENT ESTIMATE BLOCK ───────────────────────────────────────────────────
+function RentEstimateBlock({ p }: { p: AnalyzedProperty }) {
+  const [rent, setRent] = useState<{ rent: number; low: number; high: number } | null>(null)
+  const [loading, setLoading] = useState(false)
+
+  useEffect(() => {
+    if (!p.addr || p.sqft === 0) return
+    setLoading(true)
+    fetchRentEstimate(p.addr, p.propType, p.beds, p.baths, p.sqft)
+      .then(r => { if (r && r.rent > 0) setRent(r) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [p.addr])
+
+  if (loading) return (
+    <div className="bg-amber-950/20 border border-amber-800/30 rounded-xl p-4 mb-5">
+      <div className="flex items-center gap-2 text-[10px] text-[var(--sgc-navy)] uppercase tracking-wider">
+        <div className="w-3 h-3 border border-amber-400 border-t-transparent rounded-full animate-spin" />
+        Loading Rent Estimate...
+      </div>
+    </div>
+  )
+
+  if (!rent) return null
+
+  const grossYield = p.price > 0 ? (rent.rent * 12 / p.price) * 100 : 0
+  const monthlyCashFlow = rent.rent - (p.price * 0.008) - (p.price * 0.01 / 12)
+  const priceToRent = p.price > 0 && rent.rent > 0 ? p.price / (rent.rent * 12) : 0
+  const onePercentRule = p.price > 0 ? rent.rent / p.price * 100 : 0
+
+  return (
+    <div className="bg-amber-950/20 border border-amber-800/40 rounded-xl p-4 mb-5">
+      <div className="flex items-center gap-2 text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] mb-3">
+        <span>🏠 Rental Market Analysis</span>
+        <div className="text-[9px] text-amber-600">· RentCast AVM</div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-3">
+        <div className="bg-[var(--sgc-gray-light)]/60 rounded-lg p-3">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">Est Monthly Rent</div>
+          <div className="text-xl font-bold text-[var(--sgc-navy)]">{fmt$(rent.rent)}<span className="text-xs text-[var(--sgc-gray-mid)]">/mo</span></div>
+          <div className="text-[10px] text-[var(--sgc-gray-mid)]">{fmt$(rent.low)} – {fmt$(rent.high)} range</div>
+        </div>
+        <div className="bg-[var(--sgc-gray-light)]/60 rounded-lg p-3">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-1">Gross Annual Yield</div>
+          <div className={`text-xl font-bold ${grossYield > 8 ? 'text-[var(--sgc-success)]' : grossYield > 5 ? 'text-[var(--sgc-navy)]' : 'text-[var(--sgc-danger)]'}`}>
+            {grossYield.toFixed(1)}%
+          </div>
+          <div className="text-[10px] text-[var(--sgc-gray-mid)]">{grossYield > 8 ? 'Excellent' : grossYield > 5 ? 'Good' : 'Thin'} yield</div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <div className="text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-0.5">Est Cash Flow</div>
+          <div className={`text-sm font-bold ${monthlyCashFlow >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'}`}>{fmt$(monthlyCashFlow)}/mo</div>
+          <div className="text-[9px] text-[var(--sgc-gray-mid)]">After est. PITI</div>
+        </div>
+        <div className="text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-0.5">Price-to-Rent</div>
+          <div className={`text-sm font-bold ${priceToRent < 15 ? 'text-[var(--sgc-success)]' : priceToRent < 20 ? 'text-[var(--sgc-navy)]' : 'text-[var(--sgc-danger)]'}`}>
+            {priceToRent.toFixed(1)}x
+          </div>
+          <div className="text-[9px] text-[var(--sgc-gray-mid)]">&lt;15 ideal</div>
+        </div>
+        <div className="text-center">
+          <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-0.5">1% Rule</div>
+          <div className={`text-sm font-bold ${onePercentRule >= 1 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'}`}>
+            {onePercentRule.toFixed(2)}% {onePercentRule >= 1 ? '✓' : '✗'}
+          </div>
+          <div className="text-[9px] text-[var(--sgc-gray-mid)]">Need ≥ 1%</div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -297,17 +375,17 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
   return (
     <div className="fixed inset-0 z-[100] flex">
-      <div className="absolute inset-0 bg-zinc-950/80 backdrop-blur-sm" onClick={onClose} />
+      <div className="absolute inset-0 bg-white/80 backdrop-blur-sm" onClick={onClose} />
 
-      <div className="relative ml-auto w-full max-w-2xl h-full bg-zinc-950 border-l border-zinc-800 flex flex-col shadow-2xl slide-in">
+      <div className="relative ml-auto w-full max-w-2xl h-full bg-white border-l border-[var(--sgc-gray-border)] flex flex-col shadow-2xl slide-in">
 
         {/* MAP PREVIEW */}
-        <div className="flex-shrink-0 relative h-44 bg-zinc-900 overflow-hidden">
+        <div className="flex-shrink-0 relative h-44 bg-[var(--sgc-gray-light)] overflow-hidden">
           <div className="absolute top-3 left-3 z-10 flex gap-1">
             {(['map','street'] as const).map(m => (
               <button key={m} onClick={() => setMapMode(m)}
                 className={`text-[10px] uppercase tracking-wide px-2.5 py-1 rounded font-medium cursor-pointer border transition-colors
-                  ${mapMode === m ? 'bg-zinc-950 border-zinc-600 text-white' : 'bg-zinc-950/70 border-zinc-800 text-zinc-500 hover:text-zinc-300'}`}>
+                  ${mapMode === m ? 'bg-white border-zinc-600 text-[var(--sgc-black)]' : 'bg-white/70 border-[var(--sgc-gray-border)] text-[var(--sgc-gray-mid)] hover:text-[var(--sgc-black)]'}`}>
                 {m === 'map' ? '🗺 Map' : '🏠 Street'}
               </button>
             ))}
@@ -322,10 +400,10 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
             title="Property location"
           />
           <button onClick={onClose}
-            className="absolute top-3 right-3 z-10 w-8 h-8 bg-zinc-950/80 hover:bg-zinc-900 border border-zinc-700 rounded-lg flex items-center justify-center text-zinc-400 hover:text-white transition-colors cursor-pointer text-sm">
+            className="absolute top-3 right-3 z-10 w-8 h-8 bg-white/80 hover:bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-lg flex items-center justify-center text-[var(--sgc-gray-mid)] hover:text-[var(--sgc-black)] transition-colors cursor-pointer text-sm">
             ✕
           </button>
-          <div className={`absolute bottom-3 right-3 z-10 w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center bg-zinc-950/90
+          <div className={`absolute bottom-3 right-3 z-10 w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center bg-white/90
             ${p.flipScore >= 80 ? 'border-emerald-500' : p.flipScore >= 65 ? 'border-amber-500' : 'border-zinc-600'}`}>
             <span className={`text-base font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
             <span className={`text-[9px] font-bold ${p.scoreClass}`}>{p.scoreGrade}</span>
@@ -333,38 +411,38 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
         </div>
 
         {/* ADDRESS + LINKS */}
-        <div className={`flex-shrink-0 px-6 pt-4 pb-3 border-b border-zinc-800 ${isHot ? 'bg-emerald-950/20' : 'bg-zinc-900/50'}`}>
+        <div className={`flex-shrink-0 px-6 pt-4 pb-3 border-b border-[var(--sgc-gray-border)] ${isHot ? 'bg-[var(--sgc-success-bg)]' : 'bg-[var(--sgc-gray-light)]/50'}`}>
           <div className="flex items-center gap-1.5 mb-2 flex-wrap">
-            {isHot && <span className="text-[9px] bg-emerald-500 text-zinc-950 font-bold px-2 py-0.5 rounded-full">🔥 HOT DEAL</span>}
-            {p.underMoms && <span className="text-[9px] border border-emerald-500/40 text-emerald-400 px-2 py-0.5 rounded-full">70% ✓</span>}
-            <span className="text-[9px] text-zinc-500 border border-zinc-700 px-2 py-0.5 rounded-full">{p.sourceLabel}</span>
+            {isHot && <span className="text-[9px] bg-[var(--sgc-success)] text-zinc-950 font-bold px-2 py-0.5 rounded-full">🔥 HOT DEAL</span>}
+            {p.underMoms && <span className="text-[9px] border border-emerald-500/40 text-[var(--sgc-success)] px-2 py-0.5 rounded-full">70% ✓</span>}
+            <span className="text-[9px] text-[var(--sgc-gray-mid)] border border-[var(--sgc-gray-border)] px-2 py-0.5 rounded-full">{p.sourceLabel}</span>
             {p.listingType && p.listingType !== 'Standard' && (
-              <span className="text-[9px] text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">{p.listingType}</span>
+              <span className="text-[9px] text-[var(--sgc-danger)] border border-red-500/30 px-2 py-0.5 rounded-full">{p.listingType}</span>
             )}
           </div>
 
           {/* FULL ADDRESS — large and prominent */}
-          <h2 className="text-xl font-bold text-white leading-tight">{p.addr}</h2>
-          <p className="text-sm text-zinc-400 mt-0.5 mb-1">
+          <h2 className="text-xl font-bold text-[var(--sgc-black)] leading-tight">{p.addr}</h2>
+          <p className="text-sm text-[var(--sgc-gray-mid)] mt-0.5 mb-1">
             {p.city}{p.state ? `, ${p.state}` : ''} {p.zip}
           </p>
-          <div className="text-xs text-zinc-600 flex flex-wrap gap-x-3 gap-y-0.5 mb-3">
+          <div className="text-xs text-[var(--sgc-gray-mid)] flex flex-wrap gap-x-3 gap-y-0.5 mb-3">
             {p.beds > 0 && <span>{p.beds} bed · {p.baths} bath</span>}
             {p.sqft > 0 && <span>{p.sqft.toLocaleString()} sqft</span>}
             {p.yearBuilt && <span>Built {p.yearBuilt}</span>}
             {p.propType && <span>{p.propType}</span>}
-            {p.dom > 0 && <span className={p.dom > 60 ? 'text-amber-400' : ''}>{p.dom}d on market</span>}
+            {p.dom > 0 && <span className={p.dom > 60 ? 'text-[var(--sgc-navy)]' : ''}>{p.dom}d on market</span>}
             {p.mlsNumber && <span>MLS# {p.mlsNumber}</span>}
           </div>
 
           {/* PHOTO LINKS */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-zinc-600 mr-1">Photos:</span>
+            <span className="text-[10px] text-[var(--sgc-gray-mid)] mr-1">Photos:</span>
             {[
               { label: 'Zillow',      url: `https://www.zillow.com/homes/${addrEncoded}_rb/`,              cls: 'text-blue-400 border-blue-500/30 hover:bg-blue-500/10' },
-              { label: 'Redfin',      url: `https://www.redfin.com/query/${addrEncoded}`,                  cls: 'text-red-400 border-red-500/30 hover:bg-red-500/10' },
+              { label: 'Redfin',      url: `https://www.redfin.com/query/${addrEncoded}`,                  cls: 'text-[var(--sgc-danger)] border-red-500/30 hover:bg-[var(--sgc-danger)]/10' },
               { label: 'Realtor.com', url: `https://www.realtor.com/realestateandhomes-search/${addrEncoded}`, cls: 'text-orange-400 border-orange-500/30 hover:bg-orange-500/10' },
-              { label: 'Google Maps', url: `https://www.google.com/maps/search/${addrEncoded}`,            cls: 'text-zinc-400 border-zinc-700 hover:bg-zinc-700/30' },
+              { label: 'Google Maps', url: `https://www.google.com/maps/search/${addrEncoded}`,            cls: 'text-[var(--sgc-gray-mid)] border-[var(--sgc-gray-border)] hover:bg-zinc-700/30' },
             ].map(l => (
               <a key={l.label} href={l.url} target="_blank" rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
@@ -377,14 +455,14 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
           {/* Quick numbers */}
           <div className="grid grid-cols-5 gap-2 mt-3">
             {[
-              { l: 'List Price', v: fmt$(p.price),           c: 'text-zinc-200' },
-              { l: 'Est ARV',    v: fmt$(p.arv),             c: 'text-amber-400' },
-              { l: 'Net Profit', v: fmt$(p.profit),          c: p.profit >= 0 ? 'text-emerald-400' : 'text-red-400' },
-              { l: 'ROI',        v: p.roi.toFixed(1)+'%',    c: p.roi >= 0 ? 'text-emerald-400' : 'text-red-400' },
+              { l: 'List Price', v: fmt$(p.price),           c: 'text-[var(--sgc-black)]' },
+              { l: 'Est ARV',    v: fmt$(p.arv),             c: 'text-[var(--sgc-navy)]' },
+              { l: 'Net Profit', v: fmt$(p.profit),          c: p.profit >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]' },
+              { l: 'ROI',        v: p.roi.toFixed(1)+'%',    c: p.roi >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]' },
               { l: 'Rehab Est',  v: fmt$(p.rehabCost),       c: 'text-orange-400' },
             ].map(m => (
-              <div key={m.l} className="bg-zinc-800/60 rounded-lg p-2.5 text-center">
-                <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">{m.l}</div>
+              <div key={m.l} className="bg-[var(--sgc-gray-border)]/60 rounded-lg p-2.5 text-center">
+                <div className="text-[9px] text-[var(--sgc-gray-mid)] uppercase tracking-wider mb-0.5">{m.l}</div>
                 <div className={`text-sm font-bold ${m.c}`}>{m.v}</div>
               </div>
             ))}
@@ -392,11 +470,11 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
         </div>
 
         {/* Tabs */}
-        <div className="flex border-b border-zinc-800 bg-zinc-900/40 flex-shrink-0 px-2">
+        <div className="flex border-b border-[var(--sgc-gray-border)] bg-[var(--sgc-gray-light)]/40 flex-shrink-0 px-2">
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
               className={`px-4 py-2.5 text-[11px] border-b-2 transition-colors cursor-pointer bg-transparent tracking-wide
-                ${tab === t.id ? 'text-white border-[#1a3a8f]' : 'text-zinc-600 border-transparent hover:text-zinc-400'}`}>
+                ${tab === t.id ? 'text-[var(--sgc-black)] border-[var(--sgc-navy)]' : 'text-[var(--sgc-gray-mid)] border-transparent hover:text-[var(--sgc-gray-mid)]'}`}>
               {t.label}
             </button>
           ))}
@@ -408,14 +486,15 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
           {/* OVERVIEW */}
           {tab === 'overview' && (
             <div>
+              <RentEstimateBlock p={p} />
               <Section title="Opportunity Signals">
                 <div className="p-4">
                   {p.signals.length === 0 ? (
-                    <div className="text-xs text-zinc-600">No specific signals detected</div>
+                    <div className="text-xs text-[var(--sgc-gray-mid)]">No specific signals detected</div>
                   ) : (
                     <div className="flex flex-wrap gap-2">
                       {p.signals.map((s, i) => (
-                        <span key={i} className="text-xs text-zinc-300 bg-zinc-800 border border-zinc-700 px-3 py-1.5 rounded-lg">{s}</span>
+                        <span key={i} className="text-xs text-[var(--sgc-black)] bg-[var(--sgc-gray-border)] border border-[var(--sgc-gray-border)] px-3 py-1.5 rounded-lg">{s}</span>
                       ))}
                     </div>
                   )}
@@ -425,19 +504,19 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
               <Section title="Score Breakdown">
                 <div className="p-4 space-y-3">
                   {[
-                    { label: 'ROI Score',       score: p.scoreBreakdown.roi,    color: 'bg-emerald-500', weight: '30%' },
-                    { label: '70% Rule Score',  score: p.scoreBreakdown.rule70, color: 'bg-[#1a3a8f]',  weight: '28%' },
+                    { label: 'ROI Score',       score: p.scoreBreakdown.roi,    color: 'bg-[var(--sgc-success)]', weight: '30%' },
+                    { label: '70% Rule Score',  score: p.scoreBreakdown.rule70, color: 'bg-[var(--sgc-navy)]',  weight: '28%' },
                     { label: 'Profit Score',    score: p.scoreBreakdown.profit, color: 'bg-teal-500',    weight: '15%' },
                     { label: 'DOM Score',       score: p.scoreBreakdown.dom,    color: 'bg-violet-500',  weight: '15%' },
                     { label: 'Equity Score',    score: p.scoreBreakdown.equity, color: 'bg-amber-500',   weight: '12%' },
                   ].map(b => (
                     <div key={b.label} className="flex items-center gap-3">
-                      <div className="text-xs text-zinc-500 w-36 flex-shrink-0">{b.label}</div>
-                      <div className="flex-1 h-2 bg-zinc-800 rounded-full overflow-hidden">
+                      <div className="text-xs text-[var(--sgc-gray-mid)] w-36 flex-shrink-0">{b.label}</div>
+                      <div className="flex-1 h-2 bg-[var(--sgc-gray-border)] rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${b.color}`} style={{ width: `${b.score}%` }} />
                       </div>
-                      <div className="text-xs text-zinc-400 w-8 text-right">{b.score}</div>
-                      <div className="text-[10px] text-zinc-700 w-8">{b.weight}</div>
+                      <div className="text-xs text-[var(--sgc-gray-mid)] w-8 text-right">{b.score}</div>
+                      <div className="text-[10px] text-[var(--sgc-gray-mid)] w-8">{b.weight}</div>
                     </div>
                   ))}
                 </div>
@@ -459,8 +538,8 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
               <Section title="Market Scenarios">
                 <div className="px-4 py-2">
                   <Row label="Conservative ARV (−10%)" value={fmt$(p.arvConservative)} cls="text-orange-400" />
-                  <Row label="Base ARV (market rate)" value={fmt$(p.arv)} cls="text-amber-400" />
-                  <Row label="Aggressive ARV (+12%)" value={fmt$(p.arvAggressive)} cls="text-emerald-400" />
+                  <Row label="Base ARV (market rate)" value={fmt$(p.arv)} cls="text-[var(--sgc-navy)]" />
+                  <Row label="Aggressive ARV (+12%)" value={fmt$(p.arvAggressive)} cls="text-[var(--sgc-success)]" />
                 </div>
               </Section>
             </div>
@@ -472,24 +551,24 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
               <Section title="P&L Breakdown">
                 <div className="px-4 py-2">
                   <Row label="Purchase Price" value={fmt$(p.price)} />
-                  <Row label="Est. Rehab Cost" value={`− ${fmt$(p.rehabCost)}`} cls="text-red-400" />
-                  <Row label="Closing Costs (buy)" value={`− ${fmt$(p.closingBuyNum)}`} cls="text-red-400" />
-                  <Row label={`Holding Costs (${p.holdMonths}mo)`} value={`− ${fmt$(p.holdingCost)}`} cls="text-red-400" />
-                  <div className="border-t border-zinc-700 my-1.5" />
+                  <Row label="Est. Rehab Cost" value={`− ${fmt$(p.rehabCost)}`} cls="text-[var(--sgc-danger)]" />
+                  <Row label="Closing Costs (buy)" value={`− ${fmt$(p.closingBuyNum)}`} cls="text-[var(--sgc-danger)]" />
+                  <Row label={`Holding Costs (${p.holdMonths}mo)`} value={`− ${fmt$(p.holdingCost)}`} cls="text-[var(--sgc-danger)]" />
+                  <div className="border-t border-[var(--sgc-gray-border)] my-1.5" />
                   <Row label="Total Invested" value={fmt$(p.totalInvested)} />
-                  <Row label="Est ARV" value={fmt$(p.arv)} cls="text-amber-400" />
-                  <Row label="Agent Commission (6%)" value={`− ${fmt$(p.sellingComm)}`} cls="text-red-400" />
-                  <Row label="Closing Costs (sell)" value={`− ${fmt$(p.closingSell)}`} cls="text-red-400" />
-                  <div className="border-t border-zinc-700 my-1.5" />
-                  <Row label="NET PROFIT" value={fmt$(p.profit)} cls={`text-base font-bold ${p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`} />
+                  <Row label="Est ARV" value={fmt$(p.arv)} cls="text-[var(--sgc-navy)]" />
+                  <Row label="Agent Commission (6%)" value={`− ${fmt$(p.sellingComm)}`} cls="text-[var(--sgc-danger)]" />
+                  <Row label="Closing Costs (sell)" value={`− ${fmt$(p.closingSell)}`} cls="text-[var(--sgc-danger)]" />
+                  <div className="border-t border-[var(--sgc-gray-border)] my-1.5" />
+                  <Row label="NET PROFIT" value={fmt$(p.profit)} cls={`text-base font-bold ${p.profit >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'}`} />
                 </div>
                 <div className="px-4 pb-3">
-                  <div className="flex justify-between text-[10px] text-zinc-600 mb-1.5">
+                  <div className="flex justify-between text-[10px] text-[var(--sgc-gray-mid)] mb-1.5">
                     <span>Profit margin</span>
                     <span>{p.arv > 0 ? Math.max(0, (p.profit / p.arv) * 100).toFixed(1) : 0}%</span>
                   </div>
-                  <div className="h-2 bg-zinc-800 rounded-full overflow-hidden">
-                    <div className={`h-full rounded-full ${p.profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
+                  <div className="h-2 bg-[var(--sgc-gray-border)] rounded-full overflow-hidden">
+                    <div className={`h-full rounded-full ${p.profit >= 0 ? 'bg-[var(--sgc-success)]' : 'bg-[var(--sgc-danger)]'}`}
                       style={{ width: `${Math.min(100, p.arv > 0 ? Math.max(0, (p.profit / p.arv) * 100) : 0)}%` }} />
                   </div>
                 </div>
@@ -497,21 +576,21 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
               <Section title="70% Rule">
                 <div className="px-4 py-2">
-                  <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} cls="text-amber-400" />
+                  <Row label="Max Offer (70% Rule)" value={fmt$(p.momsRule)} cls="text-[var(--sgc-navy)]" />
                   <Row label="List Price" value={fmt$(p.price)} />
-                  <Row label="Spread vs Max" value={`${fmt$(Math.abs(p.momsRule - p.price))} ${p.underMoms ? '✓ under' : '✗ over'}`} cls={p.underMoms ? 'text-emerald-400' : 'text-red-400'} />
+                  <Row label="Spread vs Max" value={`${fmt$(Math.abs(p.momsRule - p.price))} ${p.underMoms ? '✓ under' : '✗ over'}`} cls={p.underMoms ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'} />
                   <Row label="Equity Gap" value={`${p.equityPct.toFixed(1)}%`} />
-                  <Row label="ARV Spread" value={fmt$(p.spread)} cls="text-amber-400" />
+                  <Row label="ARV Spread" value={fmt$(p.spread)} cls="text-[var(--sgc-navy)]" />
                 </div>
               </Section>
 
               <Section title="Returns Summary">
                 <div className="px-4 py-2">
-                  <Row label="Total ROI" value={p.roi.toFixed(2) + '%'} cls={p.roi >= 0 ? 'text-emerald-400' : 'text-red-400'} />
-                  <Row label="Annualized ROI" value={p.annualizedROI.toFixed(2) + '%'} cls="text-[#7a9fe8]" />
+                  <Row label="Total ROI" value={p.roi.toFixed(2) + '%'} cls={p.roi >= 0 ? 'text-[var(--sgc-success)]' : 'text-[var(--sgc-danger)]'} />
+                  <Row label="Annualized ROI" value={p.annualizedROI.toFixed(2) + '%'} cls="text-[var(--sgc-navy)]" />
                   <Row label="Cash-on-Cash" value={p.cashOnCash.toFixed(2) + '%'} />
                   <Row label="Cash Required" value={fmt$(p.totalCash)} />
-                  <Row label="Strategy" value={p.strategy} cls="text-[#7a9fe8]" />
+                  <Row label="Strategy" value={p.strategy} cls="text-[var(--sgc-navy)]" />
                 </div>
               </Section>
             </div>

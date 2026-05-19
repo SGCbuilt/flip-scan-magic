@@ -2,108 +2,73 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── SGC Built Design Tokens ── */
+:root {
+  --sgc-navy:        #1B3A8C;
+  --sgc-navy-dark:   #122970;
+  --sgc-navy-light:  #2A4FAD;
+  --sgc-navy-pale:   #EEF2FB;
+  --sgc-navy-mid:    #C5D0EF;
+  --sgc-black:       #0F1117;
+  --sgc-gray-house:  #B8BBC0;
+  --sgc-gray-border: #E2E4E9;
+  --sgc-gray-light:  #F4F5F7;
+  --sgc-gray-mid:    #8B8F9A;
+  --sgc-white:       #FFFFFF;
+  --sgc-success:     #1A7A4A;
+  --sgc-success-bg:  #EDFAF3;
+  --sgc-danger:      #C0341D;
+  --sgc-danger-bg:   #FEF0ED;
+  --sgc-warn:        #8A5700;
+  --sgc-warn-bg:     #FEF7EA;
+  --sgc-orange:      #C45E1A;
+  --sgc-orange-bg:   #FEF3EA;
+}
+
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'IBM Plex Mono', monospace;
-  background: #09090b;
-  color: #f4f4f5;
+  font-family: 'Inter', 'IBM Plex Sans', system-ui, -apple-system, sans-serif;
+  background: var(--sgc-gray-light);
+  color: var(--sgc-black);
   margin: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
-/* ───────────────────────── DARK MODE OVERRIDES ─────────────────────────
-   The app was originally built with hardcoded light surfaces. Instead of
-   refactoring every component, we re-map the most common Tailwind utility
-   classes when the root <html> has the `dark` class. The header stays
-   navy in both themes (already high-contrast with gold/white).
-   ──────────────────────────────────────────────────────────────────── */
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: var(--sgc-gray-light); }
+::-webkit-scrollbar-thumb { background: var(--sgc-gray-border); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--sgc-gray-house); }
 
-:root { color-scheme: light; }
-html.dark { color-scheme: dark; }
+/* Range slider */
+input[type="range"] { accent-color: var(--sgc-navy); }
+input[type="checkbox"] { accent-color: var(--sgc-navy); }
 
-/* Surfaces */
-html.dark .bg-white            { background-color: #0f1115 !important; }
-html.dark .bg-slate-50         { background-color: #131722 !important; }
-html.dark .bg-slate-100        { background-color: #1a1f2e !important; }
-html.dark .bg-slate-200        { background-color: #1f2433 !important; }
-html.dark .bg-gray-50          { background-color: #131722 !important; }
-html.dark .bg-gray-100         { background-color: #1a1f2e !important; }
-
-/* Borders */
-html.dark .border-slate-100    { border-color: #1f2433 !important; }
-html.dark .border-slate-200    { border-color: #262c3d !important; }
-html.dark .border-slate-300    { border-color: #2e3548 !important; }
-html.dark .border-gray-200     { border-color: #262c3d !important; }
-html.dark .border-gray-300     { border-color: #2e3548 !important; }
-
-/* Text — keep strong contrast */
-html.dark .text-slate-900,
-html.dark .text-\[\#0a1f4d\]   { color: #f1f5f9 !important; }
-html.dark .text-slate-800      { color: #e2e8f0 !important; }
-html.dark .text-slate-700      { color: #cbd5e1 !important; }
-html.dark .text-slate-600      { color: #b4bccc !important; }
-html.dark .text-slate-500      { color: #98a2b8 !important; }
-html.dark .text-slate-400      { color: #8892a6 !important; }
-html.dark .placeholder\:text-slate-400::placeholder { color: #8892a6 !important; }
-html.dark .text-gray-900       { color: #f1f5f9 !important; }
-html.dark .text-gray-800       { color: #e2e8f0 !important; }
-html.dark .text-gray-700       { color: #cbd5e1 !important; }
-html.dark .text-gray-600       { color: #b4bccc !important; }
-html.dark .text-gray-500       { color: #98a2b8 !important; }
-
-/* Gold contrast tune — light text-gold-600/700 used on white surfaces
-   becomes hard to read on dark; lift it to gold-300/400. */
-html.dark .text-gold-600       { color: #e0c160 !important; }
-html.dark .text-gold-700       { color: #ecd88f !important; }
-
-/* Inputs / form controls keep readable dark surfaces */
-html.dark input.bg-white,
-html.dark select.bg-white,
-html.dark textarea.bg-white {
-  background-color: #161a24 !important;
-  color: #f1f5f9 !important;
-}
-
-/* Scrollbar in dark */
-html.dark ::-webkit-scrollbar-track { background: #0f1115; }
-html.dark ::-webkit-scrollbar-thumb { background: #2e3548; }
-html.dark ::-webkit-scrollbar-thumb:hover { background: #3f4762; }
-
-::-webkit-scrollbar { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: #18181b; }
-::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
-
-input[type="range"] {
-  accent-color: #f59e0b;
-}
-
+/* Animations */
 @keyframes spin { to { transform: rotate(360deg); } }
-.spin { animation: spin 0.8s linear infinite; }
+.spin { animation: spin 0.7s linear infinite; }
 
-@keyframes pulse-dot {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
-}
+@keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
 .pulse-dot { animation: pulse-dot 2s infinite; }
 
-@keyframes slide-in {
-  from { transform: translateX(100%); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
-}
-.slide-in { animation: slide-in 0.25s ease-out; }
-
-/* Modal backdrop */
-.backdrop-blur-sm { backdrop-filter: blur(4px); }
-
-/* Better scrollbar */
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
-
-/* Smooth slide-in for modal */
 @keyframes slide-in-right {
   from { transform: translateX(100%); opacity: 0; }
   to   { transform: translateX(0);    opacity: 1; }
 }
-.slide-in { animation: slide-in-right 0.22s cubic-bezier(0.4, 0, 0.2, 1); }
+.slide-in { animation: slide-in-right 0.2s cubic-bezier(0.4,0,0.2,1); }
+
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fade-up 0.25s ease-out; }
+
+.backdrop-blur-sm { backdrop-filter: blur(4px); }
+
+/* ── DARK MODE OVERRIDES ── */
+html.dark { color-scheme: dark; }
+html.dark body { background: #0f1115 !important; color: #f1f5f9 !important; }
+html.dark [style*="--sgc-gray-light"],
+html.dark .bg-white { background-color: #161a24 !important; }
+html.dark { --sgc-gray-light: #0f1115; --sgc-white: #161a24; --sgc-black: #f1f5f9; --sgc-gray-border: #262c3d; --sgc-gray-mid: #98a2b8; }
