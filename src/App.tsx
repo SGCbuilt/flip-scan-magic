@@ -9,6 +9,7 @@ import { SearchParams, AnalyzedProperty, MarketStats, SortKey, TabId, ViewMode }
 import { fetchListings, fetchMarketStats } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
+import sgcLogo from './assets/sgc-logo.png'
 
 const DEFAULT_PARAMS: SearchParams = {
   city: 'Norfolk, VA',
