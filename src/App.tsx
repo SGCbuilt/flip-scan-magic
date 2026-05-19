@@ -7,6 +7,8 @@ import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentc
 import sgcLogo from '@/assets/sgc-logo.png'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
+import { useFavorites } from '@/context/FavoritesContext'
+import CompareModal from './components/CompareModal'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
 
@@ -65,6 +67,7 @@ export default function App() {
   const [activeStrategy, setActiveStrategy] = useState<string>('all')
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta] = useState<{ time: number; raw: number; sources: number } | null>(null)
+  const [showCompare, setShowCompare] = useState(false)
 
   const showToast = (msg: string, err = false) => {
     setToast({ msg, err })
@@ -235,6 +238,7 @@ export default function App() {
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
+          <FavoritesButton onOpen={() => setShowCompare(true)} />
           <ThemeToggle />
           <SignOutButton />
         </div>
@@ -269,6 +273,14 @@ export default function App() {
           property={selected}
           params={params}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {/* ── COMPARE MODAL ── */}
+      {showCompare && (
+        <CompareModal
+          onClose={() => setShowCompare(false)}
+          onSelect={(p) => { setShowCompare(false); setSelected(p) }}
         />
       )}
 
@@ -321,3 +333,24 @@ function ThemeToggle() {
     </button>
   )
 }
+
+function FavoritesButton({ onOpen }: { onOpen: () => void }) {
+  const { favorites } = useFavorites()
+  const count = favorites.length
+  return (
+    <button
+      onClick={onOpen}
+      title="View saved favorites & compare"
+      className="relative flex items-center gap-1.5 h-8 px-2.5 rounded border border-gold-500/40 hover:border-gold-400 text-gold-400 hover:text-white bg-transparent cursor-pointer transition-colors text-[11px] uppercase tracking-widest"
+    >
+      <span className="text-sm leading-none">★</span>
+      <span className="hidden sm:inline">Favorites</span>
+      {count > 0 && (
+        <span className="ml-1 bg-gold-400 text-[#0a1f4d] text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+

@@ -7,6 +7,7 @@ import ResetPasswordPage from './pages/ResetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
+import { FavoritesProvider } from './context/FavoritesContext'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
@@ -14,12 +15,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <ThemeProvider>
       <AuthProvider>
+      <FavoritesProvider>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
           <Route path="*" element={<ProtectedRoute><App /></ProtectedRoute>} />
         </Routes>
+      </FavoritesProvider>
       </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
