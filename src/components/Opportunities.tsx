@@ -35,7 +35,7 @@ function OpportunityCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () =>
       onClick={onSelect}
       className={`rounded-xl border cursor-pointer transition-all hover:scale-[1.01] group
         ${isHot
-          ? 'bg-gradient-to-br from-green-950/40 to-zinc-900 border-green-700/40 hover:border-green-500/60'
+          ? 'bg-gradient-to-br from-green-950/40 to-slate-50 border-green-700/40 hover:border-green-500/60'
           : 'bg-slate-50 border-slate-200 hover:border-blue-900/40'}`}
     >
       {/* Card header */}
@@ -63,7 +63,7 @@ function OpportunityCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () =>
           </div>
           {/* Score circle */}
           <div className={`w-14 h-14 rounded-full border-2 flex flex-col items-center justify-center flex-shrink-0
-            ${p.flipScore >= 80 ? 'border-green-500 bg-green-950/40' : p.flipScore >= 65 ? 'border-blue-900 bg-amber-950/30' : 'border-slate-300 bg-slate-100/50'}`}>
+            ${p.flipScore >= 80 ? 'border-green-500 bg-green-950/40' : p.flipScore >= 65 ? 'border-blue-900 bg-blue-100/30' : 'border-slate-300 bg-slate-100/50'}`}>
             <span className={`text-lg font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
             <span className={`text-[9px] font-semibold ${p.scoreClass}`}>{p.scoreGrade}</span>
           </div>
@@ -71,7 +71,7 @@ function OpportunityCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () =>
       </div>
 
       {/* Key numbers */}
-      <div className="grid grid-cols-3 divide-x divide-zinc-800/60 border-b border-slate-200/70">
+      <div className="grid grid-cols-3 divide-x divide-slate-200/60 border-b border-slate-200/70">
         <div className="p-3 text-center">
           <div className="text-[9px] text-slate-500 uppercase tracking-wider mb-0.5">List Price</div>
           <div className="text-sm font-bold text-slate-800">{fmt$(p.price)}</div>
@@ -110,7 +110,7 @@ function OpportunityCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () =>
       </div>
 
       {/* Extra metrics row */}
-      <div className="grid grid-cols-4 divide-x divide-zinc-800/40 border-b border-slate-200/70">
+      <div className="grid grid-cols-4 divide-x divide-slate-200/40 border-b border-slate-200/70">
         {[
           { l: 'ROI', v: p.roi.toFixed(1) + '%', c: p.roi >= 0 ? 'text-green-400' : 'text-red-400' },
           { l: 'Rehab', v: fmt$(p.rehabCost), c: 'text-orange-400' },
