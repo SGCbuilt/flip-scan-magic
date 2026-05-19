@@ -300,7 +300,7 @@ export default function App() {
                 results={results} visible={activeTab === 'market'} />
             )}
             {activeTab === 'hunt' && (
-              <DealHunter params={params} />
+              <DealHunter />
             )}
           </div>
         </div>

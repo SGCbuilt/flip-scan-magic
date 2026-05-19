@@ -26,17 +26,11 @@ const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: stri
   { key: 'corporateOwned',    icon: '◈', label: 'Corporate Owned',  desc: 'Org-owned, motivated sellers', color: '#8A5700' },
 ]
 
-const MODE_HINT: Record<SearchMode, string> = {
-  city:    'Search all listings in a city',
-  state:   'Full statewide sweep',
-  zip:     '5-digit zip code',
-  address: 'Pin-drop search near address',
-}
-
-// Parse the combined locationQuery back into city + state so the inputs stay in sync
-const splitCityState = (q: string): { city: string; state: string } => {
-  const parts = (q || '').split(',').map(s => s.trim())
-  return { city: parts[0] || '', state: parts[1] || '' }
+const MODE_INFO: Record<SearchMode, { placeholder: string; hint: string }> = {
+  city:    { placeholder: 'Norfolk, VA  ·  Austin, TX', hint: 'Search all listings in a city' },
+  state:   { placeholder: 'Virginia  ·  VA  ·  Texas',  hint: 'Full statewide sweep' },
+  zip:     { placeholder: '23501  ·  78701',             hint: '5-digit zip code' },
+  address: { placeholder: '123 Main St, Norfolk, VA',    hint: 'Pin-drop search near address' },
 }
 
 const PRESETS = {
@@ -48,6 +42,11 @@ const PRESETS = {
 }
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
+
+const splitCityState = (q: string): { city: string; state: string } => {
+  const parts = (q || '').split(',').map(s => s.trim())
+  return { city: parts[0] || '', state: parts[1] || '' }
+}
 
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
@@ -63,14 +62,12 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   }
   const setCity = (city: string) => {
     const { state } = splitCityState(params.locationQuery)
-    const combined = state ? `${city}, ${state}` : city
-    onChange({ ...params, locationQuery: combined })
+    onChange({ ...params, locationQuery: state ? `${city}, ${state}` : city })
   }
-  const setState = (state: string) => {
+  const setStatePart = (state: string) => {
     const { city } = splitCityState(params.locationQuery)
     const s = state.toUpperCase().slice(0, 2)
-    const combined = city ? `${city}, ${s}` : s
-    onChange({ ...params, locationQuery: combined })
+    onChange({ ...params, locationQuery: city ? `${city}, ${s}` : s })
   }
   const setSource = (key: keyof DataSources, val: boolean) =>
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
@@ -165,9 +162,8 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               ))}
             </div>
             <div className="text-[10px] mb-2 px-2 py-1.5 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
-              {MODE_HINT[params.searchMode]}
+              {MODE_INFO[params.searchMode].hint}
             </div>
-
             {params.searchMode === 'city' ? (
               <div className="grid grid-cols-[1fr_70px] gap-2">
                 <div>
@@ -183,40 +179,31 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
                   <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
                     maxLength={2}
                     value={splitCityState(params.locationQuery).state}
-                    onChange={e => setState(e.target.value)}
+                    onChange={e => setStatePart(e.target.value)}
                     placeholder="VA"
                     onKeyDown={e => e.key === 'Enter' && onSearch()} />
                 </div>
               </div>
             ) : params.searchMode === 'state' ? (
-              <div>
-                <FL>State</FL>
-                <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
-                  maxLength={2}
-                  value={params.locationQuery}
-                  onChange={e => onChange({ ...params, locationQuery: e.target.value.toUpperCase().slice(0, 2) })}
-                  placeholder="VA"
-                  onKeyDown={e => e.key === 'Enter' && onSearch()} />
-              </div>
+              <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
+                maxLength={2}
+                value={params.locationQuery}
+                onChange={e => onChange({ ...params, locationQuery: e.target.value.toUpperCase().slice(0, 2) })}
+                placeholder="VA"
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
             ) : params.searchMode === 'zip' ? (
-              <div>
-                <FL>ZIP Code</FL>
-                <input className={ic} type="text" inputMode="numeric" autoComplete="postal-code"
-                  maxLength={5}
-                  value={params.locationQuery}
-                  onChange={e => onChange({ ...params, locationQuery: e.target.value.replace(/\D/g, '').slice(0, 5) })}
-                  placeholder="23501"
-                  onKeyDown={e => e.key === 'Enter' && onSearch()} />
-              </div>
+              <input className={ic} type="text" inputMode="numeric" autoComplete="postal-code"
+                maxLength={5}
+                value={params.locationQuery}
+                onChange={e => onChange({ ...params, locationQuery: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                placeholder="23501"
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
             ) : (
-              <div>
-                <FL>Street Address</FL>
-                <input className={ic} type="text" autoComplete="street-address"
-                  value={params.locationQuery}
-                  onChange={set('locationQuery')}
-                  placeholder="123 Main St, Norfolk, VA"
-                  onKeyDown={e => e.key === 'Enter' && onSearch()} />
-              </div>
+              <input className={ic} type="text" autoComplete="street-address"
+                value={params.locationQuery}
+                onChange={set('locationQuery')}
+                placeholder={MODE_INFO[params.searchMode].placeholder}
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
             )}
           </div>
 

@@ -1,375 +1,491 @@
 import { useState } from 'react'
 import {
-  runDealHunt, DealHuntResult, BankruptcyFiling,
-  HUDListing, AuctionListing, USDAListing, ProbateLead, TaxDelinquentLead
+  runDealHunt, DealHuntResult, ALL_STATES,
+  BankruptcyFiling, HUDListing, AuctionListing,
+  USDAListing, ProbateLead, TaxDelinquentLead, GovREOPortal,
+  stateOf, cityOf, zipOf
 } from '../lib/dealHunter'
-import { SearchParams } from '../types'
-
-interface Props { params: SearchParams }
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
-const SOURCE_CONFIG = {
-  bankruptcy:    { label: 'Bankruptcy Filings', icon: '⚖️', color: '#7F77DD', bg: '#EEEDFE', desc: 'Federal Ch.7/13 — CourtListener free API' },
-  hud:           { label: 'HUD HomeStore',       icon: '🏛️', color: '#185FA5', bg: '#E6F1FB', desc: 'FHA foreclosures — government portal' },
-  auction:       { label: 'Auction.com',          icon: '🔨', color: '#C0341D', bg: '#FCEBEB', desc: 'REO & courthouse step auctions' },
-  usda:          { label: 'USDA Rural',           icon: '🌾', color: '#3B6D11', bg: '#EAF3DE', desc: 'Rural Development foreclosures — data.gov' },
-  probate:       { label: 'Probate / Estate',     icon: '📋', color: '#854F0B', bg: '#FAEEDA', desc: 'Inherited property leads — CourtListener' },
-  taxDelinquent: { label: 'Tax Delinquent',       icon: '💸', color: '#993C1D', bg: '#FAECE7', desc: 'County tax delinquent open data' },
+const SRC = {
+  bankruptcy:    { label: 'Bankruptcy',      icon: '⚖️', color: '#534AB7', bg: '#EEEDFE', desc: 'Federal Ch.7/Ch.13 — CourtListener free API' },
+  hud:           { label: 'HUD Gov',         icon: '🏛️', color: '#185FA5', bg: '#E6F1FB', desc: 'FHA foreclosures — hudhomestore.gov' },
+  govReo:        { label: 'Gov REO Portals', icon: '🏦', color: '#1A7A4A', bg: '#EDFAF3', desc: 'HomePath, HomeSteps, VA, USDA portals' },
+  auction:       { label: 'Live Auctions',   icon: '🔨', color: '#C0341D', bg: '#FCEBEB', desc: 'Auction.com, Hubzu, Xome, Ten-X' },
+  probate:       { label: 'Probate/Estate',  icon: '📋', color: '#854F0B', bg: '#FAEEDA', desc: 'Federal court estate filings' },
+  usda:          { label: 'USDA Rural',      icon: '🌾', color: '#3B6D11', bg: '#EAF3DE', desc: 'Rural Development foreclosures' },
+  taxDelinquent: { label: 'Tax Delinquent',  icon: '💸', color: '#993C1D', bg: '#FAECE7', desc: 'County open-data delinquencies' },
 }
 
-function SourceToggle({
-  id, enabled, onChange
-}: { id: keyof typeof SOURCE_CONFIG; enabled: boolean; onChange: (v: boolean) => void }) {
-  const cfg = SOURCE_CONFIG[id]
+type SrcKey = keyof typeof SRC
+
+const DEFAULT_SOURCES = {
+  bankruptcy: true, hud: true, govReo: true, auction: true,
+  probate: true, usda: false, taxDelinquent: false,
+}
+
+function Badge({ s, small }: { s: SrcKey; small?: boolean }) {
+  const c = SRC[s]
   return (
-    <label className="flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-all"
-      style={{
-        borderColor: enabled ? cfg.color + '50' : 'var(--sgc-gray-border)',
-        background: enabled ? cfg.bg : 'white',
-      }}>
-      <input type="checkbox" checked={enabled} onChange={e => onChange(e.target.checked)}
-        className="mt-0.5 flex-shrink-0" style={{ accentColor: cfg.color }} />
-      <div>
-        <div className="text-sm font-semibold" style={{ color: enabled ? cfg.color : 'var(--sgc-black)' }}>
-          {cfg.icon} {cfg.label}
-        </div>
-        <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{cfg.desc}</div>
-      </div>
-    </label>
+    <span className={`font-semibold rounded-full inline-block ${small ? 'text-[10px] px-1.5 py-0.5' : 'text-xs px-2 py-0.5'}`}
+      style={{ background: c.bg, color: c.color }}>
+      {c.icon} {c.label}
+    </span>
   )
 }
 
-function LeadCard({ children, source, urgent }: { children: React.ReactNode; source: keyof typeof SOURCE_CONFIG; urgent?: boolean }) {
-  const cfg = SOURCE_CONFIG[source]
+function Pill({ text }: { text: string }) {
+  return <span className="text-xs px-2 py-0.5 rounded-full" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>{text}</span>
+}
+
+function ScoreDot({ score }: { score: number }) {
+  const c = score >= 75 ? '#1A7A4A' : score >= 55 ? '#8A5700' : '#C0341D'
+  const bg = score >= 75 ? '#EDFAF3' : score >= 55 ? '#FEF7EA' : '#FEF0ED'
   return (
-    <div className="bg-white rounded-xl border overflow-hidden transition-all hover:shadow-sm"
-      style={{ borderColor: urgent ? cfg.color + '60' : 'var(--sgc-gray-border)' }}>
-      <div className="h-1" style={{ background: cfg.color }} />
+    <div className="w-10 h-10 rounded-full border-2 flex-shrink-0 flex items-center justify-center font-bold text-sm"
+      style={{ borderColor: c + '60', background: bg, color: c }}>{score}</div>
+  )
+}
+
+function Card({ children, src, urgent }: { children: React.ReactNode; src: SrcKey; urgent?: boolean }) {
+  const c = SRC[src]
+  return (
+    <div className="bg-white rounded-xl border overflow-hidden hover:shadow-sm transition-shadow"
+      style={{ borderColor: urgent ? c.color + '50' : 'var(--sgc-gray-border)' }}>
+      <div className="h-0.5" style={{ background: c.color }} />
       <div className="p-4">{children}</div>
     </div>
   )
 }
 
-function SignalPill({ text }: { text: string }) {
+function ExtBtn({ href, label }: { href: string; label: string }) {
   return (
-    <span className="text-xs px-2 py-0.5 rounded-full inline-block"
-      style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
-      {text}
-    </span>
-  )
-}
-
-function SourceBadge({ source }: { source: keyof typeof SOURCE_CONFIG }) {
-  const cfg = SOURCE_CONFIG[source]
-  return (
-    <span className="text-xs font-semibold px-2 py-0.5 rounded-full"
-      style={{ background: cfg.bg, color: cfg.color }}>
-      {cfg.icon} {cfg.label}
-    </span>
-  )
-}
-
-function ScoreRing({ score, size = 40 }: { score: number; size?: number }) {
-  const color = score >= 75 ? '#1A7A4A' : score >= 55 ? '#8A5700' : '#C0341D'
-  const bg = score >= 75 ? '#EDFAF3' : score >= 55 ? '#FEF7EA' : '#FEF0ED'
-  return (
-    <div className="flex-shrink-0 rounded-full flex flex-col items-center justify-center border-2 text-center"
-      style={{ width: size, height: size, borderColor: color + '60', background: bg }}>
-      <span className="font-bold leading-none" style={{ fontSize: size * 0.3, color }}>{score}</span>
-    </div>
-  )
-}
-
-function StatBadge({ label, value, color }: { label: string; value: string; color?: string }) {
-  return (
-    <div className="text-center">
-      <div className="text-xs font-bold" style={{ color: color || 'var(--sgc-navy)' }}>{value}</div>
-      <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
-    </div>
-  )
-}
-
-// Section header
-function SectionHeader({ source, count }: { source: keyof typeof SOURCE_CONFIG; count: number }) {
-  const cfg = SOURCE_CONFIG[source]
-  return (
-    <div className="flex items-center gap-3 mb-3">
-      <span className="text-lg">{cfg.icon}</span>
-      <div>
-        <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>{cfg.label}</div>
-        <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{cfg.desc}</div>
-      </div>
-      <span className="ml-auto text-xs font-bold px-2.5 py-1 rounded-full"
-        style={{ background: cfg.bg, color: cfg.color }}>
-        {count} found
-      </span>
-    </div>
-  )
-}
-
-// External link button
-function ExtLink({ href, label }: { href: string; label: string }) {
-  return (
-    <a href={href} target="_blank" rel="noopener noreferrer"
-      className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg border transition-colors"
-      style={{ color: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy-mid)', background: 'var(--sgc-navy-pale)' }}
-      onClick={e => e.stopPropagation()}>
+    <a href={href} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+      className="inline-flex items-center gap-1 text-xs font-semibold px-3 py-1.5 rounded-lg border"
+      style={{ color: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy-mid)', background: 'var(--sgc-navy-pale)' }}>
       {label} ↗
     </a>
   )
 }
 
-export default function DealHunter({ params }: Props) {
-  const [sources, setSources] = useState({
-    bankruptcy: true, hud: true, auction: true,
-    usda: false, probate: true, taxDelinquent: false,
-  })
+function SectionHead({ src, count }: { src: SrcKey; count: number }) {
+  const c = SRC[src]
+  return (
+    <div className="flex items-center gap-3 mb-3 pb-2 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+      <span className="text-2xl">{c.icon}</span>
+      <div className="flex-1">
+        <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>{c.label}</div>
+        <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{c.desc}</div>
+      </div>
+      <span className="text-xs font-bold px-2.5 py-1 rounded-full" style={{ background: c.bg, color: c.color }}>
+        {count} {count === 1 ? 'result' : 'results'}
+      </span>
+    </div>
+  )
+}
+
+export default function DealHunter() {
+  const [searchType, setSearchType] = useState<'national' | 'state' | 'city' | 'zip'>('national')
+  const [stateInput, setStateInput] = useState('')
+  const [cityInput, setCityInput] = useState('')
+  const [zipInput, setZipInput] = useState('')
+  const [selectedStates, setSelectedStates] = useState<string[]>([])
+  const [sources, setSources] = useState(DEFAULT_SOURCES)
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<DealHuntResult | null>(null)
   const [loadingMsg, setLoadingMsg] = useState('')
   const [filter, setFilter] = useState<string>('all')
+  const [stateDropdown, setStateDropdown] = useState(false)
 
-  // Parse location from search params
-  const parseLocation = () => {
-    const q = params.locationQuery.trim()
-    const isZip = /^\d{5}$/.test(q)
-    if (isZip) return { state: '', zip: q, city: undefined }
-    const parts = q.split(',').map(s => s.trim())
-    const city = parts[0]
-    const state = parts[1] || 'VA'
-    return { state: state.length > 2 ? state.slice(0, 2) : state, city, zip: undefined }
+  const toggleState = (s: string) => setSelectedStates(prev =>
+    prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]
+  )
+
+  const buildOpts = () => {
+    let states: string[] = []
+    let city: string | undefined
+    let zip: string | undefined
+
+    if (searchType === 'national') {
+      states = ['ALL']
+    } else if (searchType === 'state') {
+      states = selectedStates.length > 0 ? selectedStates : [stateOf(stateInput)].filter(Boolean)
+    } else if (searchType === 'city') {
+      city = cityOf(cityInput) || cityInput
+      const st = stateOf(cityInput)
+      states = st ? [st] : []
+    } else if (searchType === 'zip') {
+      zip = zipOf(zipInput) || zipInput
+      const st = stateOf(zipInput)
+      states = st ? [st] : []
+    }
+
+    return { states, city, zip, sources }
   }
 
   const handleHunt = async () => {
-    const activeSources = Object.values(sources).filter(Boolean).length
-    if (!activeSources) return
-    if (!params.locationQuery.trim()) return
-
-    setLoading(true); setResult(null)
-    const { state, city, zip } = parseLocation()
-
+    setLoading(true); setResult(null); setFilter('all')
     const msgs = [
-      'Searching federal bankruptcy courts...',
+      'Searching federal bankruptcy courts nationwide...',
       'Fetching HUD government listings...',
-      'Scanning auction.com...',
-      'Checking probate filings...',
+      'Scanning auction platforms...',
+      'Querying federal probate filings...',
       'Pulling USDA rural data...',
-      'Analyzing all leads...',
+      'Analyzing tax delinquency records...',
+      'Building government REO portal map...',
+      'Compiling all leads...',
     ]
     let mi = 0
-    const interval = setInterval(() => {
-      setLoadingMsg(msgs[mi % msgs.length])
-      mi++
-    }, 1200)
-
+    const iv = setInterval(() => { setLoadingMsg(msgs[mi++ % msgs.length]) }, 1500)
     try {
-      const r = await runDealHunt({ state, city, zip, sources })
+      const r = await runDealHunt(buildOpts())
       setResult(r)
     } finally {
-      clearInterval(interval)
-      setLoading(false)
-      setLoadingMsg('')
+      clearInterval(iv); setLoading(false); setLoadingMsg('')
     }
   }
 
-  const totalCount = result
-    ? result.bankruptcy.length + result.hud.length + result.auction.length +
-      result.usda.length + result.probate.length + result.taxDelinquent.length
-    : 0
+  const counts = result ? {
+    bankruptcy: result.bankruptcy.length, hud: result.hud.length,
+    auction: result.auction.length, usda: result.usda.length,
+    probate: result.probate.length, taxDelinquent: result.taxDelinquent.length,
+    govReo: result.govReo.length,
+  } : null
 
-  const FILTERS = [
-    { key: 'all',         label: 'All Leads',     count: totalCount },
-    { key: 'bankruptcy',  label: '⚖️ Bankruptcy', count: result?.bankruptcy.length || 0 },
-    { key: 'hud',         label: '🏛️ HUD',        count: result?.hud.length || 0 },
-    { key: 'auction',     label: '🔨 Auctions',   count: result?.auction.length || 0 },
-    { key: 'probate',     label: '📋 Probate',    count: result?.probate.length || 0 },
-    { key: 'usda',        label: '🌾 USDA',       count: result?.usda.length || 0 },
-    { key: 'taxDelinquent', label: '💸 Tax',      count: result?.taxDelinquent.length || 0 },
-  ].filter(f => f.key === 'all' || f.count > 0)
+  const total = counts ? Object.values(counts).reduce((a, b) => a + b, 0) : 0
+
+  const FILTER_TABS = [
+    { k: 'all',          l: 'All',           n: total },
+    { k: 'bankruptcy',   l: '⚖️ Bankruptcy', n: counts?.bankruptcy || 0 },
+    { k: 'hud',          l: '🏛️ HUD',        n: counts?.hud || 0 },
+    { k: 'govReo',       l: '🏦 Gov REO',    n: counts?.govReo || 0 },
+    { k: 'auction',      l: '🔨 Auctions',   n: counts?.auction || 0 },
+    { k: 'probate',      l: '📋 Probate',    n: counts?.probate || 0 },
+    { k: 'taxDelinquent',l: '💸 Tax',        n: counts?.taxDelinquent || 0 },
+    { k: 'usda',         l: '🌾 USDA',       n: counts?.usda || 0 },
+  ].filter(t => t.k === 'all' || t.n > 0)
+
+  const ic = `w-full rounded-lg border text-sm px-3 py-2 outline-none transition-colors bg-white text-gray-900 placeholder:text-gray-400`
+    + ` border-[var(--sgc-gray-border)] focus:border-[var(--sgc-navy)] focus:ring-1 focus:ring-[var(--sgc-navy)]/20`
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
-      {/* LEFT: Config panel */}
-      <div className="w-64 flex-shrink-0 flex flex-col border-r" style={{ background: 'white', borderColor: 'var(--sgc-gray-border)' }}>
-        <div className="p-4 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-          <div className="text-sm font-bold mb-0.5" style={{ color: 'var(--sgc-navy)' }}>Deal Hunter</div>
-          <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-            {params.locationQuery || 'Set location in search'} · Federal + public sources
+      {/* ── LEFT CONFIG ── */}
+      <div className="w-72 flex-shrink-0 flex flex-col border-r bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+        <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+          <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>🎯 Deal Hunter</div>
+          <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Federal courts · Government portals · Auctions</div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+
+          {/* SEARCH SCOPE */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Search Scope</div>
+            <div className="grid grid-cols-2 gap-1.5">
+              {([
+                { k: 'national', l: '🌎 National', sub: 'All 50 states' },
+                { k: 'state',    l: '🗺️ State(s)',  sub: 'One or more states' },
+                { k: 'city',     l: '📍 City',      sub: 'City + state' },
+                { k: 'zip',      l: '#️⃣ Zip Code',   sub: '5-digit zip' },
+              ] as const).map(o => (
+                <button key={o.k} onClick={() => setSearchType(o.k)}
+                  className="rounded-lg border p-2 text-left cursor-pointer transition-all"
+                  style={searchType === o.k
+                    ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
+                    : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-black)' }}>
+                  <div className="text-xs font-semibold">{o.l}</div>
+                  <div className="text-[10px] mt-0.5 opacity-70">{o.sub}</div>
+                </button>
+              ))}
+            </div>
+
+            {/* National info */}
+            {searchType === 'national' && (
+              <div className="mt-2 text-xs px-3 py-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
+                🌎 Searches all federal court districts + all government portals across all 50 states simultaneously.
+              </div>
+            )}
+
+            {/* State picker */}
+            {searchType === 'state' && (
+              <div className="mt-2">
+                <div className="relative">
+                  <button onClick={() => setStateDropdown(d => !d)}
+                    className="w-full text-left rounded-lg border px-3 py-2 text-sm cursor-pointer"
+                    style={{ borderColor: 'var(--sgc-gray-border)', background: 'white', color: 'var(--sgc-black)' }}>
+                    {selectedStates.length === 0
+                      ? 'Select states...'
+                      : selectedStates.length <= 3
+                        ? selectedStates.join(', ')
+                        : `${selectedStates.slice(0, 3).join(', ')} +${selectedStates.length - 3}`
+                    } ▾
+                  </button>
+                  {stateDropdown && (
+                    <div className="absolute z-50 left-0 right-0 top-full mt-1 bg-white border rounded-xl shadow-lg overflow-y-auto"
+                      style={{ borderColor: 'var(--sgc-gray-border)', maxHeight: 220 }}>
+                      <div className="p-2 grid grid-cols-3 gap-1">
+                        {Object.entries(ALL_STATES).map(([abbr, name]) => (
+                          <button key={abbr} onClick={() => toggleState(abbr)}
+                            className="text-xs px-2 py-1 rounded text-left cursor-pointer transition-colors"
+                            style={selectedStates.includes(abbr)
+                              ? { background: 'var(--sgc-navy)', color: 'white' }
+                              : { background: 'var(--sgc-gray-light)', color: 'var(--sgc-black)' }}>
+                            <span className="font-bold">{abbr}</span>
+                          </button>
+                        ))}
+                      </div>
+                      <div className="px-2 pb-2 flex gap-2">
+                        <button onClick={() => setSelectedStates(Object.keys(ALL_STATES))}
+                          className="text-xs px-2 py-1 rounded cursor-pointer" style={{ background: 'var(--sgc-navy)', color: 'white' }}>All</button>
+                        <button onClick={() => setSelectedStates([])}
+                          className="text-xs px-2 py-1 rounded cursor-pointer" style={{ background: 'var(--sgc-gray-border)', color: 'var(--sgc-black)' }}>Clear</button>
+                        <button onClick={() => setStateDropdown(false)}
+                          className="text-xs px-2 py-1 rounded cursor-pointer ml-auto" style={{ background: 'var(--sgc-navy)', color: 'white' }}>Done</button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+                {selectedStates.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap gap-1">
+                    {selectedStates.map(s => (
+                      <span key={s} className="text-[10px] px-2 py-0.5 rounded-full cursor-pointer font-semibold"
+                        style={{ background: 'var(--sgc-navy)', color: 'white' }}
+                        onClick={() => toggleState(s)}>
+                        {s} ✕
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {searchType === 'city' && (
+              <div className="mt-2">
+                <input className={ic} value={cityInput} onChange={e => setCityInput(e.target.value)}
+                  placeholder="Norfolk, VA  ·  Austin, TX  ·  Miami, FL"
+                  onKeyDown={e => e.key === 'Enter' && handleHunt()} />
+              </div>
+            )}
+
+            {searchType === 'zip' && (
+              <div className="mt-2">
+                <input className={ic} value={zipInput} onChange={e => setZipInput(e.target.value)}
+                  placeholder="23501  ·  77002  ·  33101"
+                  onKeyDown={e => e.key === 'Enter' && handleHunt()} />
+              </div>
+            )}
+          </div>
+
+          {/* DATA SOURCES */}
+          <div>
+            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Data Sources</div>
+            <div className="space-y-1.5">
+              {(Object.entries(SRC) as [SrcKey, typeof SRC[SrcKey]][]).map(([key, cfg]) => (
+                <label key={key} className="flex items-start gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-all"
+                  style={{
+                    borderColor: sources[key] ? cfg.color + '40' : 'var(--sgc-gray-border)',
+                    background: sources[key] ? cfg.bg : 'white',
+                  }}>
+                  <input type="checkbox" checked={sources[key]}
+                    onChange={e => setSources(s => ({ ...s, [key]: e.target.checked }))}
+                    className="mt-0.5 flex-shrink-0" style={{ accentColor: cfg.color }} />
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold" style={{ color: sources[key] ? cfg.color : 'var(--sgc-black)' }}>
+                      {cfg.icon} {cfg.label}
+                    </div>
+                    <div className="text-[10px] leading-relaxed" style={{ color: 'var(--sgc-gray-mid)' }}>{cfg.desc}</div>
+                  </div>
+                </label>
+              ))}
+            </div>
+            <div className="flex gap-2 mt-2">
+              <button onClick={() => setSources(Object.fromEntries(Object.keys(SRC).map(k => [k, true])) as typeof sources)}
+                className="text-xs px-2 py-1 rounded cursor-pointer" style={{ background: 'var(--sgc-navy)', color: 'white' }}>All On</button>
+              <button onClick={() => setSources(Object.fromEntries(Object.keys(SRC).map(k => [k, false])) as typeof sources)}
+                className="text-xs px-2 py-1 rounded cursor-pointer" style={{ background: 'var(--sgc-gray-border)', color: 'var(--sgc-black)' }}>All Off</button>
+            </div>
           </div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-3 space-y-2">
-          <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>
-            Data Sources
-          </div>
-          {(Object.keys(sources) as Array<keyof typeof sources>).map(key => (
-            <SourceToggle key={key} id={key} enabled={sources[key]}
-              onChange={v => setSources(s => ({ ...s, [key]: v }))} />
-          ))}
-        </div>
-
+        {/* HUNT BUTTON */}
         <div className="p-4 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-          <button onClick={handleHunt} disabled={loading || !params.locationQuery.trim()}
-            className="w-full py-3 rounded-lg text-sm font-bold text-white transition-all border-none cursor-pointer"
+          <button onClick={handleHunt} disabled={loading}
+            className="w-full py-3 rounded-xl text-sm font-bold text-white border-none cursor-pointer transition-all"
             style={{ background: loading ? 'var(--sgc-gray-mid)' : 'var(--sgc-navy)' }}>
             {loading
               ? <span className="flex items-center justify-center gap-2">
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
-                  Hunting...
+                  Hunting Deals...
                 </span>
-              : `⬡ Hunt for Deals`}
+              : `⬡ Hunt ${searchType === 'national' ? 'Nationwide' : 'for Deals'}`}
           </button>
-          {loading && (
-            <div className="text-xs text-center mt-2" style={{ color: 'var(--sgc-gray-mid)' }}>{loadingMsg}</div>
-          )}
+          {loading && <div className="text-[11px] text-center mt-2" style={{ color: 'var(--sgc-gray-mid)' }}>{loadingMsg}</div>}
         </div>
       </div>
 
-      {/* RIGHT: Results */}
+      {/* ── RIGHT RESULTS ── */}
       <div className="flex-1 flex flex-col overflow-hidden">
 
-        {/* Filter bar */}
-        {result && totalCount > 0 && (
-          <div className="flex items-center gap-2 px-5 py-3 border-b flex-shrink-0 flex-wrap"
-            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)' }}>
-            {FILTERS.map(f => (
-              <button key={f.key} onClick={() => setFilter(f.key)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all border cursor-pointer"
-                style={filter === f.key
+        {/* Filter tabs */}
+        {result && total > 0 && (
+          <div className="flex items-center gap-1.5 px-5 py-2.5 border-b flex-shrink-0 flex-wrap bg-white"
+            style={{ borderColor: 'var(--sgc-gray-border)' }}>
+            <span className="text-xs font-semibold mr-1" style={{ color: 'var(--sgc-gray-mid)' }}>Filter:</span>
+            {FILTER_TABS.map(f => (
+              <button key={f.k} onClick={() => setFilter(f.k)}
+                className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border cursor-pointer transition-all"
+                style={filter === f.k
                   ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
-                  : { background: 'transparent', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
-                {f.label}
-                <span className="px-1.5 py-0.5 rounded-full text-[10px] font-bold"
-                  style={filter === f.key ? { background: 'rgba(255,255,255,0.25)', color: 'white' } : { background: 'var(--sgc-gray-light)' }}>
-                  {f.count}
+                  : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                {f.l}
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                  style={filter === f.k ? { background: 'rgba(255,255,255,0.25)', color: 'white' } : { background: 'var(--sgc-gray-light)' }}>
+                  {f.n}
                 </span>
               </button>
             ))}
-
-            {result.errors.length > 0 && (
-              <span className="ml-auto text-xs px-2 py-1 rounded-lg cursor-help"
-                style={{ background: '#FEF7EA', color: '#8A5700' }}
-                title={result.errors.join('\n')}>
-                ⚠ {result.errors.length} warning{result.errors.length > 1 ? 's' : ''}
-              </span>
-            )}
+            <div className="ml-auto text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
+              {result.isNational ? '🌎 National' : result.searchedStates.join(', ')}
+            </div>
           </div>
         )}
 
         <div className="flex-1 overflow-y-auto p-5">
 
-          {/* Idle */}
+          {/* IDLE */}
           {!loading && !result && (
-            <div className="flex flex-col items-center justify-center h-full text-center px-8">
-              <svg viewBox="0 0 100 100" className="w-24 h-24 mb-6 opacity-15">
-                <polyline points="50,8 90,38 90,88 10,88 10,38" fill="none" stroke="var(--sgc-navy)" strokeWidth="4" strokeLinejoin="round"/>
-                <line x1="50" y1="8" x2="10" y2="38" stroke="var(--sgc-navy)" strokeWidth="4" strokeLinecap="round"/>
-                <rect x="36" y="62" width="28" height="26" rx="1" fill="none" stroke="var(--sgc-navy)" strokeWidth="3.5"/>
-                <circle cx="72" cy="28" r="14" fill="none" stroke="#C0341D" strokeWidth="3.5"/>
-                <line x1="82" y1="38" x2="92" y2="48" stroke="#C0341D" strokeWidth="3.5" strokeLinecap="round"/>
+            <div className="flex flex-col items-center justify-center h-full text-center px-8 max-w-3xl mx-auto">
+              <svg viewBox="0 0 120 100" className="w-28 h-24 mb-6 opacity-15">
+                <polyline points="60,8 108,44 108,92 12,92 12,44" fill="none" stroke="var(--sgc-navy)" strokeWidth="3.5" strokeLinejoin="round"/>
+                <line x1="60" y1="8" x2="12" y2="44" stroke="var(--sgc-navy)" strokeWidth="3.5" strokeLinecap="round"/>
+                <rect x="44" y="64" width="32" height="28" rx="1" fill="none" stroke="var(--sgc-navy)" strokeWidth="3"/>
+                <circle cx="88" cy="26" r="16" fill="none" stroke="#C0341D" strokeWidth="3.5"/>
+                <line x1="100" y1="38" x2="112" y2="50" stroke="#C0341D" strokeWidth="3.5" strokeLinecap="round"/>
               </svg>
-              <h3 className="text-lg font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>Multi-Source Deal Hunter</h3>
-              <p className="text-sm mb-6 max-w-md" style={{ color: 'var(--sgc-gray-mid)' }}>
-                Searches federal bankruptcy courts, HUD government listings, live auctions, USDA rural properties, probate filings, and tax delinquent data — all free public sources — simultaneously.
+              <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>Multi-Source Deal Hunter</h3>
+              <p className="text-sm mb-6 max-w-lg" style={{ color: 'var(--sgc-gray-mid)' }}>
+                Searches federal bankruptcy courts, HUD government listings, live auction platforms, probate filings, USDA rural properties, and tax delinquent open data — all in parallel. Select a scope and hunt.
               </p>
-              <div className="grid grid-cols-2 gap-3 max-w-lg w-full text-left">
-                {Object.entries(SOURCE_CONFIG).map(([key, cfg]) => (
-                  <div key={key} className="rounded-xl border p-3" style={{ background: 'white', borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-sm font-semibold mb-0.5" style={{ color: cfg.color }}>{cfg.icon} {cfg.label}</div>
-                    <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{cfg.desc}</div>
+              <div className="grid grid-cols-2 gap-3 w-full max-w-xl text-left">
+                {(Object.entries(SRC) as [SrcKey, typeof SRC[SrcKey]][]).map(([k, c]) => (
+                  <div key={k} className="rounded-xl border p-3 bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <div className="text-sm font-semibold mb-0.5" style={{ color: c.color }}>{c.icon} {c.label}</div>
+                    <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{c.desc}</div>
                   </div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Loading */}
+          {/* LOADING */}
           {loading && (
-            <div className="flex flex-col items-center justify-center h-64">
-              <div className="w-12 h-12 border-2 rounded-full spin mb-4"
-                style={{ borderColor: 'var(--sgc-gray-border)', borderTopColor: 'var(--sgc-navy)' }} />
-              <div className="text-sm font-semibold mb-1" style={{ color: 'var(--sgc-navy)' }}>{loadingMsg}</div>
-              <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                Scanning {Object.values(sources).filter(Boolean).length} free federal & public sources
+            <div className="flex flex-col items-center justify-center h-full">
+              <div className="w-12 h-12 border-2 rounded-full spin mb-5" style={{ borderColor: 'var(--sgc-gray-border)', borderTopColor: 'var(--sgc-navy)' }} />
+              <div className="text-base font-bold mb-1" style={{ color: 'var(--sgc-navy)' }}>{loadingMsg}</div>
+              <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>
+                Scanning {Object.values(sources).filter(Boolean).length} sources
+                {searchType === 'national' ? ' · All 50 states' : ''}
               </div>
             </div>
           )}
 
-          {/* Results */}
-          {result && totalCount === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center h-64 text-center">
-              <div className="text-4xl mb-3">🔍</div>
-              <div className="text-sm font-semibold mb-1" style={{ color: 'var(--sgc-navy)' }}>No leads found</div>
-              <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                Try a different location or enable more sources.<br/>
-                Some sources only have data for specific counties.
-              </div>
-              {result.errors.length > 0 && (
-                <div className="mt-3 text-xs max-w-sm" style={{ color: 'var(--sgc-danger)' }}>
-                  {result.errors.join(' · ')}
-                </div>
-              )}
-            </div>
-          )}
-
-          {result && totalCount > 0 && !loading && (
+          {/* RESULTS */}
+          {result && !loading && (
             <div className="space-y-6">
 
-              {/* Summary strip */}
-              <div className="grid grid-cols-6 gap-3">
-                {[
-                  { l: 'Total Leads', v: String(totalCount), c: 'var(--sgc-navy)' },
-                  { l: 'Bankruptcy', v: String(result.bankruptcy.length), c: '#7F77DD' },
-                  { l: 'HUD Gov', v: String(result.hud.length), c: '#185FA5' },
-                  { l: 'Auctions', v: String(result.auction.length), c: '#C0341D' },
-                  { l: 'Probate', v: String(result.probate.length), c: '#854F0B' },
-                  { l: 'USDA Rural', v: String(result.usda.length), c: '#3B6D11' },
-                ].map(s => (
-                  <div key={s.l} className="rounded-xl border p-3 text-center" style={{ background: 'white', borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-xl font-bold" style={{ color: s.c }}>{s.v}</div>
-                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{s.l}</div>
+              {/* Summary */}
+              {total === 0 ? (
+                <div className="text-center py-12">
+                  <div className="text-4xl mb-3">🔍</div>
+                  <div className="text-sm font-bold mb-1" style={{ color: 'var(--sgc-navy)' }}>No results found</div>
+                  <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>Try national scope or enable more sources</div>
+                </div>
+              ) : (
+                <div className="grid grid-cols-4 gap-3">
+                  {[
+                    { l: 'Total Leads', v: String(total), c: 'var(--sgc-navy)' },
+                    { l: 'Bankruptcy', v: String(result.bankruptcy.length), c: '#534AB7' },
+                    { l: 'Gov / HUD', v: String(result.hud.length + result.govReo.length), c: '#185FA5' },
+                    { l: 'Auctions', v: String(result.auction.length), c: '#C0341D' },
+                  ].map(s => (
+                    <div key={s.l} className="bg-white rounded-xl border p-3 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                      <div className="text-2xl font-bold" style={{ color: s.c }}>{s.v}</div>
+                      <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{s.l}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Gov REO Portals */}
+              {(filter === 'all' || filter === 'govReo') && result.govReo.length > 0 && (
+                <div>
+                  <SectionHead src="govReo" count={result.govReo.length} />
+                  <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+                    {result.govReo.map((p: GovREOPortal) => (
+                      <Card key={p.id} src="govReo">
+                        <div className="flex items-start justify-between gap-3 mb-2">
+                          <div>
+                            <Badge s="govReo" small />
+                            <div className="text-sm font-bold mt-1.5" style={{ color: 'var(--sgc-black)' }}>{p.name}</div>
+                            <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{p.description}</div>
+                          </div>
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0"
+                            style={{ background: '#EDFAF3', color: '#1A7A4A' }}>{p.discount}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {p.signals.map((s, i) => <Pill key={i} text={s} />)}
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>📍 {p.coverageStates.join(', ')}</span>
+                          <ExtBtn href={p.url} label={`Open ${p.name}`} />
+                        </div>
+                      </Card>
+                    ))}
                   </div>
-                ))}
-              </div>
+                </div>
+              )}
 
               {/* Bankruptcy */}
               {(filter === 'all' || filter === 'bankruptcy') && result.bankruptcy.length > 0 && (
                 <div>
-                  <SectionHeader source="bankruptcy" count={result.bankruptcy.length} />
+                  <SectionHead src="bankruptcy" count={result.bankruptcy.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.bankruptcy.map(b => (
-                      <LeadCard key={b.id} source="bankruptcy" urgent={b.distressScore >= 75}>
-                        <div className="flex items-start justify-between gap-3 mb-3">
+                      <Card key={b.id} src="bankruptcy" urgent={b.distressScore >= 75}>
+                        <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="flex-1 min-w-0">
-                            <SourceBadge source="bankruptcy" />
-                            <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                              {b.caseName || 'Bankruptcy Filing'}
-                            </div>
+                            <Badge s="bankruptcy" small />
+                            <div className="text-sm font-bold mt-1.5 mb-0.5" style={{ color: 'var(--sgc-black)' }}>{b.caseName}</div>
                             <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                              Case #{b.caseNumber} · {b.court} · Filed {new Date(b.dateFiled).toLocaleDateString()}
+                              Case #{b.caseNumber} · {b.court || b.state}
+                              {b.dateFiled && ` · Filed ${new Date(b.dateFiled).toLocaleDateString()}`}
                             </div>
                           </div>
-                          <ScoreRing score={b.distressScore} />
+                          <ScoreDot score={b.distressScore} />
                         </div>
-                        <div className="flex gap-2 mb-3 flex-wrap">
-                          <StatBadge label="Chapter" value={`Ch. ${b.chapter}`} color="#7F77DD" />
-                          <StatBadge label="Days Open" value={`${b.daysOpen}d`} color={b.daysOpen < 60 ? 'var(--sgc-danger)' : 'var(--sgc-warn)'} />
-                          <StatBadge label="Filing Type" value={b.filingType} />
+                        <div className="flex gap-3 mb-2 text-center">
+                          {[
+                            { l: 'Chapter', v: `Ch. ${b.chapter}`, c: '#534AB7' },
+                            { l: 'Days Open', v: `${b.daysOpen}d`, c: b.daysOpen < 30 ? 'var(--sgc-danger)' : 'var(--sgc-warn)' },
+                            { l: 'State', v: b.state || '—', c: 'var(--sgc-navy)' },
+                          ].map(m => (
+                            <div key={m.l} className="rounded-lg p-2 flex-1" style={{ background: 'var(--sgc-gray-light)' }}>
+                              <div className="text-xs font-bold" style={{ color: m.c }}>{m.v}</div>
+                              <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>{m.l}</div>
+                            </div>
+                          ))}
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {b.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {b.signals.slice(0, 3).map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                        <div className="flex gap-2 flex-wrap">
-                          <ExtLink
-                            href={`https://www.courtlistener.com/?q=${encodeURIComponent(b.caseName)}&type=r&order_by=score+desc`}
-                            label="CourtListener" />
-                          <ExtLink
-                            href={`https://pacer.uscourts.gov/search`}
-                            label="PACER" />
+                        <div className="flex gap-2">
+                          <ExtBtn href={b.clUrl} label="CourtListener" />
+                          <ExtBtn href="https://pacer.uscourts.gov" label="PACER" />
                         </div>
-                      </LeadCard>
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -378,35 +494,25 @@ export default function DealHunter({ params }: Props) {
               {/* HUD */}
               {(filter === 'all' || filter === 'hud') && result.hud.length > 0 && (
                 <div>
-                  <SectionHeader source="hud" count={result.hud.length} />
+                  <SectionHead src="hud" count={result.hud.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.hud.map(h => (
-                      <LeadCard key={h.id} source="hud">
-                        <div className="flex items-start justify-between gap-3 mb-2">
-                          <div className="flex-1 min-w-0">
-                            <SourceBadge source="hud" />
-                            <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                              {h.addr || 'HUD Property'}
-                            </div>
-                            <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                              {h.city && `${h.city}, `}{h.state} {h.zip}
-                              {h.beds > 0 && ` · ${h.beds}bd/${h.baths}ba`}
-                            </div>
-                          </div>
-                          {h.price > 0 && (
-                            <div className="text-right">
-                              <div className="text-base font-bold" style={{ color: 'var(--sgc-navy)' }}>{fmt$(h.price)}</div>
-                              {h.dom > 0 && <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{h.dom}d listed</div>}
-                            </div>
-                          )}
+                      <Card key={h.id} src="hud">
+                        <Badge s="hud" small />
+                        <div className="text-sm font-bold mt-1.5 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
+                          {h.addr || `HUD Property — ${ALL_STATES[h.state] || h.state}`}
                         </div>
+                        <div className="text-xs mb-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          {h.city && `${h.city}, `}{h.state} {h.zip}
+                          {h.beds > 0 && ` · ${h.beds}bd/${h.baths}ba`}
+                          {h.sqft > 0 && ` · ${h.sqft.toLocaleString()} sqft`}
+                        </div>
+                        {h.price > 0 && <div className="text-sm font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>{fmt$(h.price)}</div>}
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {h.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {h.signals.map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                        <ExtLink
-                          href={`https://www.hudhomestore.gov/Home/Index.aspx`}
-                          label="View on HUD HomeStore" />
-                      </LeadCard>
+                        <ExtBtn href={h.listingUrl || 'https://www.hudhomestore.gov'} label="HUD HomeStore" />
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -415,40 +521,41 @@ export default function DealHunter({ params }: Props) {
               {/* Auctions */}
               {(filter === 'all' || filter === 'auction') && result.auction.length > 0 && (
                 <div>
-                  <SectionHeader source="auction" count={result.auction.length} />
+                  <SectionHead src="auction" count={result.auction.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.auction.map(a => (
-                      <LeadCard key={a.id} source="auction" urgent={a.daysToAuction != null && a.daysToAuction <= 7}>
-                        <div className="flex items-start justify-between gap-3 mb-2">
+                      <Card key={a.id} src="auction" urgent={a.daysToAuction != null && a.daysToAuction <= 7}>
+                        <div className="flex items-start justify-between gap-2 mb-2">
                           <div className="flex-1 min-w-0">
-                            <SourceBadge source="auction" />
-                            {a.daysToAuction != null && a.daysToAuction <= 7 && (
-                              <span className="ml-2 text-xs font-bold px-2 py-0.5 rounded-full"
-                                style={{ background: '#FCEBEB', color: '#C0341D' }}>
-                                AUCTION IN {a.daysToAuction}d
+                            <div className="flex items-center gap-2 flex-wrap mb-1.5">
+                              <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#FCEBEB', color: '#C0341D' }}>
+                                🔨 {a.platform || 'Auction'}
                               </span>
-                            )}
-                            <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                              {a.addr || 'Auction Property'}
+                              {a.daysToAuction != null && a.daysToAuction <= 7 && (
+                                <span className="text-xs font-bold px-2 py-0.5 rounded-full" style={{ background: '#C0341D', color: 'white' }}>
+                                  ⚡ {a.daysToAuction}d TO AUCTION
+                                </span>
+                              )}
                             </div>
+                            <div className="text-sm font-bold mb-0.5" style={{ color: 'var(--sgc-black)' }}>{a.addr}</div>
                             <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
                               {a.city && `${a.city}, `}{a.state}
-                              {a.beds > 0 && ` · ${a.beds}bd/${a.baths}ba`}
+                              {a.beds > 0 && ` · ${a.beds}bd`}
                               {a.auctionDate && ` · Auction: ${new Date(a.auctionDate).toLocaleDateString()}`}
                             </div>
                           </div>
                           {a.openingBid && (
-                            <div className="text-right">
-                              <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>Opening bid</div>
-                              <div className="text-base font-bold" style={{ color: 'var(--sgc-danger)' }}>{fmt$(a.openingBid)}</div>
+                            <div className="text-right flex-shrink-0">
+                              <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>Opening bid</div>
+                              <div className="text-sm font-bold" style={{ color: 'var(--sgc-danger)' }}>{fmt$(a.openingBid)}</div>
                             </div>
                           )}
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {a.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {a.signals.map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                        <ExtLink href={a.url} label="View on Auction.com" />
-                      </LeadCard>
+                        <ExtBtn href={a.url} label={`View on ${a.platform || 'Auction.com'}`} />
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -457,29 +564,26 @@ export default function DealHunter({ params }: Props) {
               {/* Probate */}
               {(filter === 'all' || filter === 'probate') && result.probate.length > 0 && (
                 <div>
-                  <SectionHeader source="probate" count={result.probate.length} />
+                  <SectionHead src="probate" count={result.probate.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.probate.map(p => (
-                      <LeadCard key={p.id} source="probate">
+                      <Card key={p.id} src="probate">
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="flex-1 min-w-0">
-                            <SourceBadge source="probate" />
-                            <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                              {p.caseName}
-                            </div>
+                            <Badge s="probate" small />
+                            <div className="text-sm font-bold mt-1.5 mb-0.5" style={{ color: 'var(--sgc-black)' }}>{p.caseName}</div>
                             <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                              Case #{p.caseNumber} · {p.court} · Filed {new Date(p.dateFiled).toLocaleDateString()}
+                              #{p.caseNumber} · {p.court || p.state}
+                              {p.dateFiled && ` · ${new Date(p.dateFiled).toLocaleDateString()}`}
                             </div>
                           </div>
-                          <ScoreRing score={p.distressScore} size={36} />
+                          <ScoreDot score={p.distressScore} />
                         </div>
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {p.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {p.signals.map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                        <ExtLink
-                          href={`https://www.courtlistener.com/?q=${encodeURIComponent(p.caseName)}&type=r`}
-                          label="View Filing" />
-                      </LeadCard>
+                        <ExtBtn href={p.clUrl} label="View Filing" />
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -488,29 +592,25 @@ export default function DealHunter({ params }: Props) {
               {/* USDA */}
               {(filter === 'all' || filter === 'usda') && result.usda.length > 0 && (
                 <div>
-                  <SectionHeader source="usda" count={result.usda.length} />
+                  <SectionHead src="usda" count={result.usda.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.usda.map(u => (
-                      <LeadCard key={u.id} source="usda">
-                        <SourceBadge source="usda" />
-                        <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                          {u.addr || 'USDA Property'}
+                      <Card key={u.id} src="usda">
+                        <Badge s="usda" small />
+                        <div className="text-sm font-bold mt-1.5 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
+                          {u.addr || `USDA Property — ${ALL_STATES[u.state] || u.state}`}
                         </div>
                         <div className="text-xs mb-2" style={{ color: 'var(--sgc-gray-mid)' }}>
                           {u.city && `${u.city}, `}{u.state} {u.zip}
                           {u.beds > 0 && ` · ${u.beds} beds`}
                           {u.acres && u.acres > 0 && ` · ${u.acres} acres`}
                         </div>
-                        {u.price > 0 && (
-                          <div className="text-sm font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>{fmt$(u.price)}</div>
-                        )}
+                        {u.price > 0 && <div className="text-sm font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>{fmt$(u.price)}</div>}
                         <div className="flex flex-wrap gap-1 mb-3">
-                          {u.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {u.signals.map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                        <ExtLink
-                          href={`https://www.sc.egov.usda.gov/data/RD_Properties.html`}
-                          label="USDA Portal" />
-                      </LeadCard>
+                        <ExtBtn href={u.listingUrl} label="USDA Portal" />
+                      </Card>
                     ))}
                   </div>
                 </div>
@@ -519,31 +619,37 @@ export default function DealHunter({ params }: Props) {
               {/* Tax Delinquent */}
               {(filter === 'all' || filter === 'taxDelinquent') && result.taxDelinquent.length > 0 && (
                 <div>
-                  <SectionHeader source="taxDelinquent" count={result.taxDelinquent.length} />
+                  <SectionHead src="taxDelinquent" count={result.taxDelinquent.length} />
                   <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
                     {result.taxDelinquent.map(t => (
-                      <LeadCard key={t.id} source="taxDelinquent" urgent={t.distressScore >= 75}>
+                      <Card key={t.id} src="taxDelinquent" urgent={t.distressScore >= 75}>
                         <div className="flex items-start justify-between gap-3 mb-2">
                           <div className="flex-1 min-w-0">
-                            <SourceBadge source="taxDelinquent" />
-                            <div className="text-sm font-bold mt-2 mb-0.5" style={{ color: 'var(--sgc-black)' }}>
-                              {t.addr}
-                            </div>
+                            <Badge s="taxDelinquent" small />
+                            <div className="text-sm font-bold mt-1.5 mb-0.5" style={{ color: 'var(--sgc-black)' }}>{t.addr}</div>
                             <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
-                              {t.city && `${t.city}, `}{t.state} · Owner: {t.ownerName}
+                              {t.city && `${t.city}, `}{t.state} · {t.county} County
+                              {t.ownerName && ` · ${t.ownerName}`}
                             </div>
                           </div>
-                          <ScoreRing score={t.distressScore} size={36} />
+                          <ScoreDot score={t.distressScore} />
                         </div>
-                        <div className="flex gap-3 mb-3">
-                          <StatBadge label="Tax Owed" value={fmt$(t.taxOwed)} color="var(--sgc-danger)" />
-                          <StatBadge label="Yrs Delinquent" value={String(t.yearsDelinquent)} color="var(--sgc-warn)" />
-                          {t.price > 0 && <StatBadge label="Est. Price" value={fmt$(t.price)} />}
+                        <div className="flex gap-2 mb-2 text-center">
+                          {[
+                            { l: 'Tax Owed', v: fmt$(t.taxOwed), c: 'var(--sgc-danger)' },
+                            { l: 'Yrs Delinquent', v: String(t.yearsDelinquent), c: 'var(--sgc-warn)' },
+                            { l: 'Est. Price', v: t.price > 0 ? fmt$(t.price) : '—', c: 'var(--sgc-navy)' },
+                          ].map(m => (
+                            <div key={m.l} className="rounded-lg p-2 flex-1" style={{ background: 'var(--sgc-gray-light)' }}>
+                              <div className="text-xs font-bold" style={{ color: m.c }}>{m.v}</div>
+                              <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>{m.l}</div>
+                            </div>
+                          ))}
                         </div>
                         <div className="flex flex-wrap gap-1">
-                          {t.signals.map((s, i) => <SignalPill key={i} text={s} />)}
+                          {t.signals.map((s, i) => <Pill key={i} text={s} />)}
                         </div>
-                      </LeadCard>
+                      </Card>
                     ))}
                   </div>
                 </div>
