@@ -40,6 +40,26 @@ const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: stri
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
+interface SectionProps {
+  id: string
+  icon: string
+  title: string
+  def?: boolean
+  open: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+}
+const Section = ({ id, icon, title, open, onToggle, children }: SectionProps) => (
+  <div className="border-t border-slate-200 pt-3 mt-3">
+    <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span>{icon}</span>
+      <span className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold flex-1">{title}</span>
+      <span className="text-slate-400 text-[10px]">{open ? '▾' : '▸'}</span>
+    </button>
+    {open && <div className="space-y-3">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
 
@@ -64,17 +84,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
   const applyPreset = (key: string) => onChange(prev => ({ ...prev, ...PRESETS[key] }))
-
-  const Section = ({ id, icon, title, def = true, children }: { id: string; icon: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t border-slate-200 pt-3 mt-3">
-      <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span>{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-gold-600 font-semibold flex-1">{title}</span>
-        <span className="text-slate-400 text-[10px]">{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-3">{children}</div>}
-    </div>
-  )
 
   const activeSourceCount = Object.values(params.sources).filter(Boolean).length
 
@@ -102,7 +111,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* ── DATA SOURCES ── */}
-        <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
+        <Section open={isOpen("src")} onToggle={toggle} id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
           <div className="flex justify-between mb-1">
             <button onClick={() => toggleAll(true)}  className="text-[10px] text-gold-600 cursor-pointer bg-transparent border-none hover:text-gold-700">All On</button>
             <button onClick={() => toggleAll(false)} className="text-[10px] text-slate-400 cursor-pointer bg-transparent border-none hover:text-slate-500">All Off</button>
@@ -135,7 +144,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── LOCATION ── */}
-        <Section id="loc" icon="📍" title="Location" def={true}>
+        <Section open={isOpen("loc")} onToggle={toggle} id="loc" icon="📍" title="Location" def={true}>
           <div>
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -190,7 +199,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── PROPERTY ── */}
-        <Section id="prop" icon="🏠" title="Property Filters" def={true}>
+        <Section open={isOpen("prop")} onToggle={toggle} id="prop" icon="🏠" title="Property Filters" def={true}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -233,7 +242,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── MARKET SIGNALS ── */}
-        <Section id="mkt" icon="📡" title="Market Signals" def={true}>
+        <Section open={isOpen("mkt")} onToggle={toggle} id="mkt" icon="📡" title="Market Signals" def={true}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Max DOM</FL>
@@ -255,7 +264,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── FLIP FILTERS ── */}
-        <Section id="flip" icon="🎯" title="Flip Filters" def={true}>
+        <Section open={isOpen("flip")} onToggle={toggle} id="flip" icon="🎯" title="Flip Filters" def={true}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Flip Score</FL>
@@ -288,7 +297,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DEAL MATH ── */}
-        <Section id="deal" icon="🔢" title="Deal Math" def={false}>
+        <Section open={isOpen("deal", false)} onToggle={toggle} id="deal" icon="🔢" title="Deal Math" def={false}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
