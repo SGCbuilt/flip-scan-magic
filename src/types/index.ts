@@ -1,6 +1,24 @@
+export type SearchMode = 'city' | 'state' | 'zip' | 'address'
+
+export interface DataSources {
+  activeMLS: boolean
+  foreclosures: boolean
+  shortSales: boolean
+  recentlyOffMarket: boolean
+  propertyRecords: boolean
+  corporateOwned: boolean
+}
+
 export interface SearchParams {
-  city: string
+  // Location
+  searchMode: SearchMode
+  locationQuery: string
   radius: number
+
+  // Data Sources
+  sources: DataSources
+
+  // Property filters
   propertyType: string
   minPrice: number
   maxPrice: number
@@ -13,10 +31,14 @@ export interface SearchParams {
   daysOnMarketMax: number
   daysOnMarketMin: number
   priceReduced: boolean
+
+  // Flip filters
   minFlipScore: number
   minProfit: number
   minROI: number
   strategy: 'flip' | 'brrrr' | 'wholesale' | 'luxury' | 'all'
+
+  // Deal math
   rehabLevel: 'light' | 'medium' | 'heavy' | 'gut' | 'custom'
   customRehabCost: number
   holdMonths: number
@@ -49,6 +71,15 @@ export interface AnalyzedProperty {
   lat?: number
   lng?: number
   priceReduced?: boolean
+
+  // Source info
+  source: string
+  sourceLabel: string
+  listingType?: string
+  mlsNumber?: string
+  ownerType?: string
+
+  // Deal math
   rehabCost: number
   holdingCost: number
   closingBuyNum: number
@@ -63,10 +94,13 @@ export interface AnalyzedProperty {
   spread: number
   equityPct: number
   profitMargin: number
+
+  // Scores
   flipScore: number
   scoreGrade: 'A' | 'B' | 'C' | 'D'
   scoreClass: string
   scoreBreakdown: { roi: number; dom: number; rule70: number; equity: number; profit: number }
+
   signals: string[]
   tags: { text: string; color: string }[]
   sellingComm: number
@@ -79,7 +113,11 @@ export interface MarketStats {
   averagePrice?: number
   averagePricePerSquareFoot?: number
   averageDaysOnMarket?: number
-  saleData?: { averagePrice?: number; averagePricePerSquareFoot?: number; averageDaysOnMarket?: number }
+  saleData?: {
+    averagePrice?: number
+    averagePricePerSquareFoot?: number
+    averageDaysOnMarket?: number
+  }
 }
 
 export type SortKey = 'score' | 'profit' | 'roi' | 'price' | 'dom' | 'equity'
