@@ -1,13 +1,14 @@
 import { AnalyzedProperty, MarketStats, SortKey, ViewMode, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { AppState } from '../App'
+import { useFavorites } from '@/context/FavoritesContext'
 
 interface Props {
   appState: AppState; results: AnalyzedProperty[]; allAnalyzed: AnalyzedProperty[]
   marketStats: MarketStats | null; apiErrors: string[]; loadingMsg: string
   sortKey: SortKey; viewMode: ViewMode; onSort: (k: SortKey) => void
   onViewMode: (v: ViewMode) => void; onSelect: (p: AnalyzedProperty) => void
-  searchMeta: { time: number; raw: number } | null; params: SearchParams
+  searchMeta: { time: number; raw: number; sources?: number } | null; params: SearchParams
 }
 
 const SORT_KEYS: { key: SortKey; label: string }[] = [
@@ -40,6 +41,8 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
   const src = SOURCE_COLORS[p.source] || SOURCE_COLORS.active_mls
   const profitPct = p.arv > 0 ? Math.min(100, Math.max(0, (p.profit / p.arv) * 100)) : 0
   const fullAddr = `${p.addr}, ${p.city}, ${p.state} ${p.zip}`.replace(/,\s*,/g, ',')
+  const { isFavorite, toggle } = useFavorites()
+  const fav = isFavorite(p.id)
 
   const scoreBg = p.flipScore >= 80 ? '#EDFAF3' : p.flipScore >= 65 ? '#FEF7EA' : p.flipScore >= 50 ? '#FEF3EA' : '#FEF0ED'
   const scoreColor = p.flipScore >= 80 ? '#1A7A4A' : p.flipScore >= 65 ? '#8A5700' : p.flipScore >= 50 ? '#C45E1A' : '#C0341D'
@@ -79,6 +82,14 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
               style={{ background: '#1A7A4A', color: 'white' }}>🔥 Hot Deal</span>
           </div>
         )}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggle(p) }}
+          title={fav ? 'Remove from favorites' : 'Save to favorites'}
+          className="absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center cursor-pointer transition-all shadow-sm"
+          style={{ background: 'white', border: `1.5px solid ${fav ? '#d4af37' : 'var(--sgc-gray-border)'}`, color: fav ? '#d4af37' : 'var(--sgc-gray-mid)' }}
+        >
+          <span className="text-base leading-none">{fav ? '★' : '☆'}</span>
+        </button>
       </div>
 
       <div className="p-4">
@@ -142,12 +153,24 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
   const src = SOURCE_COLORS[p.source] || SOURCE_COLORS.active_mls
   const scoreColor = p.flipScore >= 80 ? 'var(--sgc-success)' : p.flipScore >= 65 ? 'var(--sgc-warn)' : p.flipScore >= 50 ? 'var(--sgc-orange)' : 'var(--sgc-danger)'
+  const { isFavorite, toggle } = useFavorites()
+  const fav = isFavorite(p.id)
   return (
     <tr onClick={onSelect}
       className="border-b cursor-pointer transition-colors group hover:bg-[var(--sgc-navy-pale)]"
       style={{ borderColor: 'var(--sgc-gray-border)' }}>
       <td className="py-3 pl-5 pr-3">
-        <div className="font-medium text-sm" style={{ color: 'var(--sgc-black)' }}>{p.addr}</div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggle(p) }}
+            title={fav ? 'Remove from favorites' : 'Save to favorites'}
+            className="text-base leading-none cursor-pointer bg-transparent border-none p-0"
+            style={{ color: fav ? '#d4af37' : 'var(--sgc-gray-mid)' }}
+          >
+            {fav ? '★' : '☆'}
+          </button>
+          <div className="font-medium text-sm" style={{ color: 'var(--sgc-black)' }}>{p.addr}</div>
+        </div>
         <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{p.city}, {p.state} · {p.beds}bd/{p.baths}ba</div>
       </td>
       <td className="py-3 px-3">
