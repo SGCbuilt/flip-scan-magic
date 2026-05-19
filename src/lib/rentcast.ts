@@ -81,7 +81,7 @@ export function buildLocationParams(
         p.city = q
       }
     }
-    if (radius > 0) p.radius = String(Math.min(radius, 100))
+    // RentCast only accepts radius with address or latitude/longitude, not city/state.
   }
 
   return p
