@@ -102,7 +102,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* ── LOCATION ── */}
-        <Section id="loc" icon="📍" title="Location" open={isOpen("loc", true)} onToggle={toggle} open={isOpen("loc")} onToggle={toggle}>
+        <Section id="loc" icon="📍" title="Location" open={isOpen("loc", true)} onToggle={toggle}>
           <div>
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -157,7 +157,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DATA SOURCES ── */}
-        <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} open={isOpen("src", true)} onToggle={toggle} open={isOpen("src")} onToggle={toggle}>
+        <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} open={isOpen("src", true)} onToggle={toggle}>
           <div className="flex justify-between mb-1">
             <button onClick={() => toggleAll(true)}  className="text-[10px] text-blue-900 cursor-pointer bg-transparent border-none hover:text-blue-700">All On</button>
             <button onClick={() => toggleAll(false)} className="text-[10px] text-slate-500 cursor-pointer bg-transparent border-none hover:text-slate-600">All Off</button>
@@ -190,7 +190,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── PROPERTY ── */}
-        <Section id="prop" icon="🏠" title="Property Filters" open={isOpen("prop", true)} onToggle={toggle} open={isOpen("prop")} onToggle={toggle}>
+        <Section id="prop" icon="🏠" title="Property Filters" open={isOpen("prop", true)} onToggle={toggle}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -233,7 +233,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── MARKET SIGNALS ── */}
-        <Section id="mkt" icon="📡" title="Market Signals" open={isOpen("mkt", true)} onToggle={toggle} open={isOpen("mkt")} onToggle={toggle}>
+        <Section id="mkt" icon="📡" title="Market Signals" open={isOpen("mkt", true)} onToggle={toggle}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Max DOM</FL>
@@ -255,7 +255,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── FLIP FILTERS ── */}
-        <Section id="flip" icon="🎯" title="Flip Filters" open={isOpen("flip", true)} onToggle={toggle} open={isOpen("flip")} onToggle={toggle}>
+        <Section id="flip" icon="🎯" title="Flip Filters" open={isOpen("flip", true)} onToggle={toggle}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Flip Score</FL>
@@ -288,7 +288,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DEAL MATH ── */}
-        <Section id="deal" icon="🔢" title="Deal Math" open={isOpen("deal", false)} onToggle={toggle} open={isOpen("deal")} onToggle={toggle}>
+        <Section id="deal" icon="🔢" title="Deal Math" open={isOpen("deal", false)} onToggle={toggle}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
