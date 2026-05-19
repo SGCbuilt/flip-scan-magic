@@ -40,16 +40,30 @@ const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: stri
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
-const Section = ({ id, icon, title, open, onToggle, children }: { id: string; icon: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) => (
+type SectionProps = {
+  id: string
+  icon: string
+  title: string
+  open?: boolean
+  def?: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+}
+
+const Section = ({ id, icon, title, open, def = true, onToggle, children }: SectionProps) => {
+  const isOpen = open ?? def
+
+  return (
   <div className="border-t border-slate-200/70 pt-3 mt-3">
     <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
       <span>{icon}</span>
       <span className="text-[10px] tracking-[2px] uppercase text-blue-900 font-semibold flex-1">{title}</span>
-      <span className="text-slate-500 text-[10px]">{open ? '▾' : '▸'}</span>
+      <span className="text-slate-500 text-[10px]">{isOpen ? '▾' : '▸'}</span>
     </button>
-    {open && <div className="space-y-3">{children}</div>}
+    {isOpen && <div className="space-y-3">{children}</div>}
   </div>
-)
+  )
+}
 
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
