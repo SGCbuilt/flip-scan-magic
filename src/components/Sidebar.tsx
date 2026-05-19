@@ -89,7 +89,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* LOCATION */}
-        <CollapsibleSection id="loc" icon="📍" title="Location">
+        <CollapsibleSection collapsed={!!collapsed["loc"]} onToggle={toggle} id="loc" icon="📍" title="Location">
           <div>
             <FL>City, State or Zip</FL>
             <input className={ic} value={params.city} onChange={set('city')} placeholder="Norfolk, VA or 23501"
@@ -102,7 +102,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* PROPERTY */}
-        <CollapsibleSection id="prop" icon="🏠" title="Property">
+        <CollapsibleSection collapsed={!!collapsed["prop"]} onToggle={toggle} id="prop" icon="🏠" title="Property">
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -144,7 +144,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* MARKET SIGNALS */}
-        <CollapsibleSection id="mkt" icon="📡" title="Market Signals">
+        <CollapsibleSection collapsed={!!collapsed["mkt"]} onToggle={toggle} id="mkt" icon="📡" title="Market Signals">
           <div>
             <div className="flex justify-between mb-1"><FL>Max Days on Market</FL><span className="text-amber-400 text-[10px]">{params.daysOnMarketMax}d</span></div>
             <input type="range" className="w-full" min="0" max="365" step="5" value={params.daysOnMarketMax} onChange={set('daysOnMarketMax')} />
@@ -160,7 +160,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* FLIP CRITERIA */}
-        <CollapsibleSection id="flip" icon="🎯" title="Flip Criteria">
+        <CollapsibleSection collapsed={!!collapsed["flip"]} onToggle={toggle} id="flip" icon="🎯" title="Flip Criteria">
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL><span className="text-amber-400 text-[10px]">{params.minFlipScore}</span></div>
             <input type="range" className="w-full" min="0" max="100" value={params.minFlipScore} onChange={set('minFlipScore')} />
@@ -184,7 +184,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </CollapsibleSection>
 
         {/* DEAL MATH */}
-        <CollapsibleSection id="deal" icon="🔢" title="Deal Math">
+        <CollapsibleSection collapsed={!!collapsed["deal"]} onToggle={toggle} id="deal" icon="🔢" title="Deal Math">
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
