@@ -164,10 +164,47 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <div className="text-[10px] mb-2 px-2 py-1.5 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
               {MODE_INFO[params.searchMode].hint}
             </div>
-            <input className={ic} value={params.locationQuery}
-              onChange={set('locationQuery')}
-              placeholder={MODE_INFO[params.searchMode].placeholder}
-              onKeyDown={e => e.key === 'Enter' && onSearch()} />
+            {params.searchMode === 'city' ? (
+              <div className="grid grid-cols-[1fr_70px] gap-2">
+                <div>
+                  <FL>City</FL>
+                  <input className={ic} type="text" autoComplete="address-level2"
+                    value={splitCityState(params.locationQuery).city}
+                    onChange={e => setCity(e.target.value)}
+                    placeholder="Norfolk"
+                    onKeyDown={e => e.key === 'Enter' && onSearch()} />
+                </div>
+                <div>
+                  <FL>State</FL>
+                  <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
+                    maxLength={2}
+                    value={splitCityState(params.locationQuery).state}
+                    onChange={e => setStatePart(e.target.value)}
+                    placeholder="VA"
+                    onKeyDown={e => e.key === 'Enter' && onSearch()} />
+                </div>
+              </div>
+            ) : params.searchMode === 'state' ? (
+              <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
+                maxLength={2}
+                value={params.locationQuery}
+                onChange={e => onChange({ ...params, locationQuery: e.target.value.toUpperCase().slice(0, 2) })}
+                placeholder="VA"
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
+            ) : params.searchMode === 'zip' ? (
+              <input className={ic} type="text" inputMode="numeric" autoComplete="postal-code"
+                maxLength={5}
+                value={params.locationQuery}
+                onChange={e => onChange({ ...params, locationQuery: e.target.value.replace(/\D/g, '').slice(0, 5) })}
+                placeholder="23501"
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
+            ) : (
+              <input className={ic} type="text" autoComplete="street-address"
+                value={params.locationQuery}
+                onChange={set('locationQuery')}
+                placeholder={MODE_INFO[params.searchMode].placeholder}
+                onKeyDown={e => e.key === 'Enter' && onSearch()} />
+            )}
           </div>
 
           {params.searchMode !== 'state' && (
