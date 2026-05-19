@@ -67,6 +67,7 @@ const Section = ({ id, icon, title, open, def = true, onToggle, children }: Sect
 
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
+  const [activePreset, setActivePreset] = useState<string | null>(null)
 
   const set = (key: keyof SearchParams) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const t = e.target
@@ -88,7 +89,10 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
-  const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
+  const applyPreset = (key: string) => {
+    setActivePreset(key)
+    onChange({ ...params, ...PRESETS[key] })
+  }
 
   const activeSourceCount = Object.values(params.sources).filter(Boolean).length
 
@@ -107,8 +111,12 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               { k: 'luxury',     l: '💎 Luxury'      },
               { k: 'distressed', l: '🏚️ Distressed'  },
             ].map(({ k, l }) => (
-              <button key={k} onClick={() => applyPreset(k)}
-                className="text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 bg-transparent">
+              <button key={k} type="button" onClick={() => applyPreset(k)}
+                className={`text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left ${
+                  activePreset === k
+                    ? 'bg-blue-900 border-blue-900 text-white'
+                    : 'border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 bg-transparent'
+                }`}>
                 {l}
               </button>
             ))}
