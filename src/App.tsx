@@ -166,10 +166,10 @@ export default function App() {
   const avg = (arr: number[]) => arr.length ? arr.reduce((s, n) => s + n, 0) / arr.length : 0
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 font-mono overflow-hidden">
+    <div className="flex flex-col h-screen bg-white font-mono overflow-hidden">
 
       {/* ── HEADER ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800/80 bg-zinc-950 z-50 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-[#0a1f4d] z-50 flex-shrink-0">
         <div className="flex items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -185,7 +185,7 @@ export default function App() {
             </div>
             <div>
               <div className="text-[13px] font-bold text-white tracking-widest uppercase leading-none">FlipScan Pro</div>
-              <div className="text-[10px] text-zinc-500 tracking-wider mt-0.5">SGC General Contractors</div>
+              <div className="text-[10px] text-gold-400 tracking-wider mt-0.5">SGC General Contractors</div>
             </div>
           </div>
 
@@ -235,7 +235,7 @@ export default function App() {
               <span>{(searchMeta.time / 1000).toFixed(1)}s</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+          <div className="flex items-center gap-1.5 text-[11px] text-gold-400">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
