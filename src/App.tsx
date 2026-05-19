@@ -218,7 +218,7 @@ export default function App() {
   const ErrorState = () => (
     <div className="m-6 space-y-2">
       {errors.map((e, i) => (
-        <div key={i} className="p-3 bg-red-950/30 border border-red-800/40 rounded-lg text-xs text-red-400 font-mono">
+        <div key={i} className="p-3 bg-red-950/30 border border-red-800/40 rounded-lg text-xs text-red-400">
           ⚠ {e}
         </div>
       ))}
