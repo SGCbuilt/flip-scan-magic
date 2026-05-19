@@ -69,8 +69,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     const s = state.toUpperCase().slice(0, 2)
     onChange({ ...params, locationQuery: city ? `${city}, ${s}` : s })
   }
-    onChange({ ...params, [key]: val })
-  }
   const setSource = (key: keyof DataSources, val: boolean) =>
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
