@@ -83,6 +83,11 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
   const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
+  const [activePreset, setActivePreset] = useState<string | null>(null)
+  const handlePreset = (key: string) => {
+    applyPreset(key)
+    setActivePreset(prev => prev === key ? null : key)
+  }
 
   const activeSourceCount = Object.values(params.sources).filter(Boolean).length
 
@@ -101,8 +106,12 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               { k: 'luxury',     l: '💎 Luxury'      },
               { k: 'distressed', l: '🏚️ Distressed'  },
             ].map(({ k, l }) => (
-              <button key={k} onClick={() => applyPreset(k)}
-                className="text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left border-slate-200 text-slate-500 hover:text-slate-700 hover:border-slate-300 bg-transparent">
+              <button key={k} onClick={() => handlePreset(k)}
+                className={`text-[10px] tracking-wide uppercase px-2 py-2 rounded border cursor-pointer transition-all text-left ${
+                  activePreset === k
+                    ? 'bg-gold-400 border-gold-500 text-[#0a1f4d] font-semibold shadow-sm'
+                    : 'border-slate-200 text-slate-600 hover:text-slate-900 hover:border-gold-400 hover:bg-gold-50 bg-transparent'
+                }`}>
                 {l}
               </button>
             ))}
