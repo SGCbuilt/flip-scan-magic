@@ -166,10 +166,10 @@ export default function App() {
   const avg = (arr: number[]) => arr.length ? arr.reduce((s, n) => s + n, 0) / arr.length : 0
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 font-mono overflow-hidden">
+    <div className="flex flex-col h-screen bg-white font-mono overflow-hidden">
 
       {/* ── HEADER ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-zinc-800/80 bg-zinc-950 z-50 flex-shrink-0">
+      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-white z-50 flex-shrink-0">
         <div className="flex items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3">
@@ -185,13 +185,13 @@ export default function App() {
             </div>
             <div>
               <div className="text-[13px] font-bold text-white tracking-widest uppercase leading-none">FlipScan Pro</div>
-              <div className="text-[10px] text-zinc-500 tracking-wider mt-0.5">SGC General Contractors</div>
+              <div className="text-[10px] text-slate-500 tracking-wider mt-0.5">SGC General Contractors</div>
             </div>
           </div>
 
           {/* Strategy filter chips — only shown when results exist */}
           {appState === 'results' && results.length > 0 && (
-            <div className="flex items-center gap-1 ml-4 border-l border-zinc-800 pl-4">
+            <div className="flex items-center gap-1 ml-4 border-l border-slate-200 pl-4">
               {[
                 { key: 'all',         label: 'All',          count: results.length },
                 { key: 'hot',         label: '🔥 Hot',       count: results.filter(r => r.flipScore >= 70).length },
@@ -208,12 +208,12 @@ export default function App() {
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] tracking-wide font-medium transition-all cursor-pointer border
                     ${activeStrategy === s.key
                       ? 'bg-[#1a3a8f] border-[#1a3a8f] text-white'
-                      : 'bg-transparent border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}
+                      : 'bg-transparent border-slate-200 text-slate-500 hover:border-slate-300 hover:text-slate-700'}`}
                 >
                   {s.label}
                   {s.count > 0 && (
                     <span className={`text-[9px] px-1 py-0.5 rounded-sm font-bold
-                      ${activeStrategy === s.key ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
+                      ${activeStrategy === s.key ? 'bg-white/20 text-white' : 'bg-blue-900 text-slate-500'}`}>
                       {s.count}
                     </span>
                   )}
@@ -225,7 +225,7 @@ export default function App() {
 
         <div className="flex items-center gap-4">
           {searchMeta && appState === 'results' && (
-            <div className="hidden lg:flex items-center gap-2 text-[10px] text-zinc-600">
+            <div className="hidden lg:flex items-center gap-2 text-[10px] text-slate-400">
               <span>{params.locationQuery}</span>
               <span>·</span>
               <span>{params.searchMode === 'state' ? 'statewide' : `${params.radius}mi radius`}</span>
@@ -235,7 +235,7 @@ export default function App() {
               <span>{(searchMeta.time / 1000).toFixed(1)}s</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-[11px] text-zinc-600">
+          <div className="flex items-center gap-1.5 text-[11px] text-slate-400">
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
@@ -277,7 +277,7 @@ export default function App() {
       {/* ── TOAST ── */}
       {toast && (
         <div className={`fixed bottom-5 right-5 z-[999] px-4 py-3 rounded-lg border text-xs font-mono shadow-2xl max-w-sm transition-all
-          ${toast.err ? 'bg-zinc-900 border-red-500/50 text-red-400' : 'bg-zinc-900 border-[#1a3a8f]/60 text-zinc-300'}`}>
+          ${toast.err ? 'bg-white border-red-500/50 text-red-600' : 'bg-white border-[#1a3a8f]/60 text-slate-700'}`}>
           {toast.msg}
         </div>
       )}
