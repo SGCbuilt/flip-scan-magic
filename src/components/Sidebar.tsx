@@ -40,6 +40,17 @@ const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: stri
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
+const Section = ({ id, icon, title, open, onToggle, children }: { id: string; icon: string; title: string; open: boolean; onToggle: (id: string) => void; children: React.ReactNode }) => (
+  <div className="border-t border-slate-200/70 pt-3 mt-3">
+    <button onClick={() => onToggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span>{icon}</span>
+      <span className="text-[10px] tracking-[2px] uppercase text-blue-900 font-semibold flex-1">{title}</span>
+      <span className="text-slate-500 text-[10px]">{open ? '▾' : '▸'}</span>
+    </button>
+    {open && <div className="space-y-3">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
 
@@ -64,17 +75,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
   const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
-
-  const Section = ({ id, icon, title, def = true, children }: { id: string; icon: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t border-slate-200/70 pt-3 mt-3">
-      <button onClick={() => toggle(id)} className="w-full flex items-center gap-2 mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span>{icon}</span>
-        <span className="text-[10px] tracking-[2px] uppercase text-blue-900 font-semibold flex-1">{title}</span>
-        <span className="text-slate-500 text-[10px]">{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-3">{children}</div>}
-    </div>
-  )
 
   const activeSourceCount = Object.values(params.sources).filter(Boolean).length
 
