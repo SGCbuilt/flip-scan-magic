@@ -318,7 +318,7 @@ export default function App() {
                     )}
                     {/* API errors as warnings (not fatal) */}
                     {errors.length > 0 && (
-                      <div className="mx-4 mt-3 p-2 bg-blue-100/20 border border-amber-800/30 rounded text-[10px] text-amber-600">
+                      <div className="mx-4 mt-3 p-2 bg-blue-100/20 border border-blue-300 rounded text-[10px] text-blue-900">
                         ⚠️ Some sources had errors: {errors.join(' · ')}
                       </div>
                     )}

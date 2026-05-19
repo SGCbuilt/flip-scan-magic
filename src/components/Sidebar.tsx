@@ -104,7 +104,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         {/* ── DATA SOURCES ── */}
         <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
           <div className="flex justify-between mb-1">
-            <button onClick={() => toggleAll(true)}  className="text-[10px] text-blue-900 cursor-pointer bg-transparent border-none hover:text-amber-300">All On</button>
+            <button onClick={() => toggleAll(true)}  className="text-[10px] text-blue-900 cursor-pointer bg-transparent border-none hover:text-blue-700">All On</button>
             <button onClick={() => toggleAll(false)} className="text-[10px] text-slate-500 cursor-pointer bg-transparent border-none hover:text-slate-600">All Off</button>
           </div>
           <div className="space-y-1.5">
@@ -321,7 +321,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
       {/* ── SEARCH BUTTON ── */}
       <div className="p-4 border-t border-slate-200 bg-slate-50 flex-shrink-0">
         <button onClick={onSearch} disabled={loading}
-          className="w-full bg-blue-900 hover:bg-blue-800 active:bg-amber-600 disabled:bg-slate-200 disabled:text-slate-500 text-white font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
+          className="w-full bg-blue-900 hover:bg-blue-800 active:bg-blue-700 disabled:bg-slate-200 disabled:text-slate-500 text-white font-bold text-xs tracking-widest uppercase py-3 rounded-md transition-colors cursor-pointer flex items-center justify-center gap-2">
           {loading
             ? <><span className="w-3.5 h-3.5 border-2 border-slate-300 border-t-white rounded-full spin inline-block" /> Scanning {activeSourceCount} sources...</>
             : `⬡ Scan ${params.searchMode === 'state' ? 'Statewide' : `${params.radius}mi`} · ${activeSourceCount} Sources`}
