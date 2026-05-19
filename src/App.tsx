@@ -5,6 +5,7 @@ import PropertyModal from './components/PropertyModal'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import sgcLogo from '@/assets/sgc-logo.png'
+import { useAuth } from '@/context/AuthContext'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
 
@@ -233,6 +234,7 @@ export default function App() {
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
+          <SignOutButton />
         </div>
       </header>
 
@@ -275,6 +277,26 @@ export default function App() {
           {toast.msg}
         </div>
       )}
+    </div>
+  )
+}
+
+function SignOutButton() {
+  const { user, signOut } = useAuth()
+  if (!user) return null
+  const initial = (user.email || '?').charAt(0).toUpperCase()
+  return (
+    <div className="flex items-center gap-2">
+      <div className="hidden md:flex items-center gap-2 text-[11px] text-gold-400/80">
+        <div className="w-6 h-6 rounded-full bg-gold-400 text-[#0a1f4d] font-bold flex items-center justify-center text-[11px]">{initial}</div>
+        <span className="max-w-[160px] truncate">{user.email}</span>
+      </div>
+      <button
+        onClick={signOut}
+        className="text-[10px] uppercase tracking-widest text-gold-400 hover:text-white border border-gold-500/40 hover:border-gold-400 rounded px-2.5 py-1 bg-transparent cursor-pointer transition-colors"
+      >
+        Sign Out
+      </button>
     </div>
   )
 }
