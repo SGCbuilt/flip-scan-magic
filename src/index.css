@@ -65,10 +65,3 @@ input[type="checkbox"] { accent-color: var(--sgc-navy); }
 .fade-up { animation: fade-up 0.25s ease-out; }
 
 .backdrop-blur-sm { backdrop-filter: blur(4px); }
-
-/* ── DARK MODE OVERRIDES ── */
-html.dark { color-scheme: dark; }
-html.dark body { background: #0f1115 !important; color: #f1f5f9 !important; }
-html.dark [style*="--sgc-gray-light"],
-html.dark .bg-white { background-color: #161a24 !important; }
-html.dark { --sgc-gray-light: #0f1115; --sgc-white: #161a24; --sgc-black: #f1f5f9; --sgc-gray-border: #262c3d; --sgc-gray-mid: #98a2b8; }
