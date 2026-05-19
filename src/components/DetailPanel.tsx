@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { AnalyzedProperty } from '../types'
 import { fmt$, fmtPct, tagColors } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
-import { getAIAnalysis, generateQuickInsight } from '../lib/aiAnalysis'
+import { getAIAnalysis, generateQuickInsight, type AIProvider } from '../lib/aiAnalysis'
 
 interface Props {
   property: AnalyzedProperty | null
@@ -37,6 +37,7 @@ export default function DetailPanel({ property: p, onClose }: Props) {
   const [aiText, setAiText] = useState('')
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState('')
+  const [aiProvider, setAiProvider] = useState<AIProvider>('claude')
 
   if (!p) return null
 
@@ -51,10 +52,11 @@ export default function DetailPanel({ property: p, onClose }: Props) {
     finally { setCompsLoading(false) }
   }
 
-  const handleAI = async () => {
+  const handleAI = async (provider: AIProvider) => {
     setAiLoading(true); setAiError(''); setAiText('')
+    setAiProvider(provider)
     try {
-      const text = await getAIAnalysis(p)
+      const text = await getAIAnalysis(p, provider)
       setAiText(text)
     } catch (e: any) { setAiError(e.message) }
     finally { setAiLoading(false) }
@@ -137,20 +139,23 @@ export default function DetailPanel({ property: p, onClose }: Props) {
 
         {/* Action Buttons */}
         <div className="flex gap-2 mt-1 mb-3">
-          <button onClick={handleAI} disabled={aiLoading} className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 text-xs font-semibold tracking-widest uppercase py-2.5 rounded transition-colors cursor-pointer">
-            {aiLoading ? '⏳ Analyzing...' : '⬡ Deep AI Analysis'}
+          <button onClick={() => handleAI('claude')} disabled={aiLoading} className="flex-1 bg-amber-500 hover:bg-amber-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 text-xs font-semibold tracking-widest uppercase py-2.5 rounded transition-colors cursor-pointer">
+            {aiLoading && aiProvider === 'claude' ? '⏳ Claude...' : '⬡ Claude Analysis'}
+          </button>
+          <button onClick={() => handleAI('gemini')} disabled={aiLoading} className="flex-1 bg-blue-500 hover:bg-blue-400 disabled:bg-zinc-700 disabled:text-zinc-500 text-zinc-950 text-xs font-semibold tracking-widest uppercase py-2.5 rounded transition-colors cursor-pointer">
+            {aiLoading && aiProvider === 'gemini' ? '⏳ Gemini...' : '✦ Gemini Analysis'}
           </button>
           <button onClick={handleComps} disabled={compsLoading} className="bg-zinc-800 hover:bg-zinc-700 text-zinc-400 hover:text-zinc-200 text-xs py-2.5 px-4 rounded border border-zinc-700 transition-colors cursor-pointer">
-            {compsLoading ? '...' : 'Fetch Comps'}
+            {compsLoading ? '...' : 'Comps'}
           </button>
         </div>
 
         {/* AI Result */}
         {(aiText || aiError) && (
-          <div className={`rounded-lg p-4 mb-3 ${aiError ? 'bg-red-500/10 border border-red-500/30' : 'bg-amber-500/5 border border-amber-500/30'}`}>
-            <div className="flex items-center gap-2 text-[10px] tracking-[2px] uppercase text-amber-400 mb-2">
-              <div className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              Deep AI Analysis
+          <div className={`rounded-lg p-4 mb-3 ${aiError ? 'bg-red-500/10 border border-red-500/30' : aiProvider === 'gemini' ? 'bg-blue-500/5 border border-blue-500/30' : 'bg-amber-500/5 border border-amber-500/30'}`}>
+            <div className={`flex items-center gap-2 text-[10px] tracking-[2px] uppercase mb-2 ${aiProvider === 'gemini' ? 'text-blue-400' : 'text-amber-400'}`}>
+              <div className={`w-1.5 h-1.5 rounded-full ${aiProvider === 'gemini' ? 'bg-blue-400' : 'bg-amber-400'}`} />
+              {aiProvider === 'gemini' ? 'Gemini Analysis' : 'Claude Analysis'}
             </div>
             <p className={`text-xs leading-relaxed whitespace-pre-wrap ${aiError ? 'text-red-400' : 'text-zinc-300'}`}>{aiError || aiText}</p>
           </div>
