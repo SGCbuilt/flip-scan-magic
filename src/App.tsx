@@ -7,6 +7,8 @@ import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentc
 import sgcLogo from '@/assets/sgc-logo.png'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
+import { useFavorites } from '@/context/FavoritesContext'
+import CompareModal from './components/CompareModal'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
 
@@ -65,6 +67,7 @@ export default function App() {
   const [activeStrategy, setActiveStrategy] = useState<string>('all')
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta] = useState<{ time: number; raw: number; sources: number } | null>(null)
+  const [showCompare, setShowCompare] = useState(false)
 
   const showToast = (msg: string, err = false) => {
     setToast({ msg, err })
@@ -235,6 +238,7 @@ export default function App() {
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
+          <FavoritesButton onOpen={() => setShowCompare(true)} />
           <ThemeToggle />
           <SignOutButton />
         </div>
@@ -269,6 +273,14 @@ export default function App() {
           property={selected}
           params={params}
           onClose={() => setSelected(null)}
+        />
+      )}
+
+      {/* ── COMPARE MODAL ── */}
+      {showCompare && (
+        <CompareModal
+          onClose={() => setShowCompare(false)}
+          onSelect={(p) => { setShowCompare(false); setSelected(p) }}
         />
       )}
 
