@@ -116,7 +116,7 @@ export function analyzeProperty(
 
     const flipScore   = Math.min(100, Math.max(0, Math.round(rawScore)))
     const scoreGrade: 'A' | 'B' | 'C' | 'D' = flipScore >= 80 ? 'A' : flipScore >= 65 ? 'B' : flipScore >= 50 ? 'C' : 'D'
-    const scoreClass  = flipScore >= 80 ? 'text-green-400' : flipScore >= 65 ? 'text-blue-900' : flipScore >= 50 ? 'text-orange-400' : 'text-red-400'
+    const scoreClass  = flipScore >= 80 ? 'text-green-400' : flipScore >= 65 ? 'text-amber-400' : flipScore >= 50 ? 'text-orange-400' : 'text-red-400'
 
     // Opportunity signals
     const signals: string[] = []

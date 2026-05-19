@@ -12,17 +12,17 @@ interface CalcState {
   closeSellPct: number
 }
 
-const inputCls = "w-full bg-slate-50 border border-slate-200 rounded text-slate-900 text-sm px-2.5 py-2 outline-none focus:border-blue-900/40 focus:ring-2 focus:ring-blue-900/10 transition-colors"
+const inputCls = "w-full bg-zinc-900 border border-zinc-800 rounded text-zinc-100 font-mono text-xs px-2.5 py-2 outline-none focus:border-amber-500/50 transition-colors"
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1.5">{children}</div>
+  <div className="text-[10px] tracking-widest uppercase text-zinc-500 mb-1.5">{children}</div>
 )
 const BlockTitle = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[10px] tracking-[2px] uppercase text-blue-900 mb-3">{children}</div>
+  <div className="text-[10px] tracking-[2px] uppercase text-amber-400 mb-3">{children}</div>
 )
 const Row = ({ label, value, cls = '' }: { label: string; value: string; cls?: string }) => (
   <div className="flex justify-between items-center py-1.5 border-b border-white/[0.03] text-xs last:border-0">
-    <span className="text-slate-500">{label}</span>
-    <span className={`font-semibold ${cls || 'text-slate-900'}`}>{value}</span>
+    <span className="text-zinc-500">{label}</span>
+    <span className={`font-semibold ${cls || 'text-zinc-100'}`}>{value}</span>
   </div>
 )
 
@@ -51,12 +51,12 @@ export default function DealCalculator() {
 
   return (
     <div className="p-6 max-w-xl">
-      <div className="text-[10px] tracking-[2px] uppercase text-blue-900 mb-5 flex items-center gap-2">
+      <div className="text-[10px] tracking-[2px] uppercase text-amber-400 mb-5 flex items-center gap-2">
         Deal Calculator
-        <div className="flex-1 h-px bg-blue-900/10" />
+        <div className="flex-1 h-px bg-amber-500/20" />
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-3">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-3">
         <BlockTitle>Purchase & Costs</BlockTitle>
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -74,7 +74,7 @@ export default function DealCalculator() {
         </div>
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 mb-3">
+      <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4 mb-3">
         <BlockTitle>Exit / Revenue</BlockTitle>
         <div className="grid grid-cols-2 gap-3">
           {[
@@ -91,22 +91,22 @@ export default function DealCalculator() {
       </div>
 
       {result && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg p-4">
+        <div className="bg-zinc-900 border border-zinc-800 rounded-lg p-4">
           <BlockTitle>Results</BlockTitle>
           <Row label="Closing Costs (buy)" value={`-${fmt$(result.closingBuy)}`} cls="text-red-400" />
           <Row label="Holding Costs" value={`-${fmt$(result.holdingCost)}`} cls="text-red-400" />
           <Row label="Total Investment" value={fmt$(result.totalIn)} />
           <Row label="Commission + Closing (sell)" value={`-${fmt$(result.comm + result.closeSell)}`} cls="text-red-400" />
-          <div className="border-t border-blue-900/20 my-2 pt-2 flex justify-between items-center">
-            <span className="text-xs font-semibold text-slate-800">NET PROFIT</span>
+          <div className="border-t border-amber-500/20 my-2 pt-2 flex justify-between items-center">
+            <span className="text-xs font-semibold text-zinc-200">NET PROFIT</span>
             <span className={`text-xl font-semibold ${result.profit >= 0 ? 'text-green-400' : 'text-red-400'}`}>{fmt$(result.profit)}</span>
           </div>
           <Row label="ROI" value={result.roi.toFixed(2) + '%'} cls={result.roi >= 0 ? 'text-green-400' : 'text-red-400'} />
           <Row label="Annualized ROI" value={result.annRoi.toFixed(2) + '%'} />
-          <Row label="70% Rule Max Offer" value={fmt$(result.momsMax)} cls="text-blue-900" />
+          <Row label="70% Rule Max Offer" value={fmt$(result.momsMax)} cls="text-amber-400" />
           <Row label="Offer vs Max Offer" value={c.purchase <= result.momsMax ? `✓ Under by ${fmt$(result.momsMax - c.purchase)}` : `✗ Over by ${fmt$(c.purchase - result.momsMax)}`} cls={c.purchase <= result.momsMax ? 'text-green-400' : 'text-red-400'} />
           <div className="mt-3">
-            <div className="flex justify-between text-[10px] text-slate-500 mb-1">
+            <div className="flex justify-between text-[10px] text-zinc-600 mb-1">
               <span>Cost basis</span><span>Return {result.profitPct.toFixed(1)}%</span>
             </div>
             <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
