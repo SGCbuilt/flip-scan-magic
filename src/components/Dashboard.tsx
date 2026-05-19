@@ -2,6 +2,7 @@ import { AnalyzedProperty, MarketStats, SortKey, ViewMode } from '../types'
 import { SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { AppState } from '../App'
+import { useFavorites } from '@/context/FavoritesContext'
 
 interface Props {
   appState: AppState
@@ -51,6 +52,8 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
   const isHot = p.flipScore >= 70
   const src = SOURCE_META[p.source] || SOURCE_META.active_mls
   const fullAddr = `${p.addr}, ${p.city}, ${p.state} ${p.zip}`.replace(/,\s*,/g, ',').trim()
+  const { isFavorite, toggle } = useFavorites()
+  const fav = isFavorite(p.id)
 
   return (
     <div
@@ -80,6 +83,15 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
             {p.sourceLabel.replace(/^[^\s]+\s/, '')}
           </span>
         </div>
+        {/* Favorite star */}
+        <button
+          onClick={(e) => { e.stopPropagation(); toggle(p) }}
+          title={fav ? 'Remove from favorites' : 'Save to favorites'}
+          className={`absolute bottom-2 right-2 w-7 h-7 rounded-full flex items-center justify-center bg-zinc-950/90 border transition-all cursor-pointer
+            ${fav ? 'border-amber-400 text-amber-400' : 'border-zinc-700 text-zinc-500 hover:text-amber-400 hover:border-amber-400'}`}
+        >
+          <span className="text-sm leading-none">{fav ? '★' : '☆'}</span>
+        </button>
         {/* Hot badge */}
         {isHot && (
           <div className="absolute bottom-2 left-2">
@@ -159,10 +171,19 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
 function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
   const src = SOURCE_META[p.source] || SOURCE_META.active_mls
+  const { isFavorite, toggle } = useFavorites()
+  const fav = isFavorite(p.id)
   return (
     <tr onClick={onSelect} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 cursor-pointer transition-colors group">
       <td className="py-2.5 pl-5 pr-3">
         <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggle(p) }}
+            title={fav ? 'Remove from favorites' : 'Save to favorites'}
+            className={`text-sm leading-none cursor-pointer transition-colors ${fav ? 'text-amber-400' : 'text-zinc-700 hover:text-amber-400'}`}
+          >
+            {fav ? '★' : '☆'}
+          </button>
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${src.dot}`} />
           <div>
             <div className="text-xs text-zinc-200 font-medium truncate max-w-[180px]">{p.addr}</div>
