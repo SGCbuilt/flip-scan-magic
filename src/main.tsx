@@ -6,11 +6,13 @@ import AuthPage from './pages/Auth'
 import ResetPasswordPage from './pages/ResetPassword'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
+import { ThemeProvider } from './context/ThemeContext'
 import './index.css'
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     <BrowserRouter>
+      <ThemeProvider>
       <AuthProvider>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
@@ -19,6 +21,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
           <Route path="*" element={<ProtectedRoute><App /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
+      </ThemeProvider>
     </BrowserRouter>
   </React.StrictMode>
 )
