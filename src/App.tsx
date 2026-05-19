@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard'
 import PropertyModal from './components/PropertyModal'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
+import sgcLogo from '@/assets/sgc-logo.png'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
 
