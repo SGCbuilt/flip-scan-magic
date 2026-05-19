@@ -12,7 +12,7 @@ interface CalcState {
   closeSellPct: number
 }
 
-const inputCls = "w-full bg-white border border-slate-200 rounded text-slate-900 font-mono text-xs px-2.5 py-2 outline-none focus:border-gold-500/50 transition-colors"
+const inputCls = "w-full bg-[#0a1f4d] border border-[#0a1f4d] rounded text-gold-400 font-mono text-xs px-2.5 py-2 outline-none focus:border-gold-500 transition-colors placeholder:text-gold-400/50"
 const FieldLabel = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1.5">{children}</div>
 )
