@@ -6,7 +6,12 @@ const ENDPOINTS = {
   listings: '/listings/sale',
   markets: '/markets',
   comparables: '/properties/comparables/sale',
+  properties: '/properties',
+  avm: '/avm/value',
 } as const
+
+// Whitelist of full paths the client may request directly via `path`
+const ALLOWED_PATHS = new Set<string>(Object.values(ENDPOINTS))
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
@@ -15,12 +20,15 @@ Deno.serve(async (req) => {
     const key = Deno.env.get('RENTCAST_API_KEY')
     if (!key) throw new Error('RENTCAST_API_KEY is not configured')
 
-    const { endpoint, params } = await req.json() as {
-      endpoint: keyof typeof ENDPOINTS
+    const body = await req.json() as {
+      endpoint?: keyof typeof ENDPOINTS
+      path?: string
       params: Record<string, string>
     }
-    const path = ENDPOINTS[endpoint]
-    if (!path) throw new Error(`Unknown endpoint: ${endpoint}`)
+    const { endpoint, path: rawPath, params } = body
+    const path = endpoint ? ENDPOINTS[endpoint] : rawPath
+    if (!path) throw new Error('endpoint or path is required')
+    if (!ALLOWED_PATHS.has(path)) throw new Error(`Path not allowed: ${path}`)
 
     const qs = new URLSearchParams(params || {})
     const res = await fetch(`${BASE}${path}?${qs}`, {
