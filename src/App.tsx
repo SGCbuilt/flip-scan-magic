@@ -333,3 +333,42 @@ function ThemeToggle() {
     </button>
   )
 }
+
+function FavoritesButton({ onOpen }: { onOpen: () => void }) {
+  const { favorites } = useFavorites()
+  const count = favorites.length
+  return (
+    <button
+      onClick={onOpen}
+      title="View saved favorites & compare"
+      className="relative flex items-center gap-1.5 h-8 px-2.5 rounded border border-gold-500/40 hover:border-gold-400 text-gold-400 hover:text-white bg-transparent cursor-pointer transition-colors text-[11px] uppercase tracking-widest"
+    >
+      <span className="text-sm leading-none">★</span>
+      <span className="hidden sm:inline">Favorites</span>
+      {count > 0 && (
+        <span className="ml-1 bg-gold-400 text-[#0a1f4d] text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+          {count}
+        </span>
+      )}
+    </button>
+  )
+}
+
+function ThemeToggleDuplicate_REMOVE() {
+  const { theme, toggle } = useTheme()
+  const isDark = theme === 'dark'
+  return (
+    <button
+      onClick={toggle}
+      aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
+      title={isDark ? 'Light mode' : 'Dark mode'}
+      className="flex items-center justify-center w-8 h-8 rounded border border-gold-500/40 hover:border-gold-400 text-gold-400 hover:text-white bg-transparent cursor-pointer transition-colors"
+    >
+      {isDark ? (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
+      ) : (
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+      )}
+    </button>
+  )
+}
