@@ -2,9 +2,9 @@ import { useState, useCallback } from 'react'
 import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import PropertyModal from './components/PropertyModal'
+import MarketPanel from './components/MarketPanel'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
-import sgcLogo from '@/assets/sgc-logo.png'
 import { useAuth } from '@/context/AuthContext'
 import { useTheme } from '@/context/ThemeContext'
 import { useFavorites } from '@/context/FavoritesContext'
@@ -65,6 +65,7 @@ export default function App() {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [activeStrategy, setActiveStrategy] = useState<string>('all')
+  const [activeTab, setActiveTab] = useState<'deals' | 'market'>('deals')
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta] = useState<{ time: number; raw: number; sources: number } | null>(null)
   const [showCompare, setShowCompare] = useState(false)
@@ -172,50 +173,59 @@ export default function App() {
   const avg = (arr: number[]) => arr.length ? arr.reduce((s, n) => s + n, 0) / arr.length : 0
 
   return (
-    <div className="flex flex-col h-screen bg-white font-mono overflow-hidden">
+    <div className="flex flex-col h-screen overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
       {/* ── HEADER ── */}
-      <header className="flex items-center justify-between px-6 py-3 border-b border-slate-200 bg-[#0a1f4d] z-50 flex-shrink-0">
-        <div className="flex items-center gap-4">
-          {/* Logo */}
-          <div className="flex items-center gap-3">
-            <div className="relative w-9 h-9 flex-shrink-0 rounded-md bg-white p-0.5 flex items-center justify-center">
-              <img src={sgcLogo} alt="SGC Built — General Contractors" className="w-full h-full object-contain" />
-            </div>
+      <header style={{ background: 'var(--sgc-navy)', borderBottom: '1px solid var(--sgc-navy-dark)' }}
+        className="flex items-center justify-between px-6 py-0 z-50 flex-shrink-0 h-14">
+
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2.5">
+            <svg viewBox="0 0 38 38" className="w-8 h-8 flex-shrink-0">
+              <rect width="38" height="38" rx="5" fill="white" fillOpacity="0.12"/>
+              <polyline points="19,6 32,16 32,33 6,33 6,16" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinejoin="round"/>
+              <line x1="19" y1="6" x2="6" y2="16" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round"/>
+              <rect x="14.5" y="24" width="9" height="9" rx="0.5" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
+              <text x="19" y="22" textAnchor="middle" fill="white" fontSize="9.5" fontWeight="700" fontFamily="Inter,sans-serif" letterSpacing="0.5">SGC</text>
+            </svg>
             <div>
-              <div className="text-[13px] font-bold text-white tracking-widest uppercase leading-none">FlipScan Pro</div>
-              <div className="text-[10px] text-gold-400 tracking-wider mt-0.5">SGC General Contractors</div>
+              <div style={{ fontFamily: 'Inter,sans-serif', letterSpacing: '0.12em' }}
+                className="text-white font-bold text-sm uppercase leading-none tracking-widest">
+                SGC <span style={{ color: 'rgba(255,255,255,0.6)', fontWeight: 400 }}>Built</span>
+              </div>
+              <div style={{ letterSpacing: '0.18em', fontSize: '9px', color: 'rgba(255,255,255,0.5)' }}
+                className="uppercase mt-0.5">
+                FlipScan Pro
+              </div>
             </div>
           </div>
 
-          {/* Strategy filter chips — only shown when results exist */}
+          <div className="w-px h-6 mx-2" style={{ background: 'rgba(255,255,255,0.15)' }} />
+
           {appState === 'results' && results.length > 0 && (
-            <div className="flex items-center gap-1 ml-4 border-l border-zinc-800 pl-4">
+            <div className="flex items-center gap-1 flex-wrap">
               {[
-                { key: 'all',         label: 'All',          count: results.length },
+                { key: 'all',         label: 'All Deals',    count: results.length },
                 { key: 'hot',         label: '🔥 Hot',       count: results.filter(r => r.flipScore >= 70).length },
-                { key: 'foreclosure', label: '🔨 REO',       count: results.filter(r => r.source === 'foreclosure').length },
-                { key: 'short_sale',  label: '📉 Short Sale', count: results.filter(r => r.source === 'short_sale').length },
-                { key: 'off_market',  label: '🔒 Off-Market', count: results.filter(r => ['off_market','property_record','corporate_owned'].includes(r.source)).length },
-                { key: 'wholesale',   label: '📦 Wholesale',  count: results.filter(r => r.price < 200000).length },
-                { key: 'flip',        label: '⚡ Flip',       count: results.filter(r => r.roi > 15).length },
-                { key: 'brrrr',       label: '♻️ BRRRR',      count: results.filter(r => r.cashOnCash > 20).length },
+                { key: 'foreclosure', label: 'Foreclosure',  count: results.filter(r => r.source === 'foreclosure').length },
+                { key: 'short_sale',  label: 'Short Sale',   count: results.filter(r => r.source === 'short_sale').length },
+                { key: 'off_market',  label: 'Off-Market',   count: results.filter(r => ['off_market','property_record','corporate_owned'].includes(r.source)).length },
+                { key: 'wholesale',   label: 'Wholesale',    count: results.filter(r => r.price < 200000).length },
+                { key: 'flip',        label: 'Fix & Flip',   count: results.filter(r => r.roi > 15).length },
+                { key: 'brrrr',       label: 'BRRRR',        count: results.filter(r => r.cashOnCash > 20).length },
               ].filter(s => s.count > 0 || s.key === 'all').map(s => (
-                <button
-                  key={s.key}
-                  onClick={() => setActiveStrategy(prev => prev === s.key ? 'all' : s.key)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] tracking-wide font-medium transition-all cursor-pointer border
-                    ${activeStrategy === s.key
-                      ? 'bg-[#1a3a8f] border-[#1a3a8f] text-white'
-                      : 'bg-transparent border-zinc-800 text-zinc-500 hover:border-zinc-600 hover:text-zinc-300'}`}
-                >
+                <button key={s.key} onClick={() => setActiveStrategy(s.key)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded text-xs font-medium transition-all cursor-pointer border"
+                  style={activeStrategy === s.key
+                    ? { background: 'white', borderColor: 'white', color: 'var(--sgc-navy)', fontWeight: 600 }
+                    : { background: 'rgba(255,255,255,0.08)', borderColor: 'rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.75)' }}>
                   {s.label}
-                  {s.count > 0 && (
-                    <span className={`text-[9px] px-1 py-0.5 rounded-sm font-bold
-                      ${activeStrategy === s.key ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-500'}`}>
-                      {s.count}
-                    </span>
-                  )}
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-sm font-bold"
+                    style={activeStrategy === s.key
+                      ? { background: 'var(--sgc-navy)', color: 'white' }
+                      : { background: 'rgba(255,255,255,0.15)', color: 'rgba(255,255,255,0.6)' }}>
+                    {s.count}
+                  </span>
                 </button>
               ))}
             </div>
@@ -224,18 +234,18 @@ export default function App() {
 
         <div className="flex items-center gap-4">
           {searchMeta && appState === 'results' && (
-            <div className="hidden lg:flex items-center gap-2 text-[10px] text-zinc-600">
+            <div className="hidden lg:flex items-center gap-2 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
               <span>{params.locationQuery}</span>
               <span>·</span>
-              <span>{params.searchMode === 'state' ? 'statewide' : `${params.radius}mi radius`}</span>
+              <span>{params.searchMode === 'state' ? 'Statewide' : `${params.radius}mi`}</span>
               <span>·</span>
               <span>{searchMeta.raw} scanned</span>
               <span>·</span>
-              <span>{(searchMeta.time / 1000).toFixed(1)}s</span>
+              <span>{(searchMeta.time/1000).toFixed(1)}s</span>
             </div>
           )}
-          <div className="flex items-center gap-1.5 text-[11px] text-gold-400">
-            <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
+          <div className="flex items-center gap-1.5 text-xs" style={{ color: 'rgba(255,255,255,0.5)' }}>
+            <div className="w-1.5 h-1.5 rounded-full pulse-dot" style={{ background: '#4ade80' }} />
             Live
           </div>
           <FavoritesButton onOpen={() => setShowCompare(true)} />
@@ -248,22 +258,46 @@ export default function App() {
       <div className="flex flex-1 overflow-hidden">
         <Sidebar params={params} onChange={setParams} onSearch={handleSearch} loading={appState === 'loading'} />
 
-        <div className="flex-1 overflow-hidden">
-          <Dashboard
-            appState={appState}
-            results={strategyFiltered}
-            allAnalyzed={allAnalyzed}
-            marketStats={marketStats}
-            apiErrors={apiErrors}
-            loadingMsg={loadingMsg}
-            sortKey={sortKey}
-            viewMode={viewMode}
-            onSort={handleSort}
-            onViewMode={setViewMode}
-            onSelect={setSelected}
-            searchMeta={searchMeta}
-            params={params}
-          />
+        <div className="flex-1 flex flex-col overflow-hidden">
+          {/* Main tab bar */}
+          <div className="flex items-center flex-shrink-0 px-5 pt-4 gap-1" style={{ background: 'var(--sgc-gray-light)' }}>
+            {[
+              { id: 'deals',  label: 'Deal Scanner', icon: '⊞', badge: strategyFiltered.length > 0 ? strategyFiltered.length : undefined },
+              { id: 'market', label: 'Market Intelligence', icon: '📊', badge: undefined as number | undefined },
+            ].map(t => (
+              <button key={t.id} onClick={() => setActiveTab(t.id as any)}
+                className="flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all cursor-pointer border border-b-0"
+                style={activeTab === t.id
+                  ? { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)', fontWeight: 600 }
+                  : { background: 'transparent', borderColor: 'transparent', color: 'var(--sgc-gray-mid)' }}>
+                <span className="text-base leading-none">{t.icon}</span>
+                {t.label}
+                {t.badge != null && t.badge > 0 && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
+                    style={activeTab === t.id
+                      ? { background: 'var(--sgc-navy)', color: 'white' }
+                      : { background: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                    {t.badge}
+                  </span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          <div className="flex-1 overflow-hidden border-t" style={{ background: 'white', borderColor: 'var(--sgc-gray-border)' }}>
+            {activeTab === 'deals' && (
+              <Dashboard
+                appState={appState} results={strategyFiltered} allAnalyzed={allAnalyzed}
+                marketStats={marketStats} apiErrors={apiErrors} loadingMsg={loadingMsg}
+                sortKey={sortKey} viewMode={viewMode} onSort={handleSort}
+                onViewMode={setViewMode} onSelect={setSelected} searchMeta={searchMeta} params={params}
+              />
+            )}
+            {activeTab === 'market' && (
+              <MarketPanel locationQuery={params.locationQuery} searchMode={params.searchMode}
+                results={results} visible={activeTab === 'market'} />
+            )}
+          </div>
         </div>
       </div>
 
@@ -301,13 +335,14 @@ function SignOutButton() {
   const initial = (user.email || '?').charAt(0).toUpperCase()
   return (
     <div className="flex items-center gap-2">
-      <div className="hidden md:flex items-center gap-2 text-[11px] text-gold-400/80">
-        <div className="w-6 h-6 rounded-full bg-gold-400 text-[#0a1f4d] font-bold flex items-center justify-center text-[11px]">{initial}</div>
+      <div className="hidden md:flex items-center gap-2 text-[11px]" style={{ color: 'rgba(255,255,255,0.7)' }}>
+        <div className="w-6 h-6 rounded-full font-bold flex items-center justify-center text-[11px]" style={{ background: 'white', color: 'var(--sgc-navy)' }}>{initial}</div>
         <span className="max-w-[160px] truncate">{user.email}</span>
       </div>
       <button
         onClick={signOut}
-        className="text-[10px] uppercase tracking-widest text-gold-400 hover:text-white border border-gold-500/40 hover:border-gold-400 rounded px-2.5 py-1 bg-transparent cursor-pointer transition-colors"
+        className="text-[10px] uppercase tracking-widest rounded px-2.5 py-1 bg-transparent cursor-pointer transition-colors hover:bg-white/10"
+        style={{ color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.3)' }}
       >
         Sign Out
       </button>
@@ -323,7 +358,8 @@ function ThemeToggle() {
       onClick={toggle}
       aria-label={isDark ? 'Switch to light mode' : 'Switch to dark mode'}
       title={isDark ? 'Light mode' : 'Dark mode'}
-      className="flex items-center justify-center w-8 h-8 rounded border border-gold-500/40 hover:border-gold-400 text-gold-400 hover:text-white bg-transparent cursor-pointer transition-colors"
+      className="flex items-center justify-center w-8 h-8 rounded bg-transparent cursor-pointer transition-colors hover:bg-white/10"
+      style={{ color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.3)' }}
     >
       {isDark ? (
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
@@ -341,12 +377,13 @@ function FavoritesButton({ onOpen }: { onOpen: () => void }) {
     <button
       onClick={onOpen}
       title="View saved favorites & compare"
-      className="relative flex items-center gap-1.5 h-8 px-2.5 rounded border border-gold-500/40 hover:border-gold-400 text-gold-400 hover:text-white bg-transparent cursor-pointer transition-colors text-[11px] uppercase tracking-widest"
+      className="relative flex items-center gap-1.5 h-8 px-2.5 rounded bg-transparent cursor-pointer transition-colors hover:bg-white/10 text-[11px] uppercase tracking-widest"
+      style={{ color: 'rgba(255,255,255,0.8)', border: '1px solid rgba(255,255,255,0.3)' }}
     >
       <span className="text-sm leading-none">★</span>
       <span className="hidden sm:inline">Favorites</span>
       {count > 0 && (
-        <span className="ml-1 bg-gold-400 text-[#0a1f4d] text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center">
+        <span className="ml-1 text-[9px] font-bold rounded-full min-w-[16px] h-4 px-1 flex items-center justify-center" style={{ background: 'white', color: 'var(--sgc-navy)' }}>
           {count}
         </span>
       )}
