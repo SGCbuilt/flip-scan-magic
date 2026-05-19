@@ -43,6 +43,11 @@ const PRESETS = {
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
+const splitCityState = (q: string): { city: string; state: string } => {
+  const parts = (q || '').split(',').map(s => s.trim())
+  return { city: parts[0] || '', state: parts[1] || '' }
+}
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -53,6 +58,17 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     let val: any = t.value
     if (t.type === 'number' || t.type === 'range') val = parseFloat(t.value) || 0
     if (t.type === 'checkbox') val = (t as HTMLInputElement).checked
+    onChange({ ...params, [key]: val })
+  }
+  const setCity = (city: string) => {
+    const { state } = splitCityState(params.locationQuery)
+    onChange({ ...params, locationQuery: state ? `${city}, ${state}` : city })
+  }
+  const setStatePart = (state: string) => {
+    const { city } = splitCityState(params.locationQuery)
+    const s = state.toUpperCase().slice(0, 2)
+    onChange({ ...params, locationQuery: city ? `${city}, ${s}` : s })
+  }
     onChange({ ...params, [key]: val })
   }
   const setSource = (key: keyof DataSources, val: boolean) =>
