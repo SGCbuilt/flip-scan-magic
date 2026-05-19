@@ -72,7 +72,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
   const setSource = (key: keyof DataSources, val: boolean) =>
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
-    onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as DataSources })
+    onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as unknown as DataSources })
 
   const Section = ({ id, title, def = true, children }: { id: string; title: string; def?: boolean; children: React.ReactNode }) => (
     <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>

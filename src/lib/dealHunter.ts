@@ -578,7 +578,7 @@ export async function runDealHunt(opts: DealHuntOptions): Promise<DealHuntResult
     totalFound: 0, searchedStates: isNational ? ['All 50 States'] : opts.states, isNational
   }
 
-  const tasks: Promise<void>[] = []
+  const tasks: Promise<unknown>[] = []
 
   if (opts.sources.bankruptcy)
     tasks.push(fetchBankruptcyFilings(opts.states, opts.city).then(x => { r.bankruptcy = x }).catch(e => r.errors.push(`Bankruptcy: ${e.message}`)))
