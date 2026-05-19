@@ -11,7 +11,7 @@ interface Props {
 const FL = ({ children }: { children: React.ReactNode }) => (
   <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1">{children}</div>
 )
-const ic = "w-full bg-[#0a1f4d] border border-[#0a1f4d] rounded text-gold-400 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-gold-500 transition-colors placeholder:text-gold-400/50"
+const ic = "w-full bg-white border border-slate-300 rounded text-[#0a1f4d] font-mono text-xs font-semibold px-2.5 py-1.5 outline-none focus:border-gold-500 focus:ring-2 focus:ring-gold-500/30 transition-all placeholder:text-slate-400 placeholder:font-normal"
 const sc = ic + " cursor-pointer"
 
 const PRESETS: Record<string, Partial<SearchParams>> = {
