@@ -200,7 +200,7 @@ export default function App() {
               ].filter(s => s.count > 0 || s.key === 'all').map(s => (
                 <button
                   key={s.key}
-                  onClick={() => setActiveStrategy(s.key)}
+                  onClick={() => setActiveStrategy(prev => prev === s.key ? 'all' : s.key)}
                   className={`flex items-center gap-1 px-2.5 py-1.5 rounded text-[10px] tracking-wide font-medium transition-all cursor-pointer border
                     ${activeStrategy === s.key
                       ? 'bg-[#1a3a8f] border-[#1a3a8f] text-white'
