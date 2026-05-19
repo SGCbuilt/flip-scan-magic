@@ -140,7 +140,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
               {(['city', 'state', 'zip', 'address'] as SearchMode[]).map(mode => (
-                <button key={mode} onClick={() => onChange({ ...params, searchMode: mode, locationQuery: '' })}
+                <button key={mode} onClick={() => onChange(prev => ({ ...prev, searchMode: mode, locationQuery: '' }))}
                   className={`py-1.5 rounded border text-[10px] uppercase tracking-wide cursor-pointer transition-all
                     ${params.searchMode === mode
                       ? 'bg-amber-500/20 border-amber-500/60 text-amber-600'
@@ -173,7 +173,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               <input type="range" className="w-full mb-1" min="1" max="100" step="1" value={params.radius} onChange={set('radius')} />
               <div className="flex justify-between">
                 {RADIUS_MARKS.map(m => (
-                  <button key={m} onClick={() => onChange({ ...params, radius: m })}
+                  <button key={m} onClick={() => onChange(prev => ({ ...prev, radius: m }))}
                     className={`text-[9px] px-1 py-0.5 rounded cursor-pointer transition-colors
                       ${params.radius === m ? 'text-amber-600 bg-amber-500/10' : 'text-slate-400 hover:text-slate-500'}`}>
                     {m}
