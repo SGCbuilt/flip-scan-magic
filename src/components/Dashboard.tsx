@@ -118,8 +118,8 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
             { l: 'Profit',   v: fmt$(p.profit), c: p.profit >= 0 ? 'text-emerald-400' : 'text-red-400' },
             { l: 'ROI',      v: p.roi.toFixed(1)+'%', c: p.roi >= 0 ? 'text-emerald-400' : 'text-red-400' },
           ].map(m => (
-            <div key={m.l} className="bg-zinc-800/50 rounded-lg p-2">
-              <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">{m.l}</div>
+            <div key={m.l} className="bg-zinc-900/80 border border-zinc-700/60 rounded-lg p-2">
+              <div className="text-[9px] text-zinc-400 uppercase tracking-wider mb-0.5">{m.l}</div>
               <div className={`text-xs font-bold ${m.c}`}>{m.v}</div>
             </div>
           ))}
@@ -127,7 +127,7 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
         {/* Profit bar */}
         <div className="mb-3">
-          <div className="flex justify-between text-[9px] text-zinc-600 mb-1">
+          <div className="flex justify-between text-[9px] text-zinc-400 mb-1">
             <span>Profit margin</span>
             <span className={p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
               {p.arv > 0 ? Math.max(0, (p.profit / p.arv) * 100).toFixed(1) : 0}%
@@ -141,14 +141,14 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
         {/* Secondary metrics */}
         <div className="flex items-center justify-between text-[10px]">
-          <div className="flex items-center gap-3 text-zinc-600">
+          <div className="flex items-center gap-3 text-zinc-400">
             <span>Rehab <span className="text-orange-400 font-medium">{fmt$(p.rehabCost)}</span></span>
-            <span>Cash <span className="text-zinc-400 font-medium">{fmt$(p.totalCash)}</span></span>
-            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-amber-400' : 'text-zinc-400'}`}>{p.dom}d</span></span>}
+            <span>Cash <span className="text-zinc-200 font-medium">{fmt$(p.totalCash)}</span></span>
+            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-amber-400' : 'text-zinc-200'}`}>{p.dom}d</span></span>}
           </div>
           <div className="flex gap-1">
             {p.signals.slice(0, 2).map((s, i) => (
-              <span key={i} className="text-[9px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">{s.replace(/^[^\s]+ /, '')}</span>
+              <span key={i} className="text-[9px] text-zinc-300 bg-zinc-800 border border-zinc-700/60 px-1.5 py-0.5 rounded">{s.replace(/^[^\s]+ /, '')}</span>
             ))}
           </div>
         </div>
