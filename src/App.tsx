@@ -234,6 +234,7 @@ export default function App() {
             <div className="w-1.5 h-1.5 rounded-full bg-green-400 pulse-dot" />
             Live
           </div>
+          <SignOutButton />
         </div>
       </header>
 
