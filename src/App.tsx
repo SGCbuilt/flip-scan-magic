@@ -3,6 +3,7 @@ import Sidebar from './components/Sidebar'
 import Dashboard from './components/Dashboard'
 import PropertyModal from './components/PropertyModal'
 import MarketPanel from './components/MarketPanel'
+import DealHunter from './components/DealHunter'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { useAuth } from '@/context/AuthContext'
@@ -65,7 +66,7 @@ export default function App() {
   const [sortKey, setSortKey] = useState<SortKey>('score')
   const [viewMode, setViewMode] = useState<ViewMode>('cards')
   const [activeStrategy, setActiveStrategy] = useState<string>('all')
-  const [activeTab, setActiveTab] = useState<'deals' | 'market'>('deals')
+  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'hunt'>('deals')
   const [toast, setToast] = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta] = useState<{ time: number; raw: number; sources: number } | null>(null)
   const [showCompare, setShowCompare] = useState(false)
@@ -264,6 +265,7 @@ export default function App() {
             {[
               { id: 'deals',  label: 'Deal Scanner', icon: '⊞', badge: strategyFiltered.length > 0 ? strategyFiltered.length : undefined },
               { id: 'market', label: 'Market Intelligence', icon: '📊', badge: undefined as number | undefined },
+              { id: 'hunt',   label: 'Deal Hunter', icon: '🎯', badge: undefined as number | undefined },
             ].map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id as any)}
                 className="flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all cursor-pointer border border-b-0"
@@ -296,6 +298,9 @@ export default function App() {
             {activeTab === 'market' && (
               <MarketPanel locationQuery={params.locationQuery} searchMode={params.searchMode}
                 results={results} visible={activeTab === 'market'} />
+            )}
+            {activeTab === 'hunt' && (
+              <DealHunter params={params} />
             )}
           </div>
         </div>
