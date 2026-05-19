@@ -3,7 +3,7 @@ import { SearchParams, SearchMode, DataSources } from '../types'
 
 interface Props {
   params: SearchParams
-  onChange: (p: SearchParams) => void
+  onChange: React.Dispatch<React.SetStateAction<SearchParams>>
   onSearch: () => void
   loading: boolean
 }
@@ -48,22 +48,22 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     let val: any = t.value
     if (t.type === 'number' || t.type === 'range') val = parseFloat(t.value) || 0
     if (t.type === 'checkbox') val = (t as HTMLInputElement).checked
-    onChange({ ...params, [key]: val })
+    onChange(prev => ({ ...prev, [key]: val }))
   }
 
   const setSource = (key: keyof DataSources, val: boolean) => {
-    onChange({ ...params, sources: { ...params.sources, [key]: val } })
+    onChange(prev => ({ ...prev, sources: { ...prev.sources, [key]: val } }))
   }
 
   const toggleAll = (val: boolean) => {
     const all: DataSources = { activeMLS: val, foreclosures: val, shortSales: val, recentlyOffMarket: val, propertyRecords: val, corporateOwned: val }
-    onChange({ ...params, sources: all })
+    onChange(prev => ({ ...prev, sources: all }))
   }
 
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
-  const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
+  const applyPreset = (key: string) => onChange(prev => ({ ...prev, ...PRESETS[key] }))
 
   const Section = ({ id, icon, title, def = true, children }: { id: string; icon: string; title: string; def?: boolean; children: React.ReactNode }) => (
     <div className="border-t border-slate-200 pt-3 mt-3">
@@ -140,7 +140,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
               {(['city', 'state', 'zip', 'address'] as SearchMode[]).map(mode => (
-                <button key={mode} onClick={() => onChange({ ...params, searchMode: mode, locationQuery: '' })}
+                <button key={mode} onClick={() => onChange(prev => ({ ...prev, searchMode: mode, locationQuery: '' }))}
                   className={`py-1.5 rounded border text-[10px] uppercase tracking-wide cursor-pointer transition-all
                     ${params.searchMode === mode
                       ? 'bg-amber-500/20 border-amber-500/60 text-amber-600'
@@ -173,7 +173,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
               <input type="range" className="w-full mb-1" min="1" max="100" step="1" value={params.radius} onChange={set('radius')} />
               <div className="flex justify-between">
                 {RADIUS_MARKS.map(m => (
-                  <button key={m} onClick={() => onChange({ ...params, radius: m })}
+                  <button key={m} onClick={() => onChange(prev => ({ ...prev, radius: m }))}
                     className={`text-[9px] px-1 py-0.5 rounded cursor-pointer transition-colors
                       ${params.radius === m ? 'text-amber-600 bg-amber-500/10' : 'text-slate-400 hover:text-slate-500'}`}>
                     {m}
