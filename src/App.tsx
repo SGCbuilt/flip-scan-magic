@@ -4,6 +4,7 @@ import Dashboard from './components/Dashboard'
 import PropertyModal from './components/PropertyModal'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
+import sgcLogo from '@/assets/sgc-logo.png'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
 
@@ -173,15 +174,8 @@ export default function App() {
         <div className="flex items-center gap-4">
           {/* Logo */}
           <div className="flex items-center gap-3">
-            <div className="relative w-9 h-9 flex-shrink-0">
-              <svg viewBox="0 0 36 36" className="w-full h-full">
-                <rect width="36" height="36" rx="6" fill="#1a3a8f"/>
-                {/* house outline */}
-                <polyline points="18,7 30,17 30,30 6,30 6,17" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
-                <line x1="18" y1="7" x2="6" y2="17" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
-                <rect x="14" y="22" width="8" height="8" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1"/>
-                <text x="18" y="20" textAnchor="middle" fill="white" fontSize="9" fontWeight="700" fontFamily="monospace">SGC</text>
-              </svg>
+            <div className="relative w-9 h-9 flex-shrink-0 rounded-md bg-white p-0.5 flex items-center justify-center">
+              <img src={sgcLogo} alt="SGC Built — General Contractors" className="w-full h-full object-contain" />
             </div>
             <div>
               <div className="text-[13px] font-bold text-white tracking-widest uppercase leading-none">FlipScan Pro</div>
