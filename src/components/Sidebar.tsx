@@ -3,7 +3,7 @@ import { SearchParams, SearchMode, DataSources } from '../types'
 
 interface Props {
   params: SearchParams
-  onChange: (p: SearchParams) => void
+  onChange: React.Dispatch<React.SetStateAction<SearchParams>>
   onSearch: () => void
   loading: boolean
 }
@@ -48,22 +48,22 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     let val: any = t.value
     if (t.type === 'number' || t.type === 'range') val = parseFloat(t.value) || 0
     if (t.type === 'checkbox') val = (t as HTMLInputElement).checked
-    onChange({ ...params, [key]: val })
+    onChange(prev => ({ ...prev, [key]: val }))
   }
 
   const setSource = (key: keyof DataSources, val: boolean) => {
-    onChange({ ...params, sources: { ...params.sources, [key]: val } })
+    onChange(prev => ({ ...prev, sources: { ...prev.sources, [key]: val } }))
   }
 
   const toggleAll = (val: boolean) => {
     const all: DataSources = { activeMLS: val, foreclosures: val, shortSales: val, recentlyOffMarket: val, propertyRecords: val, corporateOwned: val }
-    onChange({ ...params, sources: all })
+    onChange(prev => ({ ...prev, sources: all }))
   }
 
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
   const isOpen = (id: string, def = true) => collapsed[id] === undefined ? def : !collapsed[id]
 
-  const applyPreset = (key: string) => onChange({ ...params, ...PRESETS[key] })
+  const applyPreset = (key: string) => onChange(prev => ({ ...prev, ...PRESETS[key] }))
 
   const Section = ({ id, icon, title, def = true, children }: { id: string; icon: string; title: string; def?: boolean; children: React.ReactNode }) => (
     <div className="border-t border-slate-200 pt-3 mt-3">
