@@ -15,7 +15,9 @@
  * - limit max = 500
  */
 
-import { supabase } from '@/integrations/supabase/client'
+const KEY = 'a03153e34276e4d75b0548add458816de'
+const BASE = 'https://api.rentcast.io/v1'
+const H = { 'X-Api-Key': KEY, 'Content-Type': 'application/json' }
 
 // ── State name → 2-letter abbrev ──────────────────────────────────────────
 const STATES: Record<string, string> = {
@@ -79,19 +81,62 @@ export function buildLocationParams(
   return p
 }
 
-// ── Generic GET helper — routes through Lovable Cloud edge function ──────
+// ── Generic GET helper ─────────────────────────────────────────────────────
 async function get(path: string, params: Record<string, string>): Promise<any> {
-  const { data, error } = await supabase.functions.invoke('rentcast', {
-    body: { path, params },
-  })
-  if (error) throw new Error(`RentCast [${path}]: ${error.message}`)
-  if (data && typeof data === 'object' && 'error' in data && data.error) {
-    throw new Error(`RentCast [${path}]: ${String(data.error)}`)
+  const qs = new URLSearchParams(params)
+  const url = `${BASE}${path}?${qs}`
+  const res = await fetch(url, { headers: H })
+  if (!res.ok) {
+    const body = await res.text().catch(() => '')
+    throw new Error(`RentCast ${res.status} [${path}]: ${body.slice(0, 200)}`)
   }
-  return data
+  return res.json()
 }
 
-// ── ACTIVE MLS listings (Standard + Foreclosure + Short Sale) ────────────
+// ── Build common filter params ────────────────────────────────────────────
+function buildFilterParams(filters: {
+  minPrice?: number; maxPrice?: number
+  bedrooms?: number; bathrooms?: number
+  minSqft?: number; maxSqft?: number
+  minYear?: number; maxYear?: number
+  propertyType?: string
+  maxDom?: number; minDom?: number
+}): Record<string, string> {
+  const p: Record<string, string> = {}
+
+  // Price range — RentCast range syntax "min-max"
+  if (filters.minPrice || filters.maxPrice) {
+    const lo = filters.minPrice || 1
+    const hi = filters.maxPrice || 99999999
+    p.price = `${lo}-${hi}`
+  }
+
+  if (filters.bedrooms)  p.bedrooms  = `${filters.bedrooms}+`
+  if (filters.bathrooms) p.bathrooms = `${filters.bathrooms}+`
+
+  if (filters.minSqft || filters.maxSqft) {
+    p.squareFootage = `${filters.minSqft || 1}-${filters.maxSqft || 99999}`
+  }
+
+  if (filters.minYear || filters.maxYear) {
+    p.yearBuilt = `${filters.minYear || 1800}-${filters.maxYear || new Date().getFullYear()}`
+  }
+
+  if (filters.propertyType) p.propertyType = filters.propertyType
+
+  // daysOld — only send if there is an actual upper bound
+  if (filters.maxDom && filters.maxDom < 9999) {
+    const lo = filters.minDom && filters.minDom > 0 ? filters.minDom : 1
+    p.daysOld = `${lo}-${filters.maxDom}`
+  } else if (filters.minDom && filters.minDom > 0) {
+    // min only — open-ended upper range not supported; skip API filter, handle client-side
+  }
+
+  return p
+}
+
+// ── ACTIVE listings — one call, returns ALL types (Standard/Foreclosure/Short Sale)
+// listingType is a RESPONSE field only — NOT a valid query param
 export async function fetchActiveListings(
   locParams: Record<string, string>,
   filters: {
@@ -101,76 +146,36 @@ export async function fetchActiveListings(
     minYear?: number; maxYear?: number
     propertyType?: string
     maxDom?: number; minDom?: number
-    listingType?: string   // "Foreclosure" | "Short Sale" | "Standard"
   }
 ): Promise<any[]> {
   const p: Record<string, string> = {
     ...locParams,
+    ...buildFilterParams(filters),
     status: 'Active',
     limit: '500',
   }
 
-  // Price range (RentCast range syntax: "min-max")
-  if (filters.minPrice || filters.maxPrice) {
-    const lo = filters.minPrice || 1
-    const hi = filters.maxPrice || 99999999
-    p.price = `${lo}-${hi}`
-  }
-
-  // Bedrooms / bathrooms
-  if (filters.bedrooms) p.bedrooms = `${filters.bedrooms}+`
-  if (filters.bathrooms) p.bathrooms = `${filters.bathrooms}+`
-
-  // SqFt range
-  if (filters.minSqft || filters.maxSqft) {
-    const lo = filters.minSqft || 1
-    const hi = filters.maxSqft || 99999
-    p.squareFootage = `${lo}-${hi}`
-  }
-
-  // Year built range
-  if (filters.minYear || filters.maxYear) {
-    const lo = filters.minYear || 1800
-    const hi = filters.maxYear || new Date().getFullYear()
-    p.yearBuilt = `${lo}-${hi}`
-  }
-
-  // Property type
-  if (filters.propertyType) p.propertyType = filters.propertyType
-
-  // Days on market range
-  if (filters.minDom || filters.maxDom) {
-    const lo = filters.minDom || 1
-    const hi = filters.maxDom || 9999
-    p.daysOld = lo > 1 ? `${lo}-${hi}` : `1-${hi}`
-  }
-
   const data = await get('/listings/sale', p)
-  let arr: any[] = Array.isArray(data) ? data : (data.listings || data.data || [])
-
-  // Filter by listing type client-side if requested
-  if (filters.listingType && filters.listingType !== 'all') {
-    arr = arr.filter(x => (x.listingType || '').toLowerCase() === filters.listingType!.toLowerCase())
-  }
-
-  return arr
+  return Array.isArray(data) ? data : (data.listings || data.data || [])
 }
 
 // ── INACTIVE / recently removed listings (expired, sold, delisted) ────────
 export async function fetchInactiveListings(
   locParams: Record<string, string>,
-  filters: { minPrice?: number; maxPrice?: number; propertyType?: string }
+  filters: {
+    minPrice?: number; maxPrice?: number
+    bedrooms?: number; bathrooms?: number
+    minSqft?: number; maxSqft?: number
+    propertyType?: string
+  }
 ): Promise<any[]> {
   const p: Record<string, string> = {
     ...locParams,
+    ...buildFilterParams(filters),
     status: 'Inactive',
     limit: '200',
-    daysOld: '1-90',   // removed in last 90 days — recently off-market
+    daysOld: '1-90',   // delisted in last 90 days
   }
-  if (filters.minPrice || filters.maxPrice) {
-    p.price = `${filters.minPrice || 1}-${filters.maxPrice || 99999999}`
-  }
-  if (filters.propertyType) p.propertyType = filters.propertyType
 
   try {
     const data = await get('/listings/sale', p)
@@ -182,6 +187,7 @@ export async function fetchInactiveListings(
 }
 
 // ── PROPERTY RECORDS — off-market, absentee owners, corporate owned ───────
+// Note: owner.type is NOT a valid query param — filter client-side from response
 export async function fetchPropertyRecords(
   locParams: Record<string, string>,
   filters: {
@@ -199,21 +205,25 @@ export async function fetchPropertyRecords(
   }
 
   if (filters.propertyType) p.propertyType = filters.propertyType
-  if (filters.ownerType) p['owner.type'] = filters.ownerType
   if (filters.bedrooms) p.bedrooms = `${filters.bedrooms}+`
   if (filters.minYear || filters.maxYear) {
-    p.yearBuilt = `${filters.minYear || 1800}-${filters.maxYear || 2024}`
+    p.yearBuilt = `${filters.minYear || 1800}-${filters.maxYear || new Date().getFullYear()}`
   }
 
   try {
     const data = await get('/properties', p)
-    const arr: any[] = Array.isArray(data) ? data : (data.properties || data.data || [])
-    // Property records don't have a list price — use assessed value or AVM
+    let arr: any[] = Array.isArray(data) ? data : (data.properties || data.data || [])
+
+    // Filter by owner type client-side if requested
+    if (filters.ownerType) {
+      arr = arr.filter(x => (x.owner?.type || '').toLowerCase() === filters.ownerType!.toLowerCase())
+    }
+
     return arr.map(x => ({
       ...x,
       _source: 'property_record',
       price: x.assessedValue || x.taxAssessedValue || x.lastSalePrice || 0,
-      formattedAddress: x.formattedAddress || `${x.addressLine1}, ${x.city}, ${x.state}`,
+      formattedAddress: x.formattedAddress || `${x.addressLine1 || ''}, ${x.city || ''}, ${x.state || ''}`.replace(/^,\s*/, ''),
       daysOnMarket: 0,
     }))
   } catch {
@@ -309,74 +319,64 @@ export async function masterSearch(opts: SearchOptions): Promise<{ listings: Raw
   const allListings: RawListing[] = []
   const seen = new Set<string>()
 
-  const add = (arr: any[], source: string, label: string) => {
-    arr.forEach(item => {
-      const key = item.id || item.formattedAddress || JSON.stringify(item).slice(0, 80)
-      if (!seen.has(key)) {
+  const add = (items: any[], source: string, label: string) => {
+    items.forEach(item => {
+      const key = item.id || item.formattedAddress || `${item.addressLine1}-${item.city}-${item.zipCode}`
+      if (key && !seen.has(key)) {
         seen.add(key)
         allListings.push({ data: item, source, sourceLabel: label })
       }
     })
   }
 
+  const needsActiveFetch = opts.sources.activeMLS || opts.sources.foreclosures || opts.sources.shortSales
   const tasks: Promise<void>[] = []
 
-  // Active listings — one fetch shared across MLS / Foreclosure / Short Sale
-  // (RentCast returns all listing types in /listings/sale; splitting client-side
-  // avoids triplicate API calls that trigger rate limits / billing errors.)
-  if (opts.sources.activeMLS || opts.sources.foreclosures || opts.sources.shortSales) {
+  // ONE active fetch → split client-side by listingType (it's a response field, not a query param)
+  if (needsActiveFetch) {
     tasks.push(
-      fetchActiveListings(locParams, { ...opts.filters })
+      fetchActiveListings(locParams, opts.filters)
         .then(arr => {
-          const byType = (t: string) =>
-            arr.filter(x => (x.listingType || '').toLowerCase() === t.toLowerCase())
-          if (opts.sources.foreclosures) {
-            add(byType('Foreclosure'), 'foreclosure', '🔨 Foreclosure')
-          }
-          if (opts.sources.shortSales) {
-            add(byType('Short Sale'), 'short_sale', '📉 Short Sale')
-          }
-          if (opts.sources.activeMLS) {
-            // Standard MLS = everything that isn't Foreclosure / Short Sale
-            const std = arr.filter(x => {
-              const lt = (x.listingType || '').toLowerCase()
-              return lt !== 'foreclosure' && lt !== 'short sale'
-            })
-            add(std, 'active_mls', '🏠 Active MLS')
-          }
+          arr.forEach(item => {
+            const lt = (item.listingType || 'Standard').toLowerCase()
+            if (lt === 'foreclosure' && opts.sources.foreclosures) {
+              add([item], 'foreclosure', '🔨 Foreclosure')
+            } else if ((lt === 'short sale' || lt === 'short_sale') && opts.sources.shortSales) {
+              add([item], 'short_sale', '📉 Short Sale')
+            } else if (opts.sources.activeMLS) {
+              // Standard, New Construction, or anything else goes to active_mls
+              add([item], 'active_mls', '🏠 Active MLS')
+            }
+          })
         })
-        .catch(e => {
-          if (opts.sources.activeMLS) errors.push(`Active MLS: ${e.message}`)
-          if (opts.sources.foreclosures) errors.push(`Foreclosures: ${e.message}`)
-          if (opts.sources.shortSales) errors.push(`Short Sales: ${e.message}`)
-        })
+        .catch(e => { errors.push(`Active Listings: ${e.message}`) })
     )
   }
 
-  // Recently Off-Market
+  // Recently Off-Market — separate call with status=Inactive
   if (opts.sources.recentlyOffMarket) {
     tasks.push(
       fetchInactiveListings(locParams, opts.filters)
-        .then(arr => add(arr, 'off_market', '🔒 Recently Off-Market'))
-        .catch(e => { errors.push(`Off-market: ${e.message}`) })
+        .then(arr => add(arr, 'off_market', '🔒 Off-Market'))
+        .catch(e => { errors.push(`Off-Market: ${e.message}`) })
     )
   }
 
-  // Property Records (all owners — potential direct mail targets)
+  // Property Records — individual owners (off-market, public records)
   if (opts.sources.propertyRecords) {
     tasks.push(
       fetchPropertyRecords(locParams, { ...opts.filters, ownerType: 'Individual' })
         .then(arr => add(arr, 'property_record', '📋 Property Record'))
-        .catch(e => { errors.push(`Property records: ${e.message}`) })
+        .catch(e => { errors.push(`Property Records: ${e.message}`) })
     )
   }
 
-  // Corporate / Organization owned (often motivated to sell)
+  // Corporate / org owned — motivated institutional sellers
   if (opts.sources.corporateOwned) {
     tasks.push(
-      fetchPropertyRecords(locParams, { ...opts.filters, ownerType: 'Organization', limit: 100 })
+      fetchPropertyRecords(locParams, { ...opts.filters, ownerType: 'Organization', limit: 150 })
         .then(arr => add(arr, 'corporate_owned', '🏢 Corporate Owned'))
-        .catch(e => { errors.push(`Corporate owned: ${e.message}`) })
+        .catch(e => { errors.push(`Corporate Owned: ${e.message}`) })
     )
   }
 

@@ -29,20 +29,20 @@ const SORT_KEYS: { key: SortKey; label: string }[] = [
 ]
 
 const SOURCE_META: Record<string, { label: string; color: string; dot: string }> = {
-  active_mls:      { label: 'Active MLS',    color: 'text-blue-700',   dot: 'bg-blue-400'   },
-  foreclosure:     { label: 'Foreclosure',   color: 'text-red-600',    dot: 'bg-red-400'    },
-  short_sale:      { label: 'Short Sale',    color: 'text-orange-600', dot: 'bg-orange-400' },
-  off_market:      { label: 'Off-Market',    color: 'text-purple-700', dot: 'bg-purple-400' },
-  property_record: { label: 'Prop Record',   color: 'text-emerald-700',  dot: 'bg-green-400'  },
-  corporate_owned: { label: 'Corporate',     color: 'text-gold-600',  dot: 'bg-gold-400'  },
+  active_mls:      { label: 'Active MLS',    color: 'text-blue-400',   dot: 'bg-blue-400'   },
+  foreclosure:     { label: 'Foreclosure',   color: 'text-red-400',    dot: 'bg-red-400'    },
+  short_sale:      { label: 'Short Sale',    color: 'text-orange-400', dot: 'bg-orange-400' },
+  off_market:      { label: 'Off-Market',    color: 'text-purple-400', dot: 'bg-purple-400' },
+  property_record: { label: 'Prop Record',   color: 'text-green-400',  dot: 'bg-green-400'  },
+  corporate_owned: { label: 'Corporate',     color: 'text-amber-400',  dot: 'bg-amber-400'  },
 }
 
 function StatTile({ label, value, sub, accent = false }: { label: string; value: string; sub?: string; accent?: boolean }) {
   return (
-    <div className="bg-white border border-slate-200 rounded-xl p-4">
-      <div className="text-[10px] tracking-[2px] uppercase text-slate-400 mb-1">{label}</div>
+    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+      <div className="text-[10px] tracking-[2px] uppercase text-zinc-600 mb-1">{label}</div>
       <div className={`text-2xl font-bold leading-none ${accent ? 'text-[#4a6fd8]' : 'text-white'}`}>{value}</div>
-      {sub && <div className="text-[10px] text-slate-400 mt-1">{sub}</div>}
+      {sub && <div className="text-[10px] text-zinc-600 mt-1">{sub}</div>}
     </div>
   )
 }
@@ -50,57 +50,76 @@ function StatTile({ label, value, sub, accent = false }: { label: string; value:
 function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
   const isHot = p.flipScore >= 70
   const src = SOURCE_META[p.source] || SOURCE_META.active_mls
+  const fullAddr = `${p.addr}, ${p.city}, ${p.state} ${p.zip}`.replace(/,\s*,/g, ',').trim()
 
   return (
     <div
       onClick={onSelect}
       className={`group rounded-xl border cursor-pointer transition-all duration-200 overflow-hidden
         ${isHot
-          ? 'border-emerald-700/50 bg-emerald-50 hover:border-emerald-500/60 hover:bg-emerald-50'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-100'}`}
+          ? 'border-emerald-700/50 bg-emerald-950/20 hover:border-emerald-500/60 hover:bg-emerald-950/30'
+          : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600 hover:bg-zinc-800/80'}`}
     >
-      {/* Top accent bar */}
-      <div className={`h-0.5 w-full ${isHot ? 'bg-gradient-to-r from-emerald-500 to-teal-400' : 'bg-gradient-to-r from-[#1a3a8f]/60 to-[#1a3a8f]/20'}`} />
+      {/* Map preview strip — Google Maps embed, free */}
+      <div className="relative h-28 bg-zinc-800 overflow-hidden">
+        <iframe
+          src={`https://maps.google.com/maps?q=${encodeURIComponent(fullAddr)}&output=embed&z=17`}
+          className="w-full h-full border-0 pointer-events-none"
+          loading="lazy"
+          title={fullAddr}
+        />
+        {/* Score overlay */}
+        <div className={`absolute top-2 right-2 w-10 h-10 rounded-full border-2 flex flex-col items-center justify-center bg-zinc-950/90
+          ${p.flipScore >= 80 ? 'border-emerald-500' : p.flipScore >= 65 ? 'border-amber-500' : 'border-zinc-600'}`}>
+          <span className={`text-xs font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
+          <span className={`text-[8px] font-bold ${p.scoreClass}`}>{p.scoreGrade}</span>
+        </div>
+        {/* Source badge overlay */}
+        <div className="absolute top-2 left-2">
+          <span className={`text-[9px] px-2 py-0.5 rounded-full border font-medium bg-zinc-950/90 ${src.color} border-current/40`}>
+            {p.sourceLabel.replace(/^[^\s]+\s/, '')}
+          </span>
+        </div>
+        {/* Hot badge */}
+        {isHot && (
+          <div className="absolute bottom-2 left-2">
+            <span className="text-[9px] bg-emerald-500 text-zinc-950 font-bold px-2 py-0.5 rounded-full">🔥 HOT DEAL</span>
+          </div>
+        )}
+      </div>
 
       <div className="p-4">
-        {/* Header row */}
-        <div className="flex items-start justify-between gap-3 mb-3">
-          <div className="flex-1 min-w-0">
-            {/* Badges */}
-            <div className="flex items-center gap-1.5 mb-1.5 flex-wrap">
-              <span className={`text-[9px] px-2 py-0.5 rounded-full border font-medium ${src.color} border-current/30`}>
-                {p.sourceLabel.replace(/^[^\s]+\s/, '')}
-              </span>
-              {isHot && <span className="text-[9px] bg-emerald-500 text-blue-950 font-bold px-2 py-0.5 rounded-full">🔥 HOT</span>}
-              {p.underMoms && <span className="text-[9px] border border-emerald-500/40 text-emerald-700 px-2 py-0.5 rounded-full">70% ✓</span>}
-              {p.priceReduced && <span className="text-[9px] border border-violet-500/40 text-violet-400 px-2 py-0.5 rounded-full">Price ↓</span>}
-            </div>
-            <div className="text-sm font-semibold text-white leading-tight truncate">{p.addr}</div>
-            <div className="text-[11px] text-slate-500 mt-0.5">
-              {p.city}{p.state ? `, ${p.state}` : ''} {p.zip}
-              {p.beds ? ` · ${p.beds}bd/${p.baths}ba` : ''}
-              {p.sqft ? ` · ${p.sqft.toLocaleString()} sf` : ''}
+        {/* Address — full and prominent */}
+        <div className="mb-3">
+          <div className="flex items-start justify-between gap-2 mb-0.5">
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-bold text-white leading-snug">{p.addr}</div>
+              <div className="text-xs text-zinc-400 mt-0.5">{p.city}{p.state ? `, ${p.state}` : ''} {p.zip}</div>
+              <div className="text-[11px] text-zinc-600 mt-0.5 flex items-center gap-2 flex-wrap">
+                {p.beds > 0 && <span>{p.beds} bd / {p.baths} ba</span>}
+                {p.sqft > 0 && <span>{p.sqft.toLocaleString()} sqft</span>}
+                {p.yearBuilt && <span>Built {p.yearBuilt}</span>}
+                {p.propType && <span>{p.propType}</span>}
+              </div>
             </div>
           </div>
-
-          {/* Score badge */}
-          <div className={`flex-shrink-0 w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center
-            ${p.flipScore >= 80 ? 'border-emerald-500 bg-emerald-50' : p.flipScore >= 65 ? 'border-gold-500 bg-gold-50' : p.flipScore >= 50 ? 'border-orange-500 bg-orange-50' : 'border-slate-300 bg-slate-100'}`}>
-            <span className={`text-base font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
-            <span className={`text-[8px] font-bold ${p.scoreClass}`}>{p.scoreGrade}</span>
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            {p.underMoms && <span className="text-[9px] border border-emerald-500/40 text-emerald-400 px-2 py-0.5 rounded-full">70% ✓</span>}
+            {p.priceReduced && <span className="text-[9px] border border-violet-500/40 text-violet-400 px-2 py-0.5 rounded-full">Price ↓</span>}
+            {p.dom > 60 && <span className="text-[9px] border border-amber-500/40 text-amber-400 px-2 py-0.5 rounded-full">{p.dom}d on market</span>}
           </div>
         </div>
 
         {/* Key metrics */}
         <div className="grid grid-cols-4 gap-2 mb-3">
           {[
-            { l: 'Price',    v: fmt$(p.price),  c: 'text-slate-800' },
-            { l: 'ARV',      v: fmt$(p.arv),    c: 'text-gold-600' },
-            { l: 'Profit',   v: fmt$(p.profit), c: p.profit >= 0 ? 'text-emerald-700' : 'text-red-600' },
-            { l: 'ROI',      v: p.roi.toFixed(1)+'%', c: p.roi >= 0 ? 'text-emerald-700' : 'text-red-600' },
+            { l: 'Price',    v: fmt$(p.price),  c: 'text-zinc-200' },
+            { l: 'ARV',      v: fmt$(p.arv),    c: 'text-amber-400' },
+            { l: 'Profit',   v: fmt$(p.profit), c: p.profit >= 0 ? 'text-emerald-400' : 'text-red-400' },
+            { l: 'ROI',      v: p.roi.toFixed(1)+'%', c: p.roi >= 0 ? 'text-emerald-400' : 'text-red-400' },
           ].map(m => (
-            <div key={m.l} className="bg-slate-100/70 rounded-lg p-2">
-              <div className="text-[9px] text-slate-400 uppercase tracking-wider mb-0.5">{m.l}</div>
+            <div key={m.l} className="bg-zinc-800/50 rounded-lg p-2">
+              <div className="text-[9px] text-zinc-600 uppercase tracking-wider mb-0.5">{m.l}</div>
               <div className={`text-xs font-bold ${m.c}`}>{m.v}</div>
             </div>
           ))}
@@ -108,13 +127,13 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
         {/* Profit bar */}
         <div className="mb-3">
-          <div className="flex justify-between text-[9px] text-slate-400 mb-1">
+          <div className="flex justify-between text-[9px] text-zinc-600 mb-1">
             <span>Profit margin</span>
-            <span className={p.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+            <span className={p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}>
               {p.arv > 0 ? Math.max(0, (p.profit / p.arv) * 100).toFixed(1) : 0}%
             </span>
           </div>
-          <div className="h-1 bg-blue-900 rounded-full overflow-hidden">
+          <div className="h-1 bg-zinc-800 rounded-full overflow-hidden">
             <div className={`h-full rounded-full ${p.profit >= 0 ? 'bg-emerald-500' : 'bg-red-500'}`}
               style={{ width: `${Math.min(100, Math.max(0, p.arv > 0 ? (p.profit / p.arv) * 100 : 0))}%` }} />
           </div>
@@ -122,14 +141,14 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
         {/* Secondary metrics */}
         <div className="flex items-center justify-between text-[10px]">
-          <div className="flex items-center gap-3 text-slate-400">
-            <span>Rehab <span className="text-orange-600 font-medium">{fmt$(p.rehabCost)}</span></span>
-            <span>Cash <span className="text-slate-500 font-medium">{fmt$(p.totalCash)}</span></span>
-            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-gold-600' : 'text-slate-500'}`}>{p.dom}d</span></span>}
+          <div className="flex items-center gap-3 text-zinc-600">
+            <span>Rehab <span className="text-orange-400 font-medium">{fmt$(p.rehabCost)}</span></span>
+            <span>Cash <span className="text-zinc-400 font-medium">{fmt$(p.totalCash)}</span></span>
+            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-amber-400' : 'text-zinc-400'}`}>{p.dom}d</span></span>}
           </div>
           <div className="flex gap-1">
             {p.signals.slice(0, 2).map((s, i) => (
-              <span key={i} className="text-[9px] text-slate-500 bg-blue-900 px-1.5 py-0.5 rounded">{s.replace(/^[^\s]+ /, '')}</span>
+              <span key={i} className="text-[9px] text-zinc-500 bg-zinc-800 px-1.5 py-0.5 rounded">{s.replace(/^[^\s]+ /, '')}</span>
             ))}
           </div>
         </div>
@@ -141,13 +160,13 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
   const src = SOURCE_META[p.source] || SOURCE_META.active_mls
   return (
-    <tr onClick={onSelect} className="border-b border-slate-200 hover:bg-slate-100/50 cursor-pointer transition-colors group">
+    <tr onClick={onSelect} className="border-b border-zinc-800/60 hover:bg-zinc-800/40 cursor-pointer transition-colors group">
       <td className="py-2.5 pl-5 pr-3">
         <div className="flex items-center gap-2">
           <div className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${src.dot}`} />
           <div>
-            <div className="text-xs text-slate-800 font-medium truncate max-w-[180px]">{p.addr}</div>
-            <div className="text-[10px] text-slate-400">{p.city}, {p.state}</div>
+            <div className="text-xs text-zinc-200 font-medium truncate max-w-[180px]">{p.addr}</div>
+            <div className="text-[10px] text-zinc-600">{p.city}, {p.state}</div>
           </div>
         </div>
       </td>
@@ -156,14 +175,14 @@ function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
           {p.sourceLabel.replace(/^[^\s]+\s/, '')}
         </span>
       </td>
-      <td className="py-2.5 px-3 text-xs text-slate-700">{fmt$(p.price)}</td>
-      <td className="py-2.5 px-3 text-xs text-gold-600">{fmt$(p.arv)}</td>
-      <td className={`py-2.5 px-3 text-xs font-semibold ${p.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt$(p.profit)}</td>
-      <td className={`py-2.5 px-3 text-xs ${p.roi >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{p.roi.toFixed(1)}%</td>
-      <td className="py-2.5 px-3 text-xs text-slate-500">{p.dom || '—'}</td>
+      <td className="py-2.5 px-3 text-xs text-zinc-300">{fmt$(p.price)}</td>
+      <td className="py-2.5 px-3 text-xs text-amber-400">{fmt$(p.arv)}</td>
+      <td className={`py-2.5 px-3 text-xs font-semibold ${p.profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{fmt$(p.profit)}</td>
+      <td className={`py-2.5 px-3 text-xs ${p.roi >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{p.roi.toFixed(1)}%</td>
+      <td className="py-2.5 px-3 text-xs text-zinc-500">{p.dom || '—'}</td>
       <td className="py-2.5 px-3">
         <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full border text-xs font-bold
-          ${p.flipScore >= 80 ? 'border-emerald-500 text-emerald-700' : p.flipScore >= 65 ? 'border-gold-500 text-gold-600' : 'border-slate-300 text-slate-500'}`}>
+          ${p.flipScore >= 80 ? 'border-emerald-500 text-emerald-400' : p.flipScore >= 65 ? 'border-amber-500 text-amber-400' : 'border-zinc-600 text-zinc-400'}`}>
           {p.flipScore}
         </div>
       </td>
@@ -191,7 +210,7 @@ export default function Dashboard(props: Props) {
             <rect x="30" y="50" width="20" height="22" fill="none" stroke="currentColor" strokeWidth="2.5"/>
           </svg>
           <h2 className="text-xl font-bold text-white mb-2">FlipScan Pro</h2>
-          <p className="text-sm text-slate-500 max-w-sm">Multi-source real estate deal intelligence. Configure your search on the left and scan.</p>
+          <p className="text-sm text-zinc-500 max-w-sm">Multi-source real estate deal intelligence. Configure your search on the left and scan.</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4 max-w-xl w-full text-left">
@@ -200,10 +219,10 @@ export default function Dashboard(props: Props) {
             { icon: '🔒', t: 'Off-Market Deals', d: 'Recently delisted, property records, and corporate-owned' },
             { icon: '🤖', t: 'AI Deal Analysis', d: 'Deep deal analysis and strategy recommendations per property' },
           ].map(({ icon, t, d }) => (
-            <div key={t} className="bg-white border border-slate-200 rounded-xl p-4">
+            <div key={t} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
               <div className="text-2xl mb-2">{icon}</div>
               <div className="text-sm font-semibold text-white mb-1">{t}</div>
-              <div className="text-[11px] text-slate-400 leading-relaxed">{d}</div>
+              <div className="text-[11px] text-zinc-600 leading-relaxed">{d}</div>
             </div>
           ))}
         </div>
@@ -215,9 +234,9 @@ export default function Dashboard(props: Props) {
   if (appState === 'loading') {
     return (
       <div className="h-full flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-2 border-slate-300 border-t-[#1a3a8f] rounded-full spin mb-5" />
+        <div className="w-12 h-12 border-2 border-zinc-700 border-t-[#1a3a8f] rounded-full spin mb-5" />
         <div className="text-sm font-semibold text-white mb-1">{loadingMsg}</div>
-        <div className="text-xs text-slate-400">Pulling live data · Running deal analysis</div>
+        <div className="text-xs text-zinc-600">Pulling live data · Running deal analysis</div>
       </div>
     )
   }
@@ -226,10 +245,10 @@ export default function Dashboard(props: Props) {
   if (appState === 'error') {
     return (
       <div className="p-8">
-        <div className="bg-red-50 border border-red-200 rounded-xl p-5 max-w-lg">
-          <div className="text-sm font-semibold text-red-600 mb-3">⚠️ Search Failed</div>
-          {apiErrors.map((e, i) => <div key={i} className="text-xs text-red-600/80 font-mono mb-1">{e}</div>)}
-          <div className="text-[11px] text-slate-400 mt-3 space-y-1">
+        <div className="bg-red-950/30 border border-red-800/50 rounded-xl p-5 max-w-lg">
+          <div className="text-sm font-semibold text-red-400 mb-3">⚠️ Search Failed</div>
+          {apiErrors.map((e, i) => <div key={i} className="text-xs text-red-400/80 font-mono mb-1">{e}</div>)}
+          <div className="text-[11px] text-zinc-600 mt-3 space-y-1">
             <div>City: "Norfolk, VA" · State: "Virginia" or "VA" · Zip: "23501"</div>
           </div>
         </div>
@@ -272,26 +291,26 @@ export default function Dashboard(props: Props) {
               )
             })}
             {apiErrors.length > 0 && (
-              <span className="text-[10px] text-gold-500 bg-gold-500/10 border border-gold-400/60 px-2.5 py-1 rounded-full" title={apiErrors.join('\n')}>
+              <span className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-500/20 px-2.5 py-1 rounded-full" title={apiErrors.join('\n')}>
                 ⚠ {apiErrors.length} warning{apiErrors.length > 1 ? 's' : ''}
               </span>
             )}
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-slate-400">Sort:</span>
+            <span className="text-[10px] text-zinc-600">Sort:</span>
             {SORT_KEYS.map(({ key, label }) => (
               <button key={key} onClick={() => onSort(key)}
                 className={`px-2 py-1 rounded text-[10px] border cursor-pointer transition-colors
-                  ${sortKey === key ? 'bg-[#1a3a8f]/30 border-[#1a3a8f]/60 text-[#7a9fe8]' : 'bg-transparent border-slate-200 text-slate-400 hover:text-slate-500'}`}>
+                  ${sortKey === key ? 'bg-[#1a3a8f]/30 border-[#1a3a8f]/60 text-[#7a9fe8]' : 'bg-transparent border-zinc-800 text-zinc-600 hover:text-zinc-400'}`}>
                 {label}
               </button>
             ))}
-            <div className="ml-2 flex border border-slate-200 rounded overflow-hidden">
+            <div className="ml-2 flex border border-zinc-800 rounded overflow-hidden">
               {(['cards', 'table'] as ViewMode[]).map(v => (
                 <button key={v} onClick={() => onViewMode(v)}
                   className={`px-2.5 py-1 text-xs cursor-pointer transition-colors
-                    ${viewMode === v ? 'bg-blue-900 text-white' : 'bg-transparent text-slate-400 hover:text-slate-500'}`}>
+                    ${viewMode === v ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-600 hover:text-zinc-400'}`}>
                   {v === 'cards' ? '⊞' : '≡'}
                 </button>
               ))}
@@ -305,16 +324,16 @@ export default function Dashboard(props: Props) {
         {results.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center">
             <div className="text-4xl mb-3 opacity-20">🔍</div>
-            <div className="text-sm text-slate-500 mb-1">No deals match this filter</div>
-            <div className="text-xs text-slate-400">Try a different strategy tab or lower your thresholds</div>
+            <div className="text-sm text-zinc-400 mb-1">No deals match this filter</div>
+            <div className="text-xs text-zinc-600">Try a different strategy tab or lower your thresholds</div>
           </div>
         ) : viewMode === 'table' ? (
-          <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+          <div className="bg-zinc-900 border border-zinc-800 rounded-xl overflow-hidden">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200 bg-white">
+                <tr className="border-b border-zinc-800 bg-zinc-900/80">
                   {['Property','Source','Price','ARV','Profit','ROI','DOM','Score',''].map(h => (
-                    <th key={h} className="text-left text-[10px] uppercase tracking-widest text-slate-400 py-3 px-3 font-normal first:pl-5 last:pr-5">{h}</th>
+                    <th key={h} className="text-left text-[10px] uppercase tracking-widest text-zinc-600 py-3 px-3 font-normal first:pl-5 last:pr-5">{h}</th>
                   ))}
                 </tr>
               </thead>

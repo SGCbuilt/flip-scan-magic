@@ -5,15 +5,18 @@
 * { box-sizing: border-box; }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  background: #ffffff;
-  color: #0f172a;
+  font-family: 'IBM Plex Mono', monospace;
+  background: #09090b;
+  color: #f4f4f5;
   margin: 0;
-  font-feature-settings: "cv11", "ss01";
 }
 
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: #18181b; }
+::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+
 input[type="range"] {
-  accent-color: #1e3a8a; /* navy */
+  accent-color: #f59e0b;
 }
 
 @keyframes spin { to { transform: rotate(360deg); } }
@@ -34,11 +37,11 @@ input[type="range"] {
 /* Modal backdrop */
 .backdrop-blur-sm { backdrop-filter: blur(4px); }
 
-/* Scrollbar — navy on white */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+/* Better scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #1e3a8a; }
+::-webkit-scrollbar-thumb { background: #27272a; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3f3f46; }
 
 /* Smooth slide-in for modal */
 @keyframes slide-in-right {
