@@ -297,7 +297,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DEAL MATH ── */}
-        <Section open={isOpen("deal")} onToggle={toggle} id="deal" icon="🔢" title="Deal Math" def={false}>
+        <Section open={isOpen("deal", false)} onToggle={toggle} id="deal" icon="🔢" title="Deal Math" def={false}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
