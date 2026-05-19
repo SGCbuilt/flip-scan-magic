@@ -34,7 +34,7 @@ const SOURCE_META: Record<string, { label: string; color: string; dot: string }>
   short_sale:      { label: 'Short Sale',    color: 'text-orange-600', dot: 'bg-orange-400' },
   off_market:      { label: 'Off-Market',    color: 'text-purple-700', dot: 'bg-purple-400' },
   property_record: { label: 'Prop Record',   color: 'text-emerald-700',  dot: 'bg-green-400'  },
-  corporate_owned: { label: 'Corporate',     color: 'text-amber-600',  dot: 'bg-amber-400'  },
+  corporate_owned: { label: 'Corporate',     color: 'text-gold-600',  dot: 'bg-gold-400'  },
 }
 
 function StatTile({ label, value, sub, accent = false }: { label: string; value: string; sub?: string; accent?: boolean }) {
@@ -85,7 +85,7 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
 
           {/* Score badge */}
           <div className={`flex-shrink-0 w-12 h-12 rounded-full border-2 flex flex-col items-center justify-center
-            ${p.flipScore >= 80 ? 'border-emerald-500 bg-emerald-50' : p.flipScore >= 65 ? 'border-amber-500 bg-amber-50' : p.flipScore >= 50 ? 'border-orange-500 bg-orange-50' : 'border-slate-300 bg-slate-100'}`}>
+            ${p.flipScore >= 80 ? 'border-emerald-500 bg-emerald-50' : p.flipScore >= 65 ? 'border-gold-500 bg-gold-50' : p.flipScore >= 50 ? 'border-orange-500 bg-orange-50' : 'border-slate-300 bg-slate-100'}`}>
             <span className={`text-base font-bold leading-none ${p.scoreClass}`}>{p.flipScore}</span>
             <span className={`text-[8px] font-bold ${p.scoreClass}`}>{p.scoreGrade}</span>
           </div>
@@ -95,7 +95,7 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
         <div className="grid grid-cols-4 gap-2 mb-3">
           {[
             { l: 'Price',    v: fmt$(p.price),  c: 'text-slate-800' },
-            { l: 'ARV',      v: fmt$(p.arv),    c: 'text-amber-600' },
+            { l: 'ARV',      v: fmt$(p.arv),    c: 'text-gold-600' },
             { l: 'Profit',   v: fmt$(p.profit), c: p.profit >= 0 ? 'text-emerald-700' : 'text-red-600' },
             { l: 'ROI',      v: p.roi.toFixed(1)+'%', c: p.roi >= 0 ? 'text-emerald-700' : 'text-red-600' },
           ].map(m => (
@@ -125,7 +125,7 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
           <div className="flex items-center gap-3 text-slate-400">
             <span>Rehab <span className="text-orange-600 font-medium">{fmt$(p.rehabCost)}</span></span>
             <span>Cash <span className="text-slate-500 font-medium">{fmt$(p.totalCash)}</span></span>
-            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-amber-600' : 'text-slate-500'}`}>{p.dom}d</span></span>}
+            {p.dom > 0 && <span>DOM <span className={`font-medium ${p.dom > 60 ? 'text-gold-600' : 'text-slate-500'}`}>{p.dom}d</span></span>}
           </div>
           <div className="flex gap-1">
             {p.signals.slice(0, 2).map((s, i) => (
@@ -157,13 +157,13 @@ function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
         </span>
       </td>
       <td className="py-2.5 px-3 text-xs text-slate-700">{fmt$(p.price)}</td>
-      <td className="py-2.5 px-3 text-xs text-amber-600">{fmt$(p.arv)}</td>
+      <td className="py-2.5 px-3 text-xs text-gold-600">{fmt$(p.arv)}</td>
       <td className={`py-2.5 px-3 text-xs font-semibold ${p.profit >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{fmt$(p.profit)}</td>
       <td className={`py-2.5 px-3 text-xs ${p.roi >= 0 ? 'text-emerald-700' : 'text-red-600'}`}>{p.roi.toFixed(1)}%</td>
       <td className="py-2.5 px-3 text-xs text-slate-500">{p.dom || '—'}</td>
       <td className="py-2.5 px-3">
         <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full border text-xs font-bold
-          ${p.flipScore >= 80 ? 'border-emerald-500 text-emerald-700' : p.flipScore >= 65 ? 'border-amber-500 text-amber-600' : 'border-slate-300 text-slate-500'}`}>
+          ${p.flipScore >= 80 ? 'border-emerald-500 text-emerald-700' : p.flipScore >= 65 ? 'border-gold-500 text-gold-600' : 'border-slate-300 text-slate-500'}`}>
           {p.flipScore}
         </div>
       </td>
@@ -272,7 +272,7 @@ export default function Dashboard(props: Props) {
               )
             })}
             {apiErrors.length > 0 && (
-              <span className="text-[10px] text-amber-500 bg-amber-500/10 border border-amber-400/60 px-2.5 py-1 rounded-full" title={apiErrors.join('\n')}>
+              <span className="text-[10px] text-gold-500 bg-gold-500/10 border border-gold-400/60 px-2.5 py-1 rounded-full" title={apiErrors.join('\n')}>
                 ⚠ {apiErrors.length} warning{apiErrors.length > 1 ? 's' : ''}
               </span>
             )}
