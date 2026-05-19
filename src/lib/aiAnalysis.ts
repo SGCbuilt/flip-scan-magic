@@ -1,12 +1,11 @@
 import { AnalyzedProperty } from '../types'
+import { supabase } from '@/integrations/supabase/client'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString()
 
-export async function getAIAnalysis(property: AnalyzedProperty): Promise<string> {
-  // Add your Anthropic API key to .env as VITE_ANTHROPIC_API_KEY
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('Set VITE_ANTHROPIC_API_KEY in your .env file')
+export type AIProvider = 'claude' | 'gemini'
 
+export async function getAIAnalysis(property: AnalyzedProperty, provider: AIProvider = 'claude'): Promise<string> {
   const prompt = `You are a real estate flip analyst. Analyze this flip opportunity and give a concise, actionable assessment. Be specific, data-driven, and direct.
 
 Property: ${property.addr}, ${property.city}, ${property.state}
@@ -26,23 +25,14 @@ Provide exactly 5 bullet points:
 • Recommended max offer
 • Best exit strategy`
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
-    })
+  const { data, error } = await supabase.functions.invoke('ai-analysis', {
+    body: { prompt, provider },
   })
-
-  if (!res.ok) throw new Error(`AI error ${res.status}`)
-  const data = await res.json()
-  return data.content?.[0]?.text || 'No analysis returned.'
+  if (error) throw new Error(error.message)
+  if (data && typeof data === 'object' && 'error' in data && data.error) {
+    throw new Error(String(data.error))
+  }
+  return data?.text || 'No analysis returned.'
 }
 
 export function generateQuickInsight(p: AnalyzedProperty): string {
