@@ -177,14 +177,16 @@ export default function App() {
               <svg viewBox="0 0 36 36" className="w-full h-full">
                 <rect width="36" height="36" rx="6" fill="#1a3a8f"/>
                 {/* house outline */}
-                <polyline points="18,7 30,17 30,30 6,30 6,17" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
-                <line x1="18" y1="7" x2="6" y2="17" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
-                <rect x="14" y="22" width="8" height="8" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1"/>
-                <text x="18" y="20" textAnchor="middle" fill="white" fontSize="9" fontWeight="700" fontFamily="monospace">SGC</text>
+                <polyline points="18,7 30,17 30,30 6,30 6,17" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2"/>
+                <line x1="18" y1="7" x2="6" y2="17" stroke="rgba(255,255,255,0.4)" strokeWidth="1.2"/>
+                <rect x="14" y="22" width="8" height="8" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1"/>
+                <text x="18" y="20" textAnchor="middle" fill="#d4af37" fontSize="9" fontWeight="700" fontFamily="Inter, sans-serif">SGC</text>
               </svg>
             </div>
             <div>
-              <div className="text-[13px] font-bold text-white tracking-widest uppercase leading-none">FlipScan Pro</div>
+              <div className="text-[13px] font-bold text-[#1a3a8f] tracking-widest uppercase leading-none">
+                FlipScan <span className="text-[#d4af37]">Pro</span>
+              </div>
               <div className="text-[10px] text-slate-500 tracking-wider mt-0.5">SGC General Contractors</div>
             </div>
           </div>
