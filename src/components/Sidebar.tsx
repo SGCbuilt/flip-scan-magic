@@ -144,7 +144,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── LOCATION ── */}
-        <Section open={isOpen("loc")} onToggle={toggle} id="loc" icon="📍" title={"Location" def={true}>
+        <Section open={isOpen("loc")} onToggle={toggle} id="loc" icon="📍" title="Location" def={true}>
           <div>
             <FL>Search By</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -199,7 +199,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── PROPERTY ── */}
-        <Section open={isOpen("prop")} onToggle={toggle} id="prop" icon="🏠" title={"Property Filters" def={true}>
+        <Section open={isOpen("prop")} onToggle={toggle} id="prop" icon="🏠" title="Property Filters" def={true}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -242,7 +242,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── MARKET SIGNALS ── */}
-        <Section open={isOpen("mkt")} onToggle={toggle} id="mkt" icon="📡" title={"Market Signals" def={true}>
+        <Section open={isOpen("mkt")} onToggle={toggle} id="mkt" icon="📡" title="Market Signals" def={true}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Max DOM</FL>
@@ -264,7 +264,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── FLIP FILTERS ── */}
-        <Section open={isOpen("flip")} onToggle={toggle} id="flip" icon="🎯" title={"Flip Filters" def={true}>
+        <Section open={isOpen("flip")} onToggle={toggle} id="flip" icon="🎯" title="Flip Filters" def={true}>
           <div>
             <div className="flex justify-between mb-1">
               <FL>Min Flip Score</FL>
@@ -297,7 +297,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* ── DEAL MATH ── */}
-        <Section open={isOpen("deal")} onToggle={toggle} id="deal" icon="🔢" title={"Deal Math" def={false}>
+        <Section open={isOpen("deal")} onToggle={toggle} id="deal" icon="🔢" title="Deal Math" def={false}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
