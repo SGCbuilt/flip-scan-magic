@@ -321,30 +321,35 @@ export async function masterSearch(opts: SearchOptions): Promise<{ listings: Raw
 
   const tasks: Promise<void>[] = []
 
-  // Active MLS (Standard)
-  if (opts.sources.activeMLS) {
+  // Active listings — one fetch shared across MLS / Foreclosure / Short Sale
+  // (RentCast returns all listing types in /listings/sale; splitting client-side
+  // avoids triplicate API calls that trigger rate limits / billing errors.)
+  if (opts.sources.activeMLS || opts.sources.foreclosures || opts.sources.shortSales) {
     tasks.push(
-      fetchActiveListings(locParams, { ...opts.filters, listingType: 'Standard' })
-        .then(arr => add(arr, 'active_mls', '🏠 Active MLS'))
-        .catch(e => { errors.push(`Active MLS: ${e.message}`) })
-    )
-  }
-
-  // Foreclosures
-  if (opts.sources.foreclosures) {
-    tasks.push(
-      fetchActiveListings(locParams, { ...opts.filters, listingType: 'Foreclosure' })
-        .then(arr => add(arr, 'foreclosure', '🔨 Foreclosure'))
-        .catch(e => { errors.push(`Foreclosures: ${e.message}`) })
-    )
-  }
-
-  // Short Sales
-  if (opts.sources.shortSales) {
-    tasks.push(
-      fetchActiveListings(locParams, { ...opts.filters, listingType: 'Short Sale' })
-        .then(arr => add(arr, 'short_sale', '📉 Short Sale'))
-        .catch(e => { errors.push(`Short Sales: ${e.message}`) })
+      fetchActiveListings(locParams, { ...opts.filters })
+        .then(arr => {
+          const byType = (t: string) =>
+            arr.filter(x => (x.listingType || '').toLowerCase() === t.toLowerCase())
+          if (opts.sources.foreclosures) {
+            add(byType('Foreclosure'), 'foreclosure', '🔨 Foreclosure')
+          }
+          if (opts.sources.shortSales) {
+            add(byType('Short Sale'), 'short_sale', '📉 Short Sale')
+          }
+          if (opts.sources.activeMLS) {
+            // Standard MLS = everything that isn't Foreclosure / Short Sale
+            const std = arr.filter(x => {
+              const lt = (x.listingType || '').toLowerCase()
+              return lt !== 'foreclosure' && lt !== 'short sale'
+            })
+            add(std, 'active_mls', '🏠 Active MLS')
+          }
+        })
+        .catch(e => {
+          if (opts.sources.activeMLS) errors.push(`Active MLS: ${e.message}`)
+          if (opts.sources.foreclosures) errors.push(`Foreclosures: ${e.message}`)
+          if (opts.sources.shortSales) errors.push(`Short Sales: ${e.message}`)
+        })
     )
   }
 
