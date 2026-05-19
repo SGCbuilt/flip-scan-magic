@@ -9,9 +9,9 @@ interface Props {
 }
 
 const FL = ({ children }: { children: React.ReactNode }) => (
-  <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1">{children}</div>
+  <div className="text-[10px] tracking-widest uppercase text-slate-500 mb-1 font-semibold">{children}</div>
 )
-const ic = "w-full bg-white border border-slate-200 rounded text-slate-900 font-mono text-xs px-2.5 py-1.5 outline-none focus:border-blue-900/50 transition-colors placeholder:text-slate-400"
+const ic = "w-full bg-white border border-slate-200 rounded text-slate-900 text-sm px-2.5 py-2 outline-none focus:border-blue-900/50 focus:ring-2 focus:ring-blue-900/10 transition-colors placeholder:text-slate-400"
 const sc = ic + " cursor-pointer"
 
 const PRESETS: Record<string, Partial<SearchParams>> = {
@@ -100,6 +100,61 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             ))}
           </div>
         </div>
+
+        {/* ── LOCATION ── */}
+        <Section id="loc" icon="📍" title="Location" def={true}>
+          <div>
+            <FL>Search By</FL>
+            <div className="grid grid-cols-4 gap-1 mb-2">
+              {(['city', 'state', 'zip', 'address'] as SearchMode[]).map(mode => (
+                <button key={mode} onClick={() => onChange({ ...params, searchMode: mode, locationQuery: '' })}
+                  className={`py-1.5 rounded border text-[10px] uppercase tracking-wide cursor-pointer transition-all
+                    ${params.searchMode === mode
+                      ? 'bg-blue-900/10 border-blue-900/50 text-blue-900'
+                      : 'bg-transparent border-slate-200 text-slate-500 hover:text-slate-600'}`}>
+                  {mode}
+                </button>
+              ))}
+            </div>
+            <div className="text-[10px] text-slate-500 bg-slate-100/50 rounded px-2 py-1.5 mb-2 leading-relaxed">
+              {MODE_INFO[params.searchMode].hint}
+            </div>
+            <input
+              className={ic}
+              value={params.locationQuery}
+              onChange={set('locationQuery')}
+              placeholder={MODE_INFO[params.searchMode].placeholder}
+              onKeyDown={e => e.key === 'Enter' && onSearch()}
+              aria-label="Search location"
+            />
+          </div>
+
+          {params.searchMode !== 'state' && (
+            <div>
+              <div className="flex justify-between mb-1">
+                <FL>Radius</FL>
+                <span className={`text-[11px] font-bold ${params.radius >= 100 ? 'text-green-400' : 'text-blue-900'}`}>
+                  {params.radius >= 100 ? '100 mi MAX' : `${params.radius} mi`}
+                </span>
+              </div>
+              <input type="range" className="w-full mb-1" min="1" max="100" step="1" value={params.radius} onChange={set('radius')} />
+              <div className="flex justify-between">
+                {RADIUS_MARKS.map(m => (
+                  <button key={m} onClick={() => onChange({ ...params, radius: m })}
+                    className={`text-[9px] px-1 py-0.5 rounded cursor-pointer transition-colors
+                      ${params.radius === m ? 'text-blue-900 bg-blue-900/10' : 'text-slate-400 hover:text-slate-500'}`}>
+                    {m}
+                  </button>
+                ))}
+              </div>
+              {params.radius >= 75 && (
+                <div className="text-[10px] text-blue-900/70 mt-1.5 bg-blue-900/5 border border-blue-900/20 rounded px-2 py-1.5">
+                  ⚠️ Large radius — expect many results & more API calls
+                </div>
+              )}
+            </div>
+          )}
+        </Section>
 
         {/* ── DATA SOURCES ── */}
         <Section id="src" icon="📡" title={`Data Sources (${activeSourceCount}/6)`} def={true}>
