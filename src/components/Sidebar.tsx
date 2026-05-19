@@ -53,10 +53,6 @@ const splitCityState = (q: string): { city: string; state: string } => {
   if (commaIndex >= 0) {
     return { city: value.slice(0, commaIndex), state: cleanStateInput(value.slice(commaIndex + 1)) }
   }
-
-  const cityStateMatch = value.match(/^(.*)\s+([A-Za-z]{2})$/)
-  if (cityStateMatch) return { city: cityStateMatch[1], state: cleanStateInput(cityStateMatch[2]) }
-
   return { city: value, state: '' }
 }
 
