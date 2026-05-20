@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
+import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey, AIProvider } from '../lib/marketAnalyzer'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const fmtPct = (n?: number, decimals = 1) => n != null ? (n > 0 ? '+' : '') + n.toFixed(decimals) + '%' : '—'
@@ -119,6 +119,7 @@ export default function MarketAnalyzer() {
   const [tab, setTab]             = useState<'overview' | 'financial' | 'development' | 'crime' | 'demographics' | 'rental'>('overview')
   const [showKeySetup, setShowKeySetup] = useState(false)
   const [draftKey, setDraftKey]   = useState('')
+  const [provider, setProvider]   = useState<AIProvider>('claude')
 
   const keys = getApiKeys()
 
@@ -131,11 +132,10 @@ export default function MarketAnalyzer() {
 
     const location = actualZip || [actualCity, actualState].filter(Boolean).join(', ')
     if (!location) return
-    if (!keys.anthropic) { setShowKeySetup(true); return }
 
     setLoading(true); setAnalysis(null)
     const msgs = [
-      `Analyzing ${location}...`,
+      `${provider === 'gemini' ? 'Deep-searching' : 'Analyzing'} ${location}...`,
       'Pulling demographics & income data...',
       'Researching crime & school ratings...',
       'Checking new development & permits...',
@@ -145,7 +145,7 @@ export default function MarketAnalyzer() {
     let mi = 0
     const iv = setInterval(() => setLoadingMsg(msgs[mi++ % msgs.length]), 1400)
     try {
-      const result = await analyzeArea(actualZip, actualCity, actualState)
+      const result = await analyzeArea(actualZip, actualCity, actualState, provider)
       setAnalysis(result)
       setTab('overview')
     } finally {
@@ -226,6 +226,23 @@ export default function MarketAnalyzer() {
 
           {/* Search mode */}
           <div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>AI Engine</div>
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
+              {[
+                { id: 'claude', l: '⚡ Standard', sub: 'Claude · fast' },
+                { id: 'gemini', l: '🔬 Deep',     sub: 'Gemini 2.5 Pro' },
+              ].map(p => (
+                <button key={p.id} onClick={() => setProvider(p.id as AIProvider)}
+                  className="py-2 px-2 rounded-lg border text-[11px] font-medium cursor-pointer transition-all leading-tight"
+                  style={provider === p.id
+                    ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
+                    : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                  <div>{p.l}</div>
+                  <div className="text-[9px] opacity-75 mt-0.5">{p.sub}</div>
+                </button>
+              ))}
+            </div>
+
             <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Search</div>
             <div className="grid grid-cols-2 gap-1.5 mb-3">
               {[{ id: 'city', l: '📍 City' }, { id: 'zip', l: '#️⃣ Zip' }].map(m => (

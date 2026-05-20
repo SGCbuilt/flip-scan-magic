@@ -152,12 +152,17 @@ Return exactly this structure:
 }`
 }
 
-export async function fetchAIMarketAnalysis(location: string): Promise<AIMarketData | null> {
+export type AIProvider = 'claude' | 'gemini'
+
+export async function fetchAIMarketAnalysis(
+  location: string,
+  provider: AIProvider = 'claude',
+): Promise<AIMarketData | null> {
   try {
     // Route through the Lovable Cloud edge function — key stays server-side, no CORS.
     const { supabase } = await import('@/integrations/supabase/client')
     const { data, error } = await supabase.functions.invoke('ai-analysis', {
-      body: { prompt: buildMarketPrompt(location), provider: 'claude' },
+      body: { prompt: buildMarketPrompt(location), provider },
     })
 
     if (error) {
@@ -250,14 +255,14 @@ export interface AreaAnalysis {
 }
 
 export async function analyzeArea(
-  zip?: string, city?: string, state?: string
+  zip?: string, city?: string, state?: string, provider: AIProvider = 'claude',
 ): Promise<AreaAnalysis> {
   const location = zip || [city, state].filter(Boolean).join(', ') || 'Unknown'
   const keys = getApiKeys()
   const errors: string[] = []
 
   const [aiResult, rentcastResult, fredResult] = await Promise.allSettled([
-    fetchAIMarketAnalysis(location),
+    fetchAIMarketAnalysis(location, provider),
     fetchRentCastMarket(zip, city, state),
     keys.fred ? fetchFREDSeries('MORTGAGE30US', keys.fred, 1) : Promise.resolve(null),
   ])
