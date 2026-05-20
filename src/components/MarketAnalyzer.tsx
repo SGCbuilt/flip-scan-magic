@@ -226,6 +226,23 @@ export default function MarketAnalyzer() {
 
           {/* Search mode */}
           <div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>AI Engine</div>
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
+              {[
+                { id: 'claude', l: '⚡ Standard', sub: 'Claude · fast' },
+                { id: 'gemini', l: '🔬 Deep',     sub: 'Gemini 2.5 Pro' },
+              ].map(p => (
+                <button key={p.id} onClick={() => setProvider(p.id as AIProvider)}
+                  className="py-2 px-2 rounded-lg border text-[11px] font-medium cursor-pointer transition-all leading-tight"
+                  style={provider === p.id
+                    ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
+                    : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                  <div>{p.l}</div>
+                  <div className="text-[9px] opacity-75 mt-0.5">{p.sub}</div>
+                </button>
+              ))}
+            </div>
+
             <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Search</div>
             <div className="grid grid-cols-2 gap-1.5 mb-3">
               {[{ id: 'city', l: '📍 City' }, { id: 'zip', l: '#️⃣ Zip' }].map(m => (
