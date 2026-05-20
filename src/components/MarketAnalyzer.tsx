@@ -852,6 +852,13 @@ export default function MarketAnalyzer() {
           </div>
         )}
       </div>
+
+      {showCompare && (
+        <MarketCompareModal
+          markets={selectedForCompare}
+          onClose={() => setShowCompare(false)}
+        />
+      )}
     </div>
   )
 }
