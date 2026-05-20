@@ -153,58 +153,18 @@ Return exactly this structure:
 }
 
 export async function fetchAIMarketAnalysis(location: string): Promise<AIMarketData | null> {
-  const keys = getApiKeys()
-  if (!keys.anthropic) return null
-
-  const isProduction = typeof window !== 'undefined' &&
-    !window.location.hostname.includes('localhost') &&
-    !window.location.hostname.includes('127.0.0.1')
-
-  const payload = {
-    model: 'claude-sonnet-4-20250514',
-    max_tokens: 2000,
-    messages: [{ role: 'user', content: buildMarketPrompt(location) }],
-  }
-
   try {
-    let res: Response
+    // Route through the Lovable Cloud edge function — key stays server-side, no CORS.
+    const { supabase } = await import('@/integrations/supabase/client')
+    const { data, error } = await supabase.functions.invoke('ai-analysis', {
+      body: { prompt: buildMarketPrompt(location), provider: 'claude' },
+    })
 
-    if (isProduction) {
-      // Route through Vercel proxy — server-to-server, no CORS issues
-      res = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          provider: 'anthropic',
-          payload,
-          customKey: keys.anthropic,  // sent to proxy, used server-side
-        }),
-      })
-    } else {
-      // Dev: call Anthropic directly from browser
-      res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': keys.anthropic,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify(payload),
-      })
-    }
-
-    if (!res.ok) {
-      const errText = await res.text().catch(() => '')
-      console.error(`[MarketAnalyzer] API ${res.status}:`, errText.slice(0, 300))
+    if (error) {
+      console.error('[MarketAnalyzer] edge function error:', error.message)
       return null
     }
-
-    const data = await res.json()
-
-    // Unwrap proxy envelope if present
-    const content = data?.content || data?.data?.content
-    const text = content?.[0]?.text || ''
+    const text = data?.text || ''
     if (!text) { console.error('[MarketAnalyzer] Empty AI response'); return null }
 
     // Strip markdown fences if Claude added any
@@ -306,13 +266,12 @@ export async function analyzeArea(
   const rentcast = rentcastResult.status === 'fulfilled' ? rentcastResult.value : null
   const fredObs  = fredResult.status     === 'fulfilled' ? fredResult.value     : null
 
-  if (!ai && !keys.anthropic) errors.push('Set your Anthropic API key in the left panel to enable AI analysis')
-  if (!ai && keys.anthropic)  errors.push('AI call failed — ensure ANTHROPIC_API_KEY is set in Vercel environment variables')
-  if (!rentcast)              errors.push('RentCast: no live data for this exact location')
+  if (!ai)       errors.push('AI analysis failed — check the ai-analysis edge function logs')
+  if (!rentcast) errors.push('RentCast: no live data for this exact location')
 
   const mortgageRate = fredObs?.length ? parseFloat(fredObs[0].value) : null
 
-  return { location, ai, rentcast, fredMortgageRate: mortgageRate, errors, hasApiKey: !!keys.anthropic }
+  return { location, ai, rentcast, fredMortgageRate: mortgageRate, errors, hasApiKey: true }
 }
 
 const STATE_FIPS: Record<string, string> = {
