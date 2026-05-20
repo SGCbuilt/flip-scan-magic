@@ -1,5 +1,6 @@
 // Reference Hub — Free portals + paid lead source analysis
 // All links verified real, all data from live research May 2026
+import { useState } from 'react'
 
 const FREE_PORTALS = [
   {
