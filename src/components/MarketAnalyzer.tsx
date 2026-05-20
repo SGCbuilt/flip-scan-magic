@@ -305,6 +305,56 @@ export default function MarketAnalyzer() {
             </div>
           )}
 
+          {/* Saved markets for compare */}
+          {saved.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>
+                  ★ Saved ({saved.length})
+                </div>
+                {compareIds.size >= 2 && (
+                  <button onClick={() => setShowCompare(true)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-md border-none cursor-pointer text-white"
+                    style={{ background: 'var(--sgc-navy)' }}>
+                    Compare {compareIds.size}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {saved.map(s => {
+                  const checked = compareIds.has(s.id)
+                  return (
+                    <div key={s.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all"
+                      style={{
+                        borderColor: checked ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                        background: checked ? 'var(--sgc-navy-pale)' : 'white',
+                      }}>
+                      <input type="checkbox" checked={checked}
+                        onChange={() => toggleCompareId(s.id)}
+                        disabled={!checked && compareIds.size >= 4}
+                        className="cursor-pointer flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--sgc-navy)' }}>{s.location}</div>
+                        <div className="text-[9px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          Score {s.ai.investorScore} · {s.ai.marketType}
+                        </div>
+                      </div>
+                      <button onClick={() => { removeSaved(s.id); setCompareIds(p => { const n = new Set(p); n.delete(s.id); return n }) }}
+                        className="text-[11px] border-none bg-transparent cursor-pointer flex-shrink-0"
+                        style={{ color: 'var(--sgc-gray-mid)' }} title="Remove">×</button>
+                    </div>
+                  )
+                })}
+              </div>
+              {compareIds.size < 2 && saved.length >= 2 && (
+                <div className="text-[10px] mt-1.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  Tick 2–4 to compare side-by-side
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Data sources */}
           <div className="rounded-xl p-3" style={{ background: 'var(--sgc-gray-light)' }}>
             <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>Data Sources</div>
