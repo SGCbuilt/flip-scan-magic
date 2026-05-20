@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey, AIProvider } from '../lib/marketAnalyzer'
+import { useMarketFavorites, SavedMarket } from '../lib/marketFavorites'
+import MarketCompareModal from './MarketCompareModal'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const fmtPct = (n?: number, decimals = 1) => n != null ? (n > 0 ? '+' : '') + n.toFixed(decimals) + '%' : '—'
@@ -120,6 +122,9 @@ export default function MarketAnalyzer() {
   const [showKeySetup, setShowKeySetup] = useState(false)
   const [draftKey, setDraftKey]   = useState('')
   const [provider, setProvider]   = useState<AIProvider>('claude')
+  const { saved, isSaved, toggle: toggleSaved, remove: removeSaved } = useMarketFavorites()
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+  const [showCompare, setShowCompare] = useState(false)
 
   const keys = getApiKeys()
 
@@ -168,6 +173,18 @@ export default function MarketAnalyzer() {
   const ai = analysis?.ai
   const rc = analysis?.rentcast
   const mb = ai ? MARKET_BADGE[ai.marketType] || MARKET_BADGE.stable : null
+  const currentId = analysis?.location || ''
+  const savedNow = analysis && ai ? isSaved(currentId) : false
+
+  const toggleCompareId = (id: string) => {
+    setCompareIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (next.size < 4) next.add(id)
+      return next
+    })
+  }
+  const selectedForCompare: SavedMarket[] = saved.filter(s => compareIds.has(s.id))
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
