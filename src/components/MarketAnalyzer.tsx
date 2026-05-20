@@ -1,70 +1,48 @@
 import { useState } from 'react'
-import { analyzeArea, AreaAnalysis } from '../lib/marketAnalyzer'
+import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
-const fmtPct = (n?: number) => n != null ? (n > 0 ? '+' : '') + n.toFixed(1) + '%' : '—'
+const fmtPct = (n?: number, decimals = 1) => n != null ? (n > 0 ? '+' : '') + n.toFixed(decimals) + '%' : '—'
+const pct = (n?: number) => n != null ? n.toFixed(1) + '%' : '—'
 
-// ── Mini spark bar chart ──────────────────────────────────────────────────────
-function BarSpark({ data, color }: { data: { label: string; value: number }[]; color: string }) {
-  if (!data.length) return null
-  const max = Math.max(...data.map(d => d.value), 1)
+// ── Score arc gauge ───────────────────────────────────────────────────────────
+function ScoreArc({ score, label }: { score: number; label: string }) {
+  const c = score >= 70 ? '#1A7A4A' : score >= 50 ? '#C45E1A' : '#C0341D'
+  const bg = score >= 70 ? '#EDFAF3' : score >= 50 ? '#FEF3EA' : '#FEF0ED'
+  const pct = Math.min(100, Math.max(0, score))
+  const r = 26, cx = 32, cy = 32
+  const start = -200, sweep = 220
+  const toRad = (d: number) => d * Math.PI / 180
+  const arcX = (a: number) => cx + r * Math.cos(toRad(a))
+  const arcY = (a: number) => cy + r * Math.sin(toRad(a))
+  const endAngle = start + (pct / 100) * sweep
+  const large = pct > 50 ? 1 : 0
   return (
-    <div className="flex items-end gap-0.5 h-10">
-      {data.map((d, i) => (
-        <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group relative">
-          <div className="w-full rounded-sm transition-opacity"
-            style={{ height: `${Math.max(4, (d.value / max) * 36)}px`, background: color, opacity: i === data.length - 1 ? 1 : 0.4 }} />
-          <div className="absolute bottom-full mb-1 text-[9px] bg-black text-white px-1 py-0.5 rounded hidden group-hover:block whitespace-nowrap z-10">
-            {d.label}: {d.value.toLocaleString()}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-}
-
-// ── Score gauge ───────────────────────────────────────────────────────────────
-function ScoreGauge({ score, label, color }: { score: number; label: string; color: string }) {
-  const bg = score >= 70 ? '#EDFAF3' : score >= 50 ? '#FEF7EA' : '#FEF0ED'
-  const tc = score >= 70 ? '#1A7A4A' : score >= 50 ? '#8A5700' : '#C0341D'
-  const pct = score
-  // SVG arc
-  const r = 28, cx = 36, cy = 36
-  const startAngle = -210, endAngle = startAngle + (pct / 100) * 240
-  const toRad = (d: number) => (d * Math.PI) / 180
-  const x1 = cx + r * Math.cos(toRad(startAngle))
-  const y1 = cy + r * Math.sin(toRad(startAngle))
-  const x2 = cx + r * Math.cos(toRad(endAngle))
-  const y2 = cy + r * Math.sin(toRad(endAngle))
-  const largeArc = pct > 66 ? 1 : 0
-
-  return (
-    <div className="flex flex-col items-center">
-      <svg viewBox="0 0 72 60" className="w-20 h-16">
-        {/* Track */}
-        <path d={`M ${cx + r * Math.cos(toRad(-210))} ${cy + r * Math.sin(toRad(-210))} A ${r} ${r} 0 1 1 ${cx + r * Math.cos(toRad(30))} ${cy + r * Math.sin(toRad(30))}`}
+    <div className="flex flex-col items-center gap-1">
+      <svg viewBox="0 0 64 52" className="w-16 h-14">
+        <path d={`M ${arcX(start)} ${arcY(start)} A ${r} ${r} 0 1 1 ${arcX(start + sweep)} ${arcY(start + sweep)}`}
           fill="none" stroke="var(--sgc-gray-border)" strokeWidth="5" strokeLinecap="round" />
-        {/* Fill */}
-        {score > 0 && (
-          <path d={`M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`}
-            fill="none" stroke={color} strokeWidth="5" strokeLinecap="round" />
-        )}
-        <text x={cx} y={cy + 5} textAnchor="middle" fill={tc} fontSize="13" fontWeight="700">{score}</text>
+        {pct > 0 && <path d={`M ${arcX(start)} ${arcY(start)} A ${r} ${r} 0 ${large} 1 ${arcX(endAngle)} ${arcY(endAngle)}`}
+          fill="none" stroke={c} strokeWidth="5" strokeLinecap="round" />}
+        <text x={cx} y={cy + 4} textAnchor="middle" fontSize="14" fontWeight="800" fill={c}>{score}</text>
       </svg>
-      <div className="text-[10px] font-semibold uppercase tracking-wider mt-0 text-center" style={{ color: tc }}>{label}</div>
+      <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: c }}>{label}</div>
     </div>
   )
 }
 
-// ── Stat tile ─────────────────────────────────────────────────────────────────
-function Tile({ label, value, sub, trend, color }: { label: string; value: string; sub?: string; trend?: number; color?: string }) {
+// ── Data tile ─────────────────────────────────────────────────────────────────
+function Tile({ label, value, sub, trend, color, accent }: {
+  label: string; value: string; sub?: string; trend?: number; color?: string; accent?: string
+}) {
   return (
-    <div className="bg-white rounded-xl border p-3.5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <div className="text-[10px] uppercase tracking-wider font-medium mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
-      <div className="text-xl font-bold leading-none mb-0.5" style={{ color: color || 'var(--sgc-black)' }}>{value}</div>
-      {sub && <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>{sub}</div>}
+    <div className="bg-white rounded-xl border p-3 overflow-hidden relative" style={{ borderColor: accent ? accent + '40' : 'var(--sgc-gray-border)' }}>
+      {accent && <div className="absolute top-0 left-0 right-0 h-0.5" style={{ background: accent }} />}
+      <div className="text-[10px] uppercase tracking-wider font-medium mb-1 mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
+      <div className="text-xl font-bold leading-none" style={{ color: color || 'var(--sgc-black)' }}>{value}</div>
+      {sub && <div className="text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>{sub}</div>}
       {trend != null && (
-        <div className="text-[10px] font-semibold mt-1" style={{ color: trend >= 0 ? '#1A7A4A' : '#C0341D' }}>
+        <div className="text-[10px] font-bold mt-1" style={{ color: trend >= 0 ? '#1A7A4A' : '#C0341D' }}>
           {trend >= 0 ? '▲' : '▼'} {Math.abs(trend).toFixed(1)}% YoY
         </div>
       )}
@@ -73,173 +51,247 @@ function Tile({ label, value, sub, trend, color }: { label: string; value: strin
 }
 
 // ── Section header ────────────────────────────────────────────────────────────
-function SectionLabel({ icon, label }: { icon: string; label: string }) {
+function Sec({ icon, label }: { icon: string; label: string }) {
   return (
     <div className="flex items-center gap-2 mb-3">
-      <span className="text-base">{icon}</span>
-      <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{label}</div>
+      <span className="text-base leading-none">{icon}</span>
+      <span className="text-xs font-bold uppercase tracking-widest" style={{ color: 'var(--sgc-navy)' }}>{label}</span>
       <div className="flex-1 h-px" style={{ background: 'var(--sgc-gray-border)' }} />
     </div>
   )
 }
 
-// ── Market type badge ─────────────────────────────────────────────────────────
-const MARKET_TYPES = {
-  emerging:    { label: '🚀 Emerging Market',    color: '#1A7A4A', bg: '#EDFAF3', desc: 'Fast appreciation, growing inventory — great time to buy and flip' },
-  established: { label: '✅ Established Market', color: '#185FA5', bg: '#E6F1FB', desc: 'Stable growth, reliable buyer pool, lower risk' },
-  peak:        { label: '⚠️ Peak Market',        color: '#8A5700', bg: '#FEF7EA', desc: 'High prices, slower appreciation ahead — be conservative on ARV' },
-  declining:   { label: '📉 Declining Market',   color: '#C0341D', bg: '#FEF0ED', desc: 'Values falling — avoid unless deeply discounted acquisition' },
-  stable:      { label: '⚖️ Stable Market',      color: '#534AB7', bg: '#EEEDFE', desc: 'Predictable market — good for BRRRR and long-term holds' },
+// ── Crime / score bar ─────────────────────────────────────────────────────────
+function IndexBar({ value, label, inverted = true }: { value: number; label: string; inverted?: boolean }) {
+  // inverted: lower = better (crime). non-inverted: higher = better (schools)
+  const pct = Math.min(100, Math.max(0, value))
+  const good = inverted ? pct < 35 : pct > 65
+  const mid  = inverted ? pct < 65 : pct > 35
+  const c = good ? '#1A7A4A' : mid ? '#8A5700' : '#C0341D'
+  return (
+    <div className="flex items-center gap-3">
+      <div className="text-xs font-medium w-28 flex-shrink-0" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
+      <div className="flex-1 h-2 rounded-full overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
+        <div className="h-full rounded-full transition-all" style={{ width: `${pct}%`, background: c }} />
+      </div>
+      <div className="text-xs font-bold w-6 text-right" style={{ color: c }}>{pct}</div>
+    </div>
+  )
 }
 
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Mini sparkline bars ───────────────────────────────────────────────────────
+function Bars({ data, color }: { data: { l: string; v: number }[]; color: string }) {
+  const max = Math.max(...data.map(d => d.v), 1)
+  return (
+    <div className="flex items-end gap-0.5 h-12">
+      {data.map((d, i) => (
+        <div key={i} className="flex-1 flex flex-col items-center relative group">
+          <div className="w-full rounded-sm"
+            style={{ height: `${Math.max(3, (d.v / max) * 44)}px`, background: color, opacity: i === data.length - 1 ? 1 : 0.45 }} />
+          <div className="absolute bottom-full mb-1 hidden group-hover:block bg-black text-white text-[9px] px-1 py-0.5 rounded whitespace-nowrap z-10">
+            {d.l}: {d.v.toLocaleString()}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+const MARKET_BADGE: Record<string, { label: string; c: string; bg: string; desc: string }> = {
+  emerging:    { label: '🚀 Emerging',    c: '#1A7A4A', bg: '#EDFAF3', desc: 'Rising fast — buy now before prices peak' },
+  established: { label: '✅ Established', c: '#185FA5', bg: '#E6F1FB', desc: 'Stable, reliable market — lower risk' },
+  peak:        { label: '⚠️ Peak',        c: '#8A5700', bg: '#FEF7EA', desc: 'Be conservative on ARV — limited upside' },
+  declining:   { label: '📉 Declining',   c: '#C0341D', bg: '#FEF0ED', desc: 'Values falling — only deeply discounted deals' },
+  stable:      { label: '⚖️ Stable',      c: '#534AB7', bg: '#EEEDFE', desc: 'Predictable — good for BRRRR and holds' },
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// MAIN COMPONENT
+// ─────────────────────────────────────────────────────────────────────────────
 export default function MarketAnalyzer() {
-  const [searchMode, setSearchMode] = useState<'zip' | 'city'>('city')
-  const [zip, setZip]               = useState('')
-  const [city, setCity]             = useState('')
-  const [state, setState]           = useState('VA')
-  const [loading, setLoading]       = useState(false)
-  const [analysis, setAnalysis]     = useState<AreaAnalysis | null>(null)
+  const [city, setCity]   = useState('')
+  const [state, setState] = useState('')
+  const [zip, setZip]     = useState('')
+  const [mode, setMode]   = useState<'city' | 'zip'>('city')
+  const [loading, setLoading]     = useState(false)
   const [loadingMsg, setLoadingMsg] = useState('')
-  const [activeSection, setActiveSection] = useState<'overview' | 'financial' | 'construction' | 'demographics' | 'rental'>('overview')
+  const [analysis, setAnalysis]   = useState<AreaAnalysis | null>(null)
+  const [tab, setTab]             = useState<'overview' | 'financial' | 'development' | 'crime' | 'demographics' | 'rental'>('overview')
+  const [showKeySetup, setShowKeySetup] = useState(false)
+  const [draftKey, setDraftKey]   = useState('')
+
+  const keys = getApiKeys()
 
   const handleAnalyze = async () => {
+    const location = mode === 'zip' ? zip : [city, state].filter(Boolean).join(', ')
+    if (!location.trim()) return
+    if (!keys.anthropic) { setShowKeySetup(true); return }
+
     setLoading(true); setAnalysis(null)
     const msgs = [
-      'Pulling Census demographics & income data...',
-      'Fetching building permits & new construction...',
-      'Loading FRED economic indicators...',
-      'Querying RentCast market stats...',
+      `Analyzing ${location} market...`,
+      'Pulling demographics & income data...',
+      'Researching crime & school ratings...',
+      'Checking new development & permits...',
+      'Fetching RentCast market trends...',
       'Calculating investor scores...',
     ]
     let mi = 0
     const iv = setInterval(() => setLoadingMsg(msgs[mi++ % msgs.length]), 1400)
-
     try {
       const result = await analyzeArea(
-        searchMode === 'zip' ? zip : undefined,
-        searchMode === 'city' ? city : undefined,
-        state || undefined
+        mode === 'zip' ? zip : undefined,
+        mode === 'city' ? city : undefined,
+        mode === 'city' ? state : undefined,
       )
       setAnalysis(result)
+      setTab('overview')
     } finally {
       clearInterval(iv); setLoading(false); setLoadingMsg('')
     }
   }
 
-  const ic = `w-full rounded-lg border text-sm px-3 py-2 outline-none bg-white transition-colors
+  const ic = `w-full rounded-lg border text-sm px-3 py-2 outline-none bg-white
     border-[var(--sgc-gray-border)] focus:border-[var(--sgc-navy)] placeholder:text-gray-400`
 
-  const SECTIONS = [
-    { id: 'overview',     label: 'Overview',     icon: '⊞' },
-    { id: 'financial',    label: 'Financial',    icon: '💰' },
-    { id: 'construction', label: 'Construction', icon: '🏗️' },
-    { id: 'demographics', label: 'Demographics', icon: '👥' },
-    { id: 'rental',       label: 'Rental Market',icon: '🏠' },
+  const TABS = [
+    { id: 'overview',     label: 'Overview',    icon: '⊞' },
+    { id: 'financial',    label: 'Financial',   icon: '💰' },
+    { id: 'development',  label: 'Development', icon: '🏗️' },
+    { id: 'crime',        label: 'Crime/Schools',icon: '🛡️' },
+    { id: 'demographics', label: 'Demographics',icon: '👥' },
+    { id: 'rental',       label: 'Rental',      icon: '🏠' },
   ]
+
+  const ai = analysis?.ai
+  const rc = analysis?.rentcast
+  const mb = ai ? MARKET_BADGE[ai.marketType] || MARKET_BADGE.stable : null
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
-      {/* ── LEFT: Search panel ─────────────────────────────────────────────── */}
+      {/* LEFT CONFIG */}
       <div className="w-64 flex-shrink-0 flex flex-col border-r bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
         <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-          <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>📊 Market Analyzer</div>
-          <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-            Census · FRED · Permits · RentCast
-          </div>
+          <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>🔬 Area Intelligence</div>
+          <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>AI · RentCast · Census · FRED</div>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 min-h-0">
 
-          {/* Mode toggle */}
-          <div>
-            <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>
-              Search By
+          {/* API key status */}
+          <div className="rounded-xl border p-3" style={{
+            borderColor: keys.anthropic ? '#1A7A4A40' : '#C0341D40',
+            background: keys.anthropic ? '#EDFAF3' : '#FEF0ED',
+          }}>
+            <div className="flex items-center justify-between mb-1">
+              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: keys.anthropic ? '#1A7A4A' : '#C0341D' }}>
+                {keys.anthropic ? '✓ AI Analysis Active' : '⚠ API Key Required'}
+              </div>
+              <button onClick={() => setShowKeySetup(s => !s)}
+                className="text-[10px] font-semibold cursor-pointer bg-transparent border-none"
+                style={{ color: keys.anthropic ? '#1A7A4A' : '#C0341D' }}>
+                {keys.anthropic ? 'Change' : 'Set Key'}
+              </button>
             </div>
-            <div className="grid grid-cols-2 gap-1.5">
-              {[{ id: 'city', l: '📍 City' }, { id: 'zip', l: '#️⃣ Zip Code' }].map(m => (
-                <button key={m.id} onClick={() => setSearchMode(m.id as any)}
+            <div className="text-[10px]" style={{ color: keys.anthropic ? '#1A7A4A' : '#C0341D' }}>
+              {keys.anthropic ? 'Claude AI powers full market intelligence' : 'Add Anthropic API key to enable AI analysis'}
+            </div>
+          </div>
+
+          {/* Key setup */}
+          {showKeySetup && (
+            <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>
+                Anthropic API Key
+              </div>
+              <input className={ic} type="password" value={draftKey}
+                onChange={e => setDraftKey(e.target.value)}
+                placeholder="sk-ant-..." />
+              <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                Get free at <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sgc-navy)' }}>console.anthropic.com</a>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { saveApiKey('anthropic', draftKey.trim()); setShowKeySetup(false) }}
+                  className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white border-none cursor-pointer"
+                  style={{ background: 'var(--sgc-navy)' }}>Save</button>
+                <button onClick={() => setShowKeySetup(false)}
+                  className="px-3 py-1.5 rounded-lg text-xs border-none cursor-pointer"
+                  style={{ background: 'var(--sgc-gray-border)' }}>Cancel</button>
+              </div>
+            </div>
+          )}
+
+          {/* Search mode */}
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Search</div>
+            <div className="grid grid-cols-2 gap-1.5 mb-3">
+              {[{ id: 'city', l: '📍 City' }, { id: 'zip', l: '#️⃣ Zip' }].map(m => (
+                <button key={m.id} onClick={() => setMode(m.id as any)}
                   className="py-2 rounded-lg border text-xs font-medium cursor-pointer transition-all"
-                  style={searchMode === m.id
+                  style={mode === m.id
                     ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
                     : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
                   {m.l}
                 </button>
               ))}
             </div>
+
+            {mode === 'city' ? (
+              <div className="space-y-2">
+                <input className={ic} value={city} onChange={e => setCity(e.target.value)}
+                  placeholder="Wake Forest, Norfolk, Austin..."
+                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+                <input className={ic} value={state} onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
+                  placeholder="State (e.g. NC)" maxLength={2}
+                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+              </div>
+            ) : (
+              <input className={ic} value={zip} onChange={e => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
+                placeholder="27587, 23501..."
+                onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+            )}
           </div>
 
-          {searchMode === 'city' ? (
-            <div className="space-y-2">
-              <div>
-                <div className="text-xs font-medium mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>CITY</div>
-                <input className={ic} value={city} onChange={e => setCity(e.target.value)}
-                  placeholder="Norfolk · Austin · Miami"
-                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
-              </div>
-              <div>
-                <div className="text-xs font-medium mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>STATE</div>
-                <input className={ic} value={state} onChange={e => setState(e.target.value.toUpperCase().slice(0, 2))}
-                  placeholder="VA" maxLength={2}
-                  onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
-              </div>
-            </div>
-          ) : (
+          {/* Section nav */}
+          {analysis?.ai && (
             <div>
-              <div className="text-xs font-medium mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>ZIP CODE</div>
-              <input className={ic} value={zip} onChange={e => setZip(e.target.value.replace(/\D/g, '').slice(0, 5))}
-                placeholder="23501 · 77002 · 33101"
-                onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+              <div className="text-xs font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Sections</div>
+              {TABS.map(t => (
+                <button key={t.id} onClick={() => setTab(t.id as any)}
+                  className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer border-none text-left mb-0.5 transition-all"
+                  style={tab === t.id
+                    ? { background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)', fontWeight: 600 }
+                    : { background: 'transparent', color: 'var(--sgc-gray-mid)' }}>
+                  <span>{t.icon}</span> {t.label}
+                </button>
+              ))}
             </div>
           )}
 
-          {/* Data sources info */}
-          <div className="rounded-xl p-3 space-y-2" style={{ background: 'var(--sgc-gray-light)' }}>
-            <div className="text-[10px] font-semibold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
-              Data Sources
-            </div>
+          {/* Data sources */}
+          <div className="rounded-xl p-3" style={{ background: 'var(--sgc-gray-light)' }}>
+            <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>Data Sources</div>
             {[
-              { icon: '🏛️', label: 'Census ACS 2023', sub: 'Demographics, income, housing' },
-              { icon: '🏗️', label: 'Census BPS',       sub: 'Building permits, construction' },
-              { icon: '📈', label: 'FRED / St. Louis Fed', sub: 'HPI, mortgage rates, unemployment' },
-              { icon: '🏠', label: 'RentCast',          sub: 'Sale & rental market trends' },
+              { icon: '🤖', l: 'Claude AI',          s: 'Demographics, crime, schools, economy', ok: !!keys.anthropic },
+              { icon: '🏠', l: 'RentCast',            s: 'Sale & rental market trends',           ok: true },
+              { icon: '🏛️', l: 'Census API (opt)',    s: 'Official demographics by zip',           ok: !!keys.census },
+              { icon: '📈', l: 'FRED API (opt)',       s: 'Home price index, mortgage rates',      ok: !!keys.fred },
             ].map(s => (
-              <div key={s.label} className="flex items-start gap-2">
+              <div key={s.l} className="flex items-center gap-2 mb-1.5">
                 <span className="text-sm flex-shrink-0">{s.icon}</span>
-                <div>
-                  <div className="text-[10px] font-semibold" style={{ color: 'var(--sgc-black)' }}>{s.label}</div>
-                  <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>{s.sub}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[10px] font-semibold" style={{ color: 'var(--sgc-black)' }}>{s.l}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>{s.s}</div>
                 </div>
-                <span className="ml-auto text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: '#EDFAF3', color: '#1A7A4A' }}>Free</span>
+                <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.ok ? '#1A7A4A' : 'var(--sgc-gray-border)' }} />
               </div>
             ))}
           </div>
-
-          {/* Section nav — only when we have results */}
-          {analysis && (
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>
-                Sections
-              </div>
-              <div className="space-y-1">
-                {SECTIONS.map(s => (
-                  <button key={s.id} onClick={() => setActiveSection(s.id as any)}
-                    className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium cursor-pointer border-none transition-all text-left"
-                    style={activeSection === s.id
-                      ? { background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }
-                      : { background: 'transparent', color: 'var(--sgc-gray-mid)' }}>
-                    <span>{s.icon}</span> {s.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
 
-        {/* Analyze button */}
         <div className="p-4 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-          <button onClick={handleAnalyze} disabled={loading || (!zip && !city)}
+          <button onClick={handleAnalyze} disabled={loading}
             className="w-full py-3 rounded-xl text-sm font-bold text-white border-none cursor-pointer transition-all"
             style={{ background: loading ? 'var(--sgc-gray-mid)' : 'var(--sgc-navy)' }}>
             {loading
@@ -247,37 +299,45 @@ export default function MarketAnalyzer() {
                   <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin inline-block" />
                   Analyzing...
                 </span>
-              : '📊 Analyze Market'}
+              : '🔬 Analyze Market'}
           </button>
           {loading && <div className="text-[11px] text-center mt-2" style={{ color: 'var(--sgc-gray-mid)' }}>{loadingMsg}</div>}
         </div>
       </div>
 
-      {/* ── RIGHT: Results ─────────────────────────────────────────────────── */}
+      {/* RIGHT RESULTS */}
       <div className="flex-1 overflow-y-auto">
 
-        {/* Empty state */}
+        {/* Empty */}
         {!loading && !analysis && (
-          <div className="flex flex-col items-center justify-center h-full text-center px-8 max-w-2xl mx-auto">
-            <svg viewBox="0 0 120 100" className="w-28 h-24 mb-6 opacity-15">
-              <rect x="10" y="60" width="18" height="30" rx="2" fill="var(--sgc-navy)" />
-              <rect x="35" y="40" width="18" height="50" rx="2" fill="var(--sgc-navy)" />
-              <rect x="60" y="20" width="18" height="70" rx="2" fill="var(--sgc-navy)" />
-              <rect x="85" y="45" width="18" height="45" rx="2" fill="var(--sgc-navy)" />
-              <polyline points="19,55 44,35 69,15 94,40" fill="none" stroke="#C0341D" strokeWidth="2.5" strokeLinecap="round"/>
+          <div className="h-full flex flex-col items-center justify-center text-center px-8 max-w-2xl mx-auto">
+            <svg viewBox="0 0 120 90" className="w-28 h-20 mb-5 opacity-15">
+              <rect x="8" y="55" width="16" height="28" rx="2" fill="var(--sgc-navy)" />
+              <rect x="30" y="38" width="16" height="45" rx="2" fill="var(--sgc-navy)" />
+              <rect x="52" y="18" width="16" height="65" rx="2" fill="var(--sgc-navy)" />
+              <rect x="74" y="42" width="16" height="41" rx="2" fill="var(--sgc-navy)" />
+              <rect x="96" y="28" width="16" height="55" rx="2" fill="var(--sgc-navy)" />
+              <polyline points="16,50 38,32 60,13 82,36 104,24" fill="none" stroke="#C0341D" strokeWidth="2.5" strokeLinecap="round"/>
             </svg>
-            <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>Area Market Intelligence</h3>
-            <p className="text-sm mb-6" style={{ color: 'var(--sgc-gray-mid)' }}>
-              Enter any zip code or city to get a complete market picture — demographics, home values, building permits, new construction, rental market, economic indicators, and a composite investor score.
+            <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--sgc-navy)' }}>Area Intelligence</h3>
+            <p className="text-sm mb-5" style={{ color: 'var(--sgc-gray-mid)' }}>
+              Full market picture for any US city or zip — AI-powered analysis of demographics, home values, crime, schools, new development, rental market, and investor scores.
             </p>
+            {!keys.anthropic && (
+              <button onClick={() => setShowKeySetup(true)}
+                className="px-6 py-2.5 rounded-xl text-sm font-bold text-white border-none cursor-pointer mb-4"
+                style={{ background: 'var(--sgc-navy)' }}>
+                Add API Key to Start →
+              </button>
+            )}
             <div className="grid grid-cols-3 gap-3 text-left w-full">
               {[
-                { icon: '💰', t: 'Financial Health', d: 'Median income, home values, appreciation rate, mortgage rate impact' },
-                { icon: '🏗️', t: 'New Development', d: 'Building permits trend, new construction starts, supply pipeline' },
-                { icon: '👥', t: 'Demographics', d: 'Population, age, education, employment, poverty rate' },
-                { icon: '🏠', t: 'Rental Market', d: 'Avg rent, gross yield, price-to-rent ratio, vacancy rate' },
-                { icon: '📈', t: 'Appreciation', d: '1-year and 3-year home value index from FRED' },
-                { icon: '🎯', t: 'Investor Scores', d: 'Flip score, BRRRR score, overall investor attractiveness — 0 to 100' },
+                { icon: '💰', t: 'Home Values & Appreciation', d: 'Median price, 1/3/5yr trends, days on market, inventory' },
+                { icon: '🏗️', t: 'New Development', d: 'Building permits, major projects, infrastructure, zoning trends' },
+                { icon: '🛡️', t: 'Crime & Safety', d: 'Crime index vs national avg, trend direction, violent vs property' },
+                { icon: '🎓', t: 'Schools', d: 'District quality rating, top schools, avg school rating' },
+                { icon: '👥', t: 'Demographics', d: 'Population, income, age, employment, education levels' },
+                { icon: '🎯', t: 'Investor Scores', d: 'Flip score, BRRRR score, overall attractiveness — 0 to 100' },
               ].map(s => (
                 <div key={s.t} className="rounded-xl border p-3 bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                   <div className="text-xl mb-1">{s.icon}</div>
@@ -291,390 +351,400 @@ export default function MarketAnalyzer() {
 
         {/* Loading */}
         {loading && (
-          <div className="flex flex-col items-center justify-center h-full">
+          <div className="h-full flex flex-col items-center justify-center">
             <div className="w-12 h-12 border-2 rounded-full spin mb-5"
               style={{ borderColor: 'var(--sgc-gray-border)', borderTopColor: 'var(--sgc-navy)' }} />
             <div className="text-base font-bold mb-1" style={{ color: 'var(--sgc-navy)' }}>{loadingMsg}</div>
-            <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>Querying 4 free data sources simultaneously</div>
+            <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>Claude AI + RentCast analyzing your market</div>
           </div>
         )}
 
         {/* Results */}
         {analysis && !loading && (
-          <div className="p-6 max-w-5xl space-y-6">
+          <div className="p-6 space-y-5 max-w-5xl">
 
-            {/* ── Location header ── */}
-            <div className="flex items-start justify-between gap-4">
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
                 <h2 className="text-2xl font-bold" style={{ color: 'var(--sgc-navy)' }}>{analysis.location}</h2>
-                <div className="text-sm mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-                  {analysis.census ? `Pop. ${analysis.census.population.toLocaleString()} · ` : ''}
-                  Market analysis · {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-                </div>
+                {ai && <p className="text-sm mt-1 max-w-xl" style={{ color: 'var(--sgc-gray-mid)' }}>{ai.summary}</p>}
                 {analysis.errors.length > 0 && (
-                  <div className="text-xs mt-1" style={{ color: '#8A5700' }}>
-                    ⚠ Partial data: {analysis.errors.join(', ')}
-                  </div>
+                  <div className="text-xs mt-1" style={{ color: '#8A5700' }}>⚠ {analysis.errors.join(' · ')}</div>
                 )}
+                {ai?.dataNote && <div className="text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>ℹ {ai.dataNote}</div>}
               </div>
-              {/* Market type badge */}
-              {(() => {
-                const mt = MARKET_TYPES[analysis.marketType]
-                return (
-                  <div className="flex-shrink-0 rounded-xl border px-4 py-2 text-right"
-                    style={{ background: mt.bg, borderColor: mt.color + '40' }}>
-                    <div className="text-sm font-bold" style={{ color: mt.color }}>{mt.label}</div>
-                    <div className="text-[11px] mt-0.5 max-w-[200px]" style={{ color: mt.color + 'cc' }}>{mt.desc}</div>
-                  </div>
-                )
-              })()}
+              {mb && (
+                <div className="flex-shrink-0 rounded-xl border px-4 py-2 text-right"
+                  style={{ background: mb.bg, borderColor: mb.c + '40' }}>
+                  <div className="text-sm font-bold" style={{ color: mb.c }}>{mb.label}</div>
+                  <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
+                </div>
+              )}
             </div>
 
-            {/* ── OVERVIEW section ── */}
-            {activeSection === 'overview' && (
+            {/* ── OVERVIEW ── */}
+            {tab === 'overview' && ai && (
               <div className="space-y-5">
 
-                {/* Investor score gauges */}
-                <div>
-                  <SectionLabel icon="🎯" label="Investor Scores" />
-                  <div className="bg-white rounded-2xl border p-5 flex items-center justify-around gap-4"
-                    style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <ScoreGauge score={analysis.investorScore} label="Overall" color="#1B3A8C" />
-                    <div className="w-px h-16" style={{ background: 'var(--sgc-gray-border)' }} />
-                    <ScoreGauge score={analysis.flipScore} label="Fix & Flip" color="#C45E1A" />
-                    <div className="w-px h-16" style={{ background: 'var(--sgc-gray-border)' }} />
-                    <ScoreGauge score={analysis.brrrScore} label="BRRRR" color="#1A7A4A" />
-                    <div className="flex-1 ml-4 space-y-1.5">
-                      <div className="text-xs font-semibold mb-2" style={{ color: 'var(--sgc-navy)' }}>How scores are calculated:</div>
+                {/* Scores */}
+                <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                  <Sec icon="🎯" label="Investor Scores" />
+                  <div className="flex items-center gap-6">
+                    <ScoreArc score={ai.investorScore} label="Overall" />
+                    <div className="w-px h-14" style={{ background: 'var(--sgc-gray-border)' }} />
+                    <ScoreArc score={ai.flipScore} label="Fix & Flip" />
+                    <div className="w-px h-14" style={{ background: 'var(--sgc-gray-border)' }} />
+                    <ScoreArc score={ai.brrrScore} label="BRRRR" />
+                    <div className="flex-1 ml-2 space-y-1.5">
                       {[
-                        { l: 'Income & employment strength', c: '#1B3A8C' },
-                        { l: 'Home value appreciation (FRED)', c: '#1B3A8C' },
-                        { l: 'Days on market / exit speed', c: '#C45E1A' },
-                        { l: 'Vacancy & rental demand', c: '#1A7A4A' },
-                        { l: 'New construction activity', c: '#1A7A4A' },
-                        { l: 'Gross yield & cash flow potential', c: '#1A7A4A' },
-                      ].map(s => (
-                        <div key={s.l} className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>
-                          <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: s.c }} />
-                          {s.l}
+                        { c: '#1A7A4A', t: `Home value ${ai.homeValueChange1yr > 0 ? 'up' : 'down'} ${Math.abs(ai.homeValueChange1yr).toFixed(1)}% YoY` },
+                        { c: '#1A7A4A', t: `${ai.avgDaysOnMarket} avg days on market` },
+                        { c: '#185FA5', t: `${pct(ai.vacancyRate)} vacancy rate` },
+                        { c: '#C45E1A', t: `Crime ${ai.crimeVsNational}` },
+                        { c: '#534AB7', t: `Schools rated ${ai.schoolRatingAvg.toFixed(1)}/10` },
+                        { c: '#8A5700', t: `${ai.inventoryMonths.toFixed(1)} months inventory` },
+                      ].map((s, i) => (
+                        <div key={i} className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: s.c }} />
+                          {s.t}
                         </div>
                       ))}
                     </div>
                   </div>
                 </div>
 
-                {/* Summary */}
-                <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                  <SectionLabel icon="📋" label="Market Summary" />
-                  <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--sgc-black)' }}>{analysis.summary}</p>
+                {/* Key metrics grid */}
+                <div className="grid grid-cols-4 gap-3">
+                  <Tile label="Median Home Value" value={fmt$(ai.medianHomeValue)} trend={ai.homeValueChange1yr} color="var(--sgc-navy)" accent="#1B3A8C" />
+                  <Tile label="Median Income" value={fmt$(ai.medianHouseholdIncome)} accent="#1A7A4A" />
+                  <Tile label="Avg Days on Market" value={`${ai.avgDaysOnMarket}d`} color={ai.avgDaysOnMarket < 25 ? '#C0341D' : ai.avgDaysOnMarket > 60 ? '#1A7A4A' : 'var(--sgc-black)'} accent="#534AB7" />
+                  <Tile label="Inventory" value={`${ai.inventoryMonths.toFixed(1)} mo`} color={ai.inventoryMonths < 3 ? '#C0341D' : ai.inventoryMonths > 6 ? '#1A7A4A' : 'var(--sgc-black)'} />
+                  <Tile label="Crime Index" value={`${ai.crimeIndexOverall}/100`} sub="Lower = safer" color={ai.crimeIndexOverall < 35 ? '#1A7A4A' : ai.crimeIndexOverall > 65 ? '#C0341D' : '#8A5700'} />
+                  <Tile label="School Rating" value={`${ai.schoolRatingAvg.toFixed(1)}/10`} color={ai.schoolRatingAvg > 7 ? '#1A7A4A' : ai.schoolRatingAvg < 5 ? '#C0341D' : '#8A5700'} />
+                  <Tile label="Unemployment" value={pct(ai.unemploymentRate)} color={ai.unemploymentRate < 4 ? '#1A7A4A' : ai.unemploymentRate > 7 ? '#C0341D' : 'var(--sgc-black)'} />
+                  <Tile label="Population Growth" value={fmtPct(ai.populationGrowth)} color={ai.populationGrowth > 1 ? '#1A7A4A' : ai.populationGrowth < 0 ? '#C0341D' : 'var(--sgc-black)'} />
+                </div>
 
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <div className="text-xs font-semibold mb-2" style={{ color: '#1A7A4A' }}>✓ Opportunity Signals</div>
-                      {analysis.signals.length > 0
-                        ? analysis.signals.map((s, i) => (
-                            <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                              <span className="flex-shrink-0">{s.split(' ')[0]}</span>
-                              <span>{s.split(' ').slice(1).join(' ')}</span>
-                            </div>
-                          ))
-                        : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No strong signals detected</div>
-                      }
-                    </div>
-                    <div>
-                      <div className="text-xs font-semibold mb-2" style={{ color: '#C0341D' }}>⚠ Risk Factors</div>
-                      {analysis.risks.length > 0
-                        ? analysis.risks.map((r, i) => (
-                            <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                              <span className="flex-shrink-0">{r.split(' ')[0]}</span>
-                              <span>{r.split(' ').slice(1).join(' ')}</span>
-                            </div>
-                          ))
-                        : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No major risks flagged</div>
-                      }
-                    </div>
+                {/* Signals & risks */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white rounded-2xl border p-4" style={{ borderColor: '#1A7A4A30', borderLeftWidth: 3, borderLeftColor: '#1A7A4A' }}>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1A7A4A' }}>✓ Opportunity Signals</div>
+                    {ai.signals.length > 0
+                      ? ai.signals.map((s, i) => (
+                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
+                            <span className="flex-shrink-0 text-base leading-none">{s[0]}</span>
+                            <span>{s.slice(1).trim()}</span>
+                          </div>
+                        ))
+                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No strong signals</div>}
+                  </div>
+                  <div className="bg-white rounded-2xl border p-4" style={{ borderColor: '#C0341D30', borderLeftWidth: 3, borderLeftColor: '#C0341D' }}>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#C0341D' }}>⚠ Risk Factors</div>
+                    {ai.risks.length > 0
+                      ? ai.risks.map((r, i) => (
+                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
+                            <span className="flex-shrink-0 text-base leading-none">{r[0]}</span>
+                            <span>{r.slice(1).trim()}</span>
+                          </div>
+                        ))
+                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No major risks</div>}
                   </div>
                 </div>
 
-                {/* Key numbers */}
-                <div>
-                  <SectionLabel icon="📌" label="Key Numbers" />
-                  <div className="grid grid-cols-4 gap-3">
-                    <Tile label="Median Home Value" value={fmt$(analysis.census?.medianHomeValue)} trend={analysis.economic?.homeValueChange1yr} color="var(--sgc-navy)" />
-                    <Tile label="Median Income" value={fmt$(analysis.census?.medianHouseholdIncome)} color="var(--sgc-black)" />
-                    <Tile label="Median Rent" value={analysis.census?.medianRent ? `${fmt$(analysis.census.medianRent)}/mo` : '—'} color="#1A7A4A" />
-                    <Tile label="Unemployment" value={analysis.census?.unemploymentRate != null ? `${analysis.census.unemploymentRate.toFixed(1)}%` : '—'}
-                      color={analysis.census?.unemploymentRate && analysis.census.unemploymentRate < 5 ? '#1A7A4A' : '#C0341D'} />
-                    <Tile label="Mortgage Rate (30yr)" value={analysis.economic?.mortgageRate30yr ? `${analysis.economic.mortgageRate30yr.toFixed(2)}%` : '—'}
-                      color={analysis.economic?.mortgageRate30yr && analysis.economic.mortgageRate30yr < 7 ? '#1A7A4A' : '#C0341D'} />
-                    <Tile label="Vacancy Rate" value={analysis.census?.vacancyRate != null ? `${analysis.census.vacancyRate.toFixed(1)}%` : '—'} color="#8A5700" />
-                    <Tile label="Avg Days on Market" value={analysis.rentcast?.saleData?.averageDaysOnMarket ? `${analysis.rentcast.saleData.averageDaysOnMarket}d` : '—'}
-                      color="var(--sgc-navy)" />
-                    <Tile label="New Permits (YoY)" value={analysis.permits?.yearOverYearChange != null ? fmtPct(analysis.permits.yearOverYearChange) : '—'}
-                      color={analysis.permits?.hotMarket ? '#1A7A4A' : 'var(--sgc-black)'} />
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* ── FINANCIAL section ── */}
-            {activeSection === 'financial' && (
-              <div className="space-y-5">
-                <SectionLabel icon="💰" label="Financial Indicators" />
-
-                <div className="grid grid-cols-3 gap-4">
-                  <Tile label="Median Home Value" value={fmt$(analysis.census?.medianHomeValue)} trend={analysis.economic?.homeValueChange1yr} color="var(--sgc-navy)" />
-                  <Tile label="1-Year Appreciation" value={fmtPct(analysis.economic?.homeValueChange1yr)}
-                    color={analysis.economic?.homeValueChange1yr && analysis.economic.homeValueChange1yr > 0 ? '#1A7A4A' : '#C0341D'}
-                    sub="FRED Home Price Index" />
-                  <Tile label="3-Year Appreciation" value={fmtPct(analysis.economic?.homeValueChange3yr)}
-                    color={analysis.economic?.homeValueChange3yr && analysis.economic.homeValueChange3yr > 0 ? '#1A7A4A' : '#C0341D'}
-                    sub="FRED Home Price Index" />
-                  <Tile label="Median Household Income" value={fmt$(analysis.census?.medianHouseholdIncome)} sub="Census ACS 2023" />
-                  <Tile label="30-Year Mortgage Rate" value={analysis.economic?.mortgageRate30yr ? `${analysis.economic.mortgageRate30yr.toFixed(2)}%` : '—'}
-                    color={analysis.economic?.mortgageRate30yr && analysis.economic.mortgageRate30yr < 7 ? '#1A7A4A' : '#C0341D'}
-                    sub="Current FRED rate" />
-                  <Tile label="Unemployment Rate" value={analysis.economic?.unemploymentLocal ? `${analysis.economic.unemploymentLocal.toFixed(1)}%` : analysis.census?.unemploymentRate != null ? `${analysis.census.unemploymentRate.toFixed(1)}%` : '—'}
-                    color={((analysis.economic?.unemploymentLocal || analysis.census?.unemploymentRate) ?? 5) < 5 ? '#1A7A4A' : '#C0341D'}
-                    sub="State-level FRED" />
-                </div>
-
-                {/* HPI Chart */}
-                {analysis.economic?.homeValueIndex && analysis.economic.homeValueIndex.length > 0 && (
-                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Home Price Index — 3 Year Trend</div>
-                      <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>Source: FRED / St. Louis Fed</div>
-                    </div>
-                    <BarSpark
-                      data={analysis.economic.homeValueIndex.slice(-24).map(p => ({
-                        label: p.date,
-                        value: p.value,
-                      }))}
-                      color="#1B3A8C"
-                    />
-                    <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      <span>3 years ago</span>
-                      <span>Today</span>
+                {/* Opportunities */}
+                {ai.opportunities.length > 0 && (
+                  <div className="bg-white rounded-2xl border p-4" style={{ borderColor: '#1B3A8C30' }}>
+                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--sgc-navy)' }}>💡 SGC Investment Opportunities</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      {ai.opportunities.map((o, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--sgc-black)' }}>
+                          <span className="text-base leading-none flex-shrink-0">{o[0]}</span>
+                          <span>{o.slice(1).trim()}</span>
+                        </div>
+                      ))}
                     </div>
                   </div>
                 )}
+              </div>
+            )}
 
-                {/* Gross yield analysis */}
-                {analysis.census && (
+            {/* ── FINANCIAL ── */}
+            {tab === 'financial' && ai && (
+              <div className="space-y-5">
+                <Sec icon="💰" label="Financial Indicators" />
+                <div className="grid grid-cols-3 gap-3">
+                  <Tile label="Median Home Value" value={fmt$(ai.medianHomeValue)} trend={ai.homeValueChange1yr} color="var(--sgc-navy)" />
+                  <Tile label="1-Year Appreciation" value={fmtPct(ai.homeValueChange1yr)} color={ai.homeValueChange1yr > 0 ? '#1A7A4A' : '#C0341D'} />
+                  <Tile label="3-Year Appreciation" value={fmtPct(ai.homeValueChange3yr)} color={ai.homeValueChange3yr > 0 ? '#1A7A4A' : '#C0341D'} />
+                  <Tile label="5-Year Appreciation" value={fmtPct(ai.homeValueChange5yr)} color={ai.homeValueChange5yr > 0 ? '#1A7A4A' : '#C0341D'} />
+                  <Tile label="Median Household Income" value={fmt$(ai.medianHouseholdIncome)} />
+                  <Tile label="Foreclosure Rate" value={pct(ai.foreclosureRate)} color={ai.foreclosureRate > 3 ? '#1A7A4A' : 'var(--sgc-black)'} sub="% of sales — higher = more deals" />
+                  <Tile label="List-to-Sale Ratio" value={pct(ai.listToSaleRatio)} color={ai.listToSaleRatio > 100 ? '#C0341D' : ai.listToSaleRatio > 98 ? '#8A5700' : '#1A7A4A'} sub="Buyers market < 97%" />
+                  <Tile label="Avg Days on Market" value={`${ai.avgDaysOnMarket}d`} color={ai.avgDaysOnMarket < 20 ? '#C0341D' : ai.avgDaysOnMarket > 60 ? '#1A7A4A' : 'var(--sgc-black)'} />
+                  <Tile label="Inventory" value={`${ai.inventoryMonths.toFixed(1)} mo`} sub="<3 = sellers · >6 = buyers" color={ai.inventoryMonths < 3 ? '#C0341D' : ai.inventoryMonths > 6 ? '#1A7A4A' : 'var(--sgc-black)'} />
+                </div>
+
+                {/* Investment return analysis */}
+                {ai.medianRent > 0 && ai.medianHomeValue > 0 && (
                   <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--sgc-navy)' }}>
-                      Investment Return Analysis
-                    </div>
-                    <div className="grid grid-cols-3 gap-4">
+                    <Sec icon="📊" label="Investment Return Analysis" />
+                    <div className="grid grid-cols-3 gap-5">
                       {(() => {
-                        const hv = analysis.census!.medianHomeValue
-                        const rent = analysis.census!.medianRent
-                        const grossYield = hv > 0 && rent > 0 ? (rent * 12 / hv) * 100 : 0
-                        const ptr = hv > 0 && rent > 0 ? hv / (rent * 12) : 0
-                        const oneRule = hv > 0 && rent > 0 ? rent / hv * 100 : 0
+                        const grossYield = (ai.medianRent * 12 / ai.medianHomeValue) * 100
+                        const ptr = ai.medianHomeValue / (ai.medianRent * 12)
+                        const oneRule = ai.medianRent / ai.medianHomeValue * 100
                         return <>
                           <div className="text-center">
-                            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>Gross Yield</div>
-                            <div className="text-2xl font-bold" style={{ color: grossYield > 8 ? '#1A7A4A' : grossYield > 5 ? '#8A5700' : '#C0341D' }}>
-                              {grossYield > 0 ? grossYield.toFixed(1) + '%' : '—'}
+                            <div className="text-3xl font-bold mb-1" style={{ color: grossYield > 8 ? '#1A7A4A' : grossYield > 5 ? '#8A5700' : '#C0341D' }}>
+                              {grossYield.toFixed(1)}%
                             </div>
-                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-                              {grossYield > 8 ? 'Excellent' : grossYield > 5 ? 'Good' : 'Thin'}
-                            </div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>Gross Yield</div>
+                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{grossYield > 8 ? '🟢 Excellent' : grossYield > 5 ? '🟡 Acceptable' : '🔴 Thin'}</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>Price-to-Rent Ratio</div>
-                            <div className="text-2xl font-bold" style={{ color: ptr < 15 ? '#1A7A4A' : ptr < 20 ? '#8A5700' : '#C0341D' }}>
-                              {ptr > 0 ? ptr.toFixed(1) + 'x' : '—'}
+                            <div className="text-3xl font-bold mb-1" style={{ color: ptr < 15 ? '#1A7A4A' : ptr < 20 ? '#8A5700' : '#C0341D' }}>
+                              {ptr.toFixed(1)}×
                             </div>
-                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>&lt;15 ideal · &gt;20 tough</div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>Price-to-Rent</div>
+                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{ptr < 15 ? '🟢 Great' : ptr < 20 ? '🟡 OK' : '🔴 Tough'} · ideal &lt;15</div>
                           </div>
                           <div className="text-center">
-                            <div className="text-[10px] uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>1% Rule</div>
-                            <div className="text-2xl font-bold" style={{ color: oneRule >= 1 ? '#1A7A4A' : '#C0341D' }}>
-                              {oneRule > 0 ? oneRule.toFixed(2) + '%' : '—'}
-                              {oneRule >= 1 ? ' ✓' : oneRule > 0 ? ' ✗' : ''}
+                            <div className="text-3xl font-bold mb-1" style={{ color: oneRule >= 1 ? '#1A7A4A' : '#C0341D' }}>
+                              {oneRule.toFixed(2)}% {oneRule >= 1 ? '✓' : '✗'}
                             </div>
-                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Rent ÷ Price ≥ 1%</div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>1% Rule</div>
+                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Rent ÷ Price · need ≥ 1%</div>
                           </div>
                         </>
                       })()}
                     </div>
                   </div>
                 )}
-              </div>
-            )}
 
-            {/* ── CONSTRUCTION section ── */}
-            {activeSection === 'construction' && (
-              <div className="space-y-5">
-                <SectionLabel icon="🏗️" label="New Construction & Development" />
-
-                {analysis.permits ? (
-                  <>
+                {/* RentCast overlay */}
+                {rc?.saleData && (
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="🏠" label="Live RentCast Market Data" />
                     <div className="grid grid-cols-4 gap-3">
-                      <Tile label="Single-Family Permits" value={analysis.permits.singleFamilyUnits > 0 ? analysis.permits.singleFamilyUnits.toLocaleString() : '—'}
-                        sub="Annual rate" color="var(--sgc-navy)" />
-                      <Tile label="Multi-Family Permits" value={analysis.permits.multiFamilyUnits > 0 ? analysis.permits.multiFamilyUnits.toLocaleString() : '—'}
-                        sub="Annual rate" color="#534AB7" />
-                      <Tile label="YoY Change" value={fmtPct(analysis.permits.yearOverYearChange)}
-                        color={analysis.permits.yearOverYearChange > 0 ? '#1A7A4A' : '#C0341D'}
-                        sub="vs last year" />
-                      <Tile label="Market Status" value={analysis.permits.hotMarket ? '🔥 Hot' : '⚖️ Normal'}
-                        color={analysis.permits.hotMarket ? '#1A7A4A' : 'var(--sgc-black)'}
-                        sub=">15% YoY = hot" />
-                    </div>
-
-                    {analysis.permits.monthlyTrend.length > 0 && (
-                      <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                        <div className="flex items-center justify-between mb-3">
-                          <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Single-Family Permits — Monthly Trend</div>
-                          <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>Source: FRED / Census BPS</div>
-                        </div>
-                        <BarSpark data={analysis.permits.monthlyTrend.map(m => ({ label: m.month, value: m.units }))} color="#C45E1A" />
-                        <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                          <span>{analysis.permits.monthlyTrend[0]?.month}</span>
-                          <span>{analysis.permits.monthlyTrend[analysis.permits.monthlyTrend.length - 1]?.month}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                      <div className="text-xs font-semibold uppercase tracking-wider mb-3" style={{ color: 'var(--sgc-navy)' }}>
-                        What This Means for SGC
-                      </div>
-                      <div className="space-y-2 text-sm" style={{ color: 'var(--sgc-black)' }}>
-                        {analysis.permits.hotMarket && (
-                          <div className="flex items-start gap-2">
-                            <span>🔥</span>
-                            <span>Hot permit market — strong buyer demand, faster flip exits expected</span>
-                          </div>
-                        )}
-                        {analysis.permits.singleFamilyUnits > analysis.permits.multiFamilyUnits && (
-                          <div className="flex items-start gap-2">
-                            <span>🏡</span>
-                            <span>SF-dominant construction — your core flip market is growing</span>
-                          </div>
-                        )}
-                        {analysis.permits.singleFamilyUnits < analysis.permits.multiFamilyUnits && (
-                          <div className="flex items-start gap-2">
-                            <span>🏢</span>
-                            <span>Multi-family heavy — rental demand strong, good for BRRRR strategy</span>
-                          </div>
-                        )}
-                        {analysis.permits.yearOverYearChange > 20 && (
-                          <div className="flex items-start gap-2">
-                            <span>📈</span>
-                            <span>Permits up {analysis.permits.yearOverYearChange.toFixed(0)}% — area is attracting investment, values likely rising</span>
-                          </div>
-                        )}
-                        {analysis.permits.yearOverYearChange < -10 && (
-                          <div className="flex items-start gap-2">
-                            <span>⚠️</span>
-                            <span>Permits declining — softening construction activity may signal cooling market</span>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-3xl mb-2">🏗️</div>
-                    <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>Building permit data not available for this location</div>
-                    <div className="text-xs mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      Visit <a href="https://www.census.gov/construction/bps/" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sgc-navy)' }}>census.gov/construction/bps</a> for county-level data
+                      <Tile label="Avg Sale Price" value={fmt$(rc.saleData.averagePrice)} />
+                      <Tile label="Median Sale Price" value={fmt$(rc.saleData.medianPrice)} />
+                      <Tile label="Avg Days on Market" value={rc.saleData.averageDaysOnMarket ? `${rc.saleData.averageDaysOnMarket}d` : '—'} />
+                      <Tile label="Active Listings" value={rc.saleData.totalListings?.toLocaleString() || '—'} />
                     </div>
                   </div>
                 )}
               </div>
             )}
 
-            {/* ── DEMOGRAPHICS section ── */}
-            {activeSection === 'demographics' && (
+            {/* ── DEVELOPMENT ── */}
+            {tab === 'development' && ai && (
               <div className="space-y-5">
-                <SectionLabel icon="👥" label="Demographics & Community" />
-                {analysis.census ? (
-                  <>
-                    <div className="grid grid-cols-4 gap-3">
-                      <Tile label="Total Population" value={analysis.census.population.toLocaleString()} sub="Census ACS 2023" />
-                      <Tile label="Median Age" value={`${analysis.census.medianAge.toFixed(0)} yrs`} />
-                      <Tile label="Avg Household Size" value={analysis.census.avgHouseholdSize.toFixed(1)} sub="persons/household" />
-                      <Tile label="College Degree Rate" value={`${analysis.census.collegeDegreeRate.toFixed(1)}%`}
-                        color={analysis.census.collegeDegreeRate > 30 ? '#1A7A4A' : 'var(--sgc-black)'}
-                        sub="Bachelor's or higher" />
-                      <Tile label="Owner Occupancy" value={`${analysis.census.ownerOccupancyRate.toFixed(1)}%`}
-                        color={analysis.census.ownerOccupancyRate > 60 ? '#1A7A4A' : '#534AB7'} />
-                      <Tile label="Vacancy Rate" value={`${analysis.census.vacancyRate.toFixed(1)}%`}
-                        color={analysis.census.vacancyRate > 10 ? '#C45E1A' : '#1A7A4A'} sub="Housing units" />
-                      <Tile label="Poverty Rate" value={`${analysis.census.povertyRate.toFixed(1)}%`}
-                        color={analysis.census.povertyRate > 15 ? '#C0341D' : analysis.census.povertyRate < 8 ? '#1A7A4A' : 'var(--sgc-black)'} />
-                      <Tile label="Unemployment" value={`${analysis.census.unemploymentRate.toFixed(1)}%`}
-                        color={analysis.census.unemploymentRate < 4 ? '#1A7A4A' : analysis.census.unemploymentRate > 7 ? '#C0341D' : 'var(--sgc-black)'} />
-                    </div>
-
-                    <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                      <div className="text-xs font-semibold uppercase tracking-wider mb-4" style={{ color: 'var(--sgc-navy)' }}>
-                        Investor Interpretation
-                      </div>
-                      <div className="space-y-2 text-sm" style={{ color: 'var(--sgc-black)' }}>
-                        {analysis.census.ownerOccupancyRate < 55 && <div className="flex items-start gap-2"><span>🏠</span><span>Low owner-occupancy ({analysis.census.ownerOccupancyRate.toFixed(0)}%) — strong rental demand, BRRRR-friendly market</span></div>}
-                        {analysis.census.ownerOccupancyRate > 70 && <div className="flex items-start gap-2"><span>🏡</span><span>High owner-occupancy ({analysis.census.ownerOccupancyRate.toFixed(0)}%) — flip-friendly, strong buyer pool</span></div>}
-                        {analysis.census.collegeDegreeRate > 35 && <div className="flex items-start gap-2"><span>🎓</span><span>High education rate — higher-income tenants/buyers, supports premium ARV</span></div>}
-                        {analysis.census.medianAge < 35 && <div className="flex items-start gap-2"><span>👶</span><span>Young population — growing household formation, strong rental and starter-home demand</span></div>}
-                        {analysis.census.vacancyRate > 10 && <div className="flex items-start gap-2"><span>🏚️</span><span>High vacancy ({analysis.census.vacancyRate.toFixed(1)}%) — acquisition opportunities, watch for market softness</span></div>}
-                        {analysis.census.povertyRate > 18 && <div className="flex items-start gap-2"><span>⚠️</span><span>High poverty rate — may limit exit buyer pool, size ARV carefully</span></div>}
-                      </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>Census data not available for this search. Try a zip code for best results.</div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* ── RENTAL section ── */}
-            {activeSection === 'rental' && (
-              <div className="space-y-5">
-                <SectionLabel icon="🏠" label="Rental Market" />
-                <div className="grid grid-cols-4 gap-3">
-                  <Tile label="Median Rent" value={analysis.census?.medianRent ? `${fmt$(analysis.census.medianRent)}/mo` : '—'}
-                    sub="Census ACS 2023" color="#1A7A4A" />
-                  <Tile label="RentCast Avg Rent"
-                    value={analysis.rentcast?.rentalData?.averageRent ? `${fmt$(analysis.rentcast.rentalData.averageRent)}/mo` : '—'}
-                    sub="Live RentCast data" color="#1A7A4A" />
-                  <Tile label="Avg DOM (Rental)" value={analysis.rentcast?.rentalData?.averageDaysOnMarket ? `${analysis.rentcast.rentalData.averageDaysOnMarket}d` : '—'}
-                    sub="Days to rent" />
-                  <Tile label="Total Rental Listings" value={analysis.rentcast?.rentalData?.totalListings?.toLocaleString() || '—'} />
+                <Sec icon="🏗️" label="New Development & Construction" />
+                <div className="grid grid-cols-3 gap-3">
+                  <Tile label="Permits YoY Change" value={fmtPct(ai.newPermitsYoY)} color={ai.newPermitsYoY > 0 ? '#1A7A4A' : '#C0341D'} sub="New residential building" />
+                  <Tile label="Economic Outlook" value={ai.economicOutlook.charAt(0).toUpperCase() + ai.economicOutlook.slice(1)}
+                    color={ai.economicOutlook === 'strong' ? '#1A7A4A' : ai.economicOutlook === 'weak' ? '#C0341D' : '#8A5700'} />
+                  <Tile label="Job Growth Rate" value={fmtPct(ai.jobGrowthRate)} color={ai.jobGrowthRate > 1 ? '#1A7A4A' : ai.jobGrowthRate < 0 ? '#C0341D' : 'var(--sgc-black)'} />
                 </div>
 
-                {/* RentCast rental history bars */}
-                {analysis.rentcast?.rentalData?.history && (
+                {ai.majorDevelopments.length > 0 && (
                   <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="flex items-center justify-between mb-3">
-                      <div className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Rental Trend — 18 Months</div>
-                      <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>Source: RentCast</div>
+                    <Sec icon="🏢" label="Major Development Projects" />
+                    <div className="space-y-2">
+                      {ai.majorDevelopments.map((d, i) => (
+                        <div key={i} className="flex items-start gap-3 p-3 rounded-xl" style={{ background: 'var(--sgc-gray-light)' }}>
+                          <span className="w-6 h-6 rounded-full bg-[var(--sgc-navy)] text-white text-[10px] font-bold flex items-center justify-center flex-shrink-0">{i+1}</span>
+                          <span className="text-sm" style={{ color: 'var(--sgc-black)' }}>{d}</span>
+                        </div>
+                      ))}
                     </div>
-                    {(() => {
-                      const hist = Object.entries(analysis.rentcast.rentalData.history)
-                        .sort(([a], [b]) => a.localeCompare(b))
-                        .slice(-18)
-                      if (!hist.length) return <div className="text-sm text-center py-4" style={{ color: 'var(--sgc-gray-mid)' }}>No history available</div>
-                      return (
-                        <>
-                          <BarSpark data={hist.map(([date, val]: any) => ({
-                            label: new Date(date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
-                            value: val.averageRent || 0,
-                          }))} color="#1A7A4A" />
-                          <div className="flex justify-between text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                            <span>{new Date(hist[0][0]).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}</span>
-                            <span>Today</span>
+                  </div>
+                )}
+
+                {ai.infrastructureProjects.length > 0 && (
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="🚧" label="Infrastructure Projects" />
+                    <div className="space-y-2">
+                      {ai.infrastructureProjects.map((p, i) => (
+                        <div key={i} className="flex items-start gap-2 text-sm" style={{ color: 'var(--sgc-black)' }}>
+                          <span style={{ color: '#C45E1A', fontWeight: 700 }}>→</span> {p}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {ai.zoningTrends && (
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="📋" label="Zoning Trends" />
+                    <p className="text-sm" style={{ color: 'var(--sgc-black)' }}>{ai.zoningTrends}</p>
+                  </div>
+                )}
+
+                <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                  <Sec icon="🏭" label="Major Employers" />
+                  <div className="flex flex-wrap gap-2">
+                    {ai.majorEmployers.map((e, i) => (
+                      <span key={i} className="text-sm px-3 py-1.5 rounded-full font-medium"
+                        style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>{e}</span>
+                    ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {ai.dominantIndustries.map((d, i) => (
+                      <span key={i} className="text-[11px] px-2.5 py-1 rounded-full"
+                        style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>{d}</span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── CRIME & SCHOOLS ── */}
+            {tab === 'crime' && ai && (
+              <div className="space-y-5">
+                <div className="grid grid-cols-2 gap-5">
+                  {/* Crime */}
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="🛡️" label="Crime Analysis" />
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <Tile label="Overall Crime Index" value={`${ai.crimeIndexOverall}/100`} sub="Lower = safer"
+                        color={ai.crimeIndexOverall < 35 ? '#1A7A4A' : ai.crimeIndexOverall > 65 ? '#C0341D' : '#8A5700'} />
+                      <Tile label="vs National Avg" value={ai.crimeVsNational}
+                        color={ai.crimeVsNational.includes('below') ? '#1A7A4A' : '#C0341D'} />
+                    </div>
+                    <div className="space-y-2.5 mb-4">
+                      <IndexBar value={ai.violentCrimeIndex} label="Violent Crime" />
+                      <IndexBar value={ai.propertyCrimeIndex} label="Property Crime" />
+                      <IndexBar value={ai.crimeIndexOverall} label="Overall" />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>Trend:</span>
+                      <span className={`text-xs font-bold px-2.5 py-1 rounded-full`} style={{
+                        background: ai.crimeTrend === 'improving' ? '#EDFAF3' : ai.crimeTrend === 'worsening' ? '#FEF0ED' : 'var(--sgc-gray-light)',
+                        color: ai.crimeTrend === 'improving' ? '#1A7A4A' : ai.crimeTrend === 'worsening' ? '#C0341D' : 'var(--sgc-gray-mid)'
+                      }}>
+                        {ai.crimeTrend === 'improving' ? '📉 Improving' : ai.crimeTrend === 'worsening' ? '📈 Worsening' : '→ Stable'}
+                      </span>
+                    </div>
+                    <div className="mt-3 p-3 rounded-xl text-xs" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                      💡 Lower crime = easier to sell flips, higher buyer demand, higher ARV support
+                    </div>
+                  </div>
+
+                  {/* Schools */}
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="🎓" label="School Quality" />
+                    <div className="grid grid-cols-2 gap-3 mb-4">
+                      <Tile label="Avg School Rating" value={`${ai.schoolRatingAvg.toFixed(1)}/10`}
+                        color={ai.schoolRatingAvg > 7 ? '#1A7A4A' : ai.schoolRatingAvg < 5 ? '#C0341D' : '#8A5700'} />
+                      <Tile label="District Quality" value={ai.schoolDistrictQuality.charAt(0).toUpperCase() + ai.schoolDistrictQuality.slice(1)}
+                        color={ai.schoolDistrictQuality === 'excellent' ? '#1A7A4A' : ai.schoolDistrictQuality === 'poor' ? '#C0341D' : '#8A5700'} />
+                    </div>
+                    <div className="mb-3">
+                      <IndexBar value={ai.schoolRatingAvg * 10} label="School Rating" inverted={false} />
+                    </div>
+                    {ai.topSchools.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-semibold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>Top Schools</div>
+                        {ai.topSchools.map((s, i) => (
+                          <div key={i} className="text-xs mb-1 flex items-center gap-2" style={{ color: 'var(--sgc-black)' }}>
+                            <span style={{ color: '#1A7A4A', fontWeight: 700 }}>#{i+1}</span> {s}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <div className="mt-3 p-3 rounded-xl text-xs" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                      💡 Good schools = homes hold value better, faster sales, higher ARV premiums
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── DEMOGRAPHICS ── */}
+            {tab === 'demographics' && ai && (
+              <div className="space-y-5">
+                <Sec icon="👥" label="Demographics & Community" />
+                <div className="grid grid-cols-4 gap-3">
+                  <Tile label="Population" value={ai.population.toLocaleString()} />
+                  <Tile label="Population Growth" value={fmtPct(ai.populationGrowth)} color={ai.populationGrowth > 1 ? '#1A7A4A' : ai.populationGrowth < 0 ? '#C0341D' : 'var(--sgc-black)'} sub="Annual rate" />
+                  <Tile label="Median Age" value={`${ai.medianAge} yrs`} />
+                  <Tile label="Avg Household Size" value={ai.avgHouseholdSize.toFixed(1)} />
+                  <Tile label="Owner Occupancy" value={pct(ai.ownerOccupancyRate)} color={ai.ownerOccupancyRate > 65 ? '#1A7A4A' : '#534AB7'} />
+                  <Tile label="Vacancy Rate" value={pct(ai.vacancyRate)} color={ai.vacancyRate > 10 ? '#C45E1A' : '#1A7A4A'} />
+                  <Tile label="College Degree Rate" value={pct(ai.collegeDegreeRate)} color={ai.collegeDegreeRate > 35 ? '#1A7A4A' : 'var(--sgc-black)'} />
+                  <Tile label="Poverty Rate" value={pct(ai.povertyRate)} color={ai.povertyRate > 15 ? '#C0341D' : '#1A7A4A'} />
+                </div>
+
+                <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                  <Sec icon="💡" label="What This Means for SGC" />
+                  <div className="space-y-2 text-sm" style={{ color: 'var(--sgc-black)' }}>
+                    {ai.ownerOccupancyRate < 55 && <div className="flex items-start gap-2"><span>🏠</span><span>Low owner-occupancy ({pct(ai.ownerOccupancyRate)}) — strong rental demand, excellent for BRRRR</span></div>}
+                    {ai.ownerOccupancyRate > 70 && <div className="flex items-start gap-2"><span>🏡</span><span>High owner-occupancy ({pct(ai.ownerOccupancyRate)}) — strong flip market, large buyer pool</span></div>}
+                    {ai.populationGrowth > 2 && <div className="flex items-start gap-2"><span>📈</span><span>Fast population growth ({fmtPct(ai.populationGrowth)}/yr) — housing demand outpacing supply</span></div>}
+                    {ai.populationGrowth < 0 && <div className="flex items-start gap-2"><span>⚠️</span><span>Population declining — shrinking buyer pool, be conservative on ARV</span></div>}
+                    {ai.collegeDegreeRate > 40 && <div className="flex items-start gap-2"><span>🎓</span><span>Highly educated population — supports higher home values and premium finishes</span></div>}
+                    {ai.medianAge < 35 && <div className="flex items-start gap-2"><span>👶</span><span>Young population (med age {ai.medianAge}) — high household formation rate, strong first-time buyer demand</span></div>}
+                    {ai.vacancyRate > 10 && <div className="flex items-start gap-2"><span>🏚️</span><span>High vacancy ({pct(ai.vacancyRate)}) — acquisition opportunities, check for oversupply risk</span></div>}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── RENTAL ── */}
+            {tab === 'rental' && ai && (
+              <div className="space-y-5">
+                <Sec icon="🏠" label="Rental Market Analysis" />
+                <div className="grid grid-cols-4 gap-3">
+                  <Tile label="Median Monthly Rent" value={fmt$(ai.medianRent)} color="#1A7A4A" />
+                  <Tile label="RentCast Avg Rent" value={rc?.rentalData?.averageRent ? fmt$(rc.rentalData.averageRent) + '/mo' : '—'} color="#1A7A4A" />
+                  <Tile label="Avg Rental DOM" value={rc?.rentalData?.averageDaysOnMarket ? `${rc.rentalData.averageDaysOnMarket}d` : '—'} />
+                  <Tile label="Rental Listings" value={rc?.rentalData?.totalListings?.toLocaleString() || '—'} />
+                </div>
+
+                {/* BRRRR analysis */}
+                {ai.medianRent > 0 && ai.medianHomeValue > 0 && (
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="🔄" label="BRRRR Analysis" />
+                    <div className="grid grid-cols-3 gap-5">
+                      {(() => {
+                        const grossYield = (ai.medianRent * 12 / ai.medianHomeValue) * 100
+                        const ptr = ai.medianHomeValue / (ai.medianRent * 12)
+                        const estPITI = ai.medianHomeValue * 0.008
+                        const cashFlow = ai.medianRent - estPITI - (ai.medianHomeValue * 0.01 / 12)
+                        return <>
+                          <div className="text-center bg-[var(--sgc-gray-light)] rounded-xl p-4">
+                            <div className="text-2xl font-bold mb-1" style={{ color: grossYield > 8 ? '#1A7A4A' : grossYield > 5 ? '#8A5700' : '#C0341D' }}>{grossYield.toFixed(1)}%</div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>Gross Yield</div>
+                          </div>
+                          <div className="text-center bg-[var(--sgc-gray-light)] rounded-xl p-4">
+                            <div className="text-2xl font-bold mb-1" style={{ color: ptr < 15 ? '#1A7A4A' : '#C0341D' }}>{ptr.toFixed(1)}×</div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>Price-to-Rent</div>
+                          </div>
+                          <div className="text-center bg-[var(--sgc-gray-light)] rounded-xl p-4">
+                            <div className="text-2xl font-bold mb-1" style={{ color: cashFlow > 0 ? '#1A7A4A' : '#C0341D' }}>{fmt$(cashFlow)}/mo</div>
+                            <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>Est. Cash Flow</div>
+                            <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>After est. PITI</div>
                           </div>
                         </>
-                      )
-                    })()}
+                      })()}
+                    </div>
+                  </div>
+                )}
+
+                {rc?.rentalData?.history && Object.keys(rc.rentalData.history).length > 2 && (
+                  <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                    <Sec icon="📈" label="Rental Trend (18 months)" />
+                    <Bars
+                      data={Object.entries(rc.rentalData.history)
+                        .sort(([a], [b]) => a.localeCompare(b))
+                        .slice(-18)
+                        .map(([date, val]: any) => ({
+                          l: new Date(date).toLocaleDateString('en-US', { month: 'short', year: '2-digit' }),
+                          v: val?.averageRent || 0,
+                        }))}
+                      color="#1A7A4A"
+                    />
                   </div>
                 )}
               </div>
