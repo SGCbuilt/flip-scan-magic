@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
+import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey, AIProvider } from '../lib/marketAnalyzer'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const fmtPct = (n?: number, decimals = 1) => n != null ? (n > 0 ? '+' : '') + n.toFixed(decimals) + '%' : '—'
@@ -119,6 +119,7 @@ export default function MarketAnalyzer() {
   const [tab, setTab]             = useState<'overview' | 'financial' | 'development' | 'crime' | 'demographics' | 'rental'>('overview')
   const [showKeySetup, setShowKeySetup] = useState(false)
   const [draftKey, setDraftKey]   = useState('')
+  const [provider, setProvider]   = useState<AIProvider>('claude')
 
   const keys = getApiKeys()
 
@@ -131,11 +132,10 @@ export default function MarketAnalyzer() {
 
     const location = actualZip || [actualCity, actualState].filter(Boolean).join(', ')
     if (!location) return
-    if (!keys.anthropic) { setShowKeySetup(true); return }
 
     setLoading(true); setAnalysis(null)
     const msgs = [
-      `Analyzing ${location}...`,
+      `${provider === 'gemini' ? 'Deep-searching' : 'Analyzing'} ${location}...`,
       'Pulling demographics & income data...',
       'Researching crime & school ratings...',
       'Checking new development & permits...',
@@ -145,7 +145,7 @@ export default function MarketAnalyzer() {
     let mi = 0
     const iv = setInterval(() => setLoadingMsg(msgs[mi++ % msgs.length]), 1400)
     try {
-      const result = await analyzeArea(actualZip, actualCity, actualState)
+      const result = await analyzeArea(actualZip, actualCity, actualState, provider)
       setAnalysis(result)
       setTab('overview')
     } finally {
