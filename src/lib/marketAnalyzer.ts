@@ -15,10 +15,12 @@ const RENTCAST_KEY = 'a03153e34276e4d75b0548add458816de'
 
 // Keys stored in localStorage so user sets them once
 export function getApiKeys() {
+  const lsKey = typeof localStorage !== 'undefined' ? localStorage.getItem('flipscan_anthropic_key') : ''
+  const envKey = typeof import.meta !== 'undefined' ? (import.meta as any).env?.VITE_ANTHROPIC_API_KEY : ''
   return {
-    census: localStorage.getItem('flipscan_census_key') || '',
-    fred:   localStorage.getItem('flipscan_fred_key') || '',
-    anthropic: localStorage.getItem('flipscan_anthropic_key') || import.meta.env.VITE_ANTHROPIC_API_KEY || '',
+    census:    typeof localStorage !== 'undefined' ? (localStorage.getItem('flipscan_census_key') || '') : '',
+    fred:      typeof localStorage !== 'undefined' ? (localStorage.getItem('flipscan_fred_key') || '') : '',
+    anthropic: lsKey || envKey || '',
   }
 }
 export function saveApiKey(provider: 'census' | 'fred' | 'anthropic', key: string) {
@@ -167,14 +169,23 @@ Return this exact structure with real data you know about this market:
       }),
     })
 
-    if (!res.ok) return null
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      console.error('Anthropic API error:', res.status, errText)
+      return null
+    }
+
     const data = await res.json()
     const text = data?.content?.[0]?.text || ''
+    if (!text) { console.error('Empty response from Claude'); return null }
 
-    // Strip any accidental markdown
-    const clean = text.replace(/```json|```/g, '').trim()
+    // Strip any accidental markdown fences
+    const clean = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
     return JSON.parse(clean)
-  } catch { return null }
+  } catch (e) {
+    console.error('Market AI error:', e)
+    return null
+  }
 }
 
 // ── 2. RentCast live market data ──────────────────────────────────────────────
@@ -260,9 +271,9 @@ export async function analyzeArea(
   const rentcast = rentcastResult.status === 'fulfilled' ? rentcastResult.value : null
   const fredObs  = fredResult.status     === 'fulfilled' ? fredResult.value     : null
 
-  if (!ai && !keys.anthropic) errors.push('Add your Anthropic API key to see AI market analysis')
-  if (!ai && keys.anthropic)  errors.push('AI analysis failed — check your API key')
-  if (!rentcast)              errors.push('RentCast market data unavailable for this location')
+  if (!ai && !keys.anthropic) errors.push('Add your Anthropic API key in the panel on the left to enable AI analysis')
+  if (!ai && keys.anthropic)  errors.push('AI analysis failed — open browser DevTools → Console to see the exact error')
+  if (!rentcast)              errors.push('RentCast: no market data for this location — try a nearby city or zip')
 
   const mortgageRate = fredObs?.length ? parseFloat(fredObs[0].value) : null
 

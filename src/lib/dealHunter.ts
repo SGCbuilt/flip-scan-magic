@@ -578,20 +578,20 @@ export async function runDealHunt(opts: DealHuntOptions): Promise<DealHuntResult
     totalFound: 0, searchedStates: isNational ? ['All 50 States'] : opts.states, isNational
   }
 
-  const tasks: Promise<unknown>[] = []
+  const tasks: Promise<void>[] = []
 
   if (opts.sources.bankruptcy)
-    tasks.push(fetchBankruptcyFilings(opts.states, opts.city).then(x => { r.bankruptcy = x }).catch(e => r.errors.push(`Bankruptcy: ${e.message}`)))
+    tasks.push(fetchBankruptcyFilings(opts.states, opts.city).then(x => { r.bankruptcy = x }).catch(e => { r.errors.push(`Bankruptcy: ${e.message}`) }))
   if (opts.sources.hud)
-    tasks.push(fetchHUDListings(opts.states, opts.zip).then(x => { r.hud = x }).catch(e => r.errors.push(`HUD: ${e.message}`)))
+    tasks.push(fetchHUDListings(opts.states, opts.zip).then(x => { r.hud = x }).catch(e => { r.errors.push(`HUD: ${e.message}`) }))
   if (opts.sources.auction)
-    tasks.push(fetchAuctionListings(opts.states, opts.city).then(x => { r.auction = x }).catch(e => r.errors.push(`Auction: ${e.message}`)))
+    tasks.push(fetchAuctionListings(opts.states, opts.city).then(x => { r.auction = x }).catch(e => { r.errors.push(`Auction: ${e.message}`) }))
   if (opts.sources.usda)
-    tasks.push(fetchUSDAListings(opts.states).then(x => { r.usda = x }).catch(e => r.errors.push(`USDA: ${e.message}`)))
+    tasks.push(fetchUSDAListings(opts.states).then(x => { r.usda = x }).catch(e => { r.errors.push(`USDA: ${e.message}`) }))
   if (opts.sources.probate)
-    tasks.push(fetchProbateLeads(opts.states, opts.city).then(x => { r.probate = x }).catch(e => r.errors.push(`Probate: ${e.message}`)))
+    tasks.push(fetchProbateLeads(opts.states, opts.city).then(x => { r.probate = x }).catch(e => { r.errors.push(`Probate: ${e.message}`) }))
   if (opts.sources.taxDelinquent)
-    tasks.push(fetchTaxDelinquentData(opts.states).then(x => { r.taxDelinquent = x }).catch(e => r.errors.push(`Tax: ${e.message}`)))
+    tasks.push(fetchTaxDelinquentData(opts.states).then(x => { r.taxDelinquent = x }).catch(e => { r.errors.push(`Tax: ${e.message}`) }))
   if (opts.sources.govReo)
     r.govReo = getGovREOPortals(opts.states)
 
