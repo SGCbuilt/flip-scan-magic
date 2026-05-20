@@ -123,13 +123,19 @@ export default function MarketAnalyzer() {
   const keys = getApiKeys()
 
   const handleAnalyze = async () => {
-    const location = mode === 'zip' ? zip : [city, state].filter(Boolean).join(', ')
-    if (!location.trim()) return
+    // Auto-detect zip code even if typed in city field
+    const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
+    const actualZip  = isZip ? (city.trim() || zip.trim()) : undefined
+    const actualCity = !isZip ? city.trim() : undefined
+    const actualState = !isZip ? state.trim() : undefined
+
+    const location = actualZip || [actualCity, actualState].filter(Boolean).join(', ')
+    if (!location) return
     if (!keys.anthropic) { setShowKeySetup(true); return }
 
     setLoading(true); setAnalysis(null)
     const msgs = [
-      `Analyzing ${location} market...`,
+      `Analyzing ${location}...`,
       'Pulling demographics & income data...',
       'Researching crime & school ratings...',
       'Checking new development & permits...',
@@ -139,11 +145,7 @@ export default function MarketAnalyzer() {
     let mi = 0
     const iv = setInterval(() => setLoadingMsg(msgs[mi++ % msgs.length]), 1400)
     try {
-      const result = await analyzeArea(
-        mode === 'zip' ? zip : undefined,
-        mode === 'city' ? city : undefined,
-        mode === 'city' ? state : undefined,
-      )
+      const result = await analyzeArea(actualZip, actualCity, actualState)
       setAnalysis(result)
       setTab('overview')
     } finally {
