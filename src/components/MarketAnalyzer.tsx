@@ -466,6 +466,20 @@ export default function MarketAnalyzer() {
                   <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
                 </div>
               )}
+              {ai && (
+                <button
+                  onClick={() => toggleSaved({ id: currentId, location: analysis.location, savedAt: Date.now(), ai })}
+                  className="flex-shrink-0 rounded-xl border px-3 py-2 cursor-pointer flex items-center gap-1.5 text-xs font-bold transition-all"
+                  style={{
+                    background: savedNow ? '#FFF8DB' : 'white',
+                    borderColor: savedNow ? '#D4A500' : 'var(--sgc-gray-border)',
+                    color: savedNow ? '#8A6D00' : 'var(--sgc-gray-mid)',
+                  }}
+                  title={savedNow ? 'Saved — click to remove' : 'Save to compare later'}>
+                  <span>{savedNow ? '★' : '☆'}</span>
+                  {savedNow ? 'Saved' : 'Save'}
+                </button>
+              )}
             </div>
 
             {/* ── OVERVIEW ── */}
