@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { analyzeArea, AreaAnalysis, AIMarketData, getApiKeys, saveApiKey, AIProvider } from '../lib/marketAnalyzer'
+import { useMarketFavorites, SavedMarket } from '../lib/marketFavorites'
+import MarketCompareModal from './MarketCompareModal'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const fmtPct = (n?: number, decimals = 1) => n != null ? (n > 0 ? '+' : '') + n.toFixed(decimals) + '%' : '—'
@@ -120,6 +122,9 @@ export default function MarketAnalyzer() {
   const [showKeySetup, setShowKeySetup] = useState(false)
   const [draftKey, setDraftKey]   = useState('')
   const [provider, setProvider]   = useState<AIProvider>('claude')
+  const { saved, isSaved, toggle: toggleSaved, remove: removeSaved } = useMarketFavorites()
+  const [compareIds, setCompareIds] = useState<Set<string>>(new Set())
+  const [showCompare, setShowCompare] = useState(false)
 
   const keys = getApiKeys()
 
@@ -168,6 +173,18 @@ export default function MarketAnalyzer() {
   const ai = analysis?.ai
   const rc = analysis?.rentcast
   const mb = ai ? MARKET_BADGE[ai.marketType] || MARKET_BADGE.stable : null
+  const currentId = analysis?.location || ''
+  const savedNow = analysis && ai ? isSaved(currentId) : false
+
+  const toggleCompareId = (id: string) => {
+    setCompareIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else if (next.size < 4) next.add(id)
+      return next
+    })
+  }
+  const selectedForCompare: SavedMarket[] = saved.filter(s => compareIds.has(s.id))
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
@@ -288,6 +305,56 @@ export default function MarketAnalyzer() {
             </div>
           )}
 
+          {/* Saved markets for compare */}
+          {saved.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>
+                  ★ Saved ({saved.length})
+                </div>
+                {compareIds.size >= 2 && (
+                  <button onClick={() => setShowCompare(true)}
+                    className="text-[10px] font-bold px-2 py-1 rounded-md border-none cursor-pointer text-white"
+                    style={{ background: 'var(--sgc-navy)' }}>
+                    Compare {compareIds.size}
+                  </button>
+                )}
+              </div>
+              <div className="space-y-1 max-h-56 overflow-y-auto">
+                {saved.map(s => {
+                  const checked = compareIds.has(s.id)
+                  return (
+                    <div key={s.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-lg border transition-all"
+                      style={{
+                        borderColor: checked ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                        background: checked ? 'var(--sgc-navy-pale)' : 'white',
+                      }}>
+                      <input type="checkbox" checked={checked}
+                        onChange={() => toggleCompareId(s.id)}
+                        disabled={!checked && compareIds.size >= 4}
+                        className="cursor-pointer flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--sgc-navy)' }}>{s.location}</div>
+                        <div className="text-[9px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          Score {s.ai.investorScore} · {s.ai.marketType}
+                        </div>
+                      </div>
+                      <button onClick={() => { removeSaved(s.id); setCompareIds(p => { const n = new Set(p); n.delete(s.id); return n }) }}
+                        className="text-[11px] border-none bg-transparent cursor-pointer flex-shrink-0"
+                        style={{ color: 'var(--sgc-gray-mid)' }} title="Remove">×</button>
+                    </div>
+                  )
+                })}
+              </div>
+              {compareIds.size < 2 && saved.length >= 2 && (
+                <div className="text-[10px] mt-1.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  Tick 2–4 to compare side-by-side
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Data sources */}
           <div className="rounded-xl p-3" style={{ background: 'var(--sgc-gray-light)' }}>
             <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>Data Sources</div>
@@ -398,6 +465,20 @@ export default function MarketAnalyzer() {
                   <div className="text-sm font-bold" style={{ color: mb.c }}>{mb.label}</div>
                   <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
                 </div>
+              )}
+              {ai && (
+                <button
+                  onClick={() => toggleSaved({ id: currentId, location: analysis.location, savedAt: Date.now(), ai })}
+                  className="flex-shrink-0 rounded-xl border px-3 py-2 cursor-pointer flex items-center gap-1.5 text-xs font-bold transition-all"
+                  style={{
+                    background: savedNow ? '#FFF8DB' : 'white',
+                    borderColor: savedNow ? '#D4A500' : 'var(--sgc-gray-border)',
+                    color: savedNow ? '#8A6D00' : 'var(--sgc-gray-mid)',
+                  }}
+                  title={savedNow ? 'Saved — click to remove' : 'Save to compare later'}>
+                  <span>{savedNow ? '★' : '☆'}</span>
+                  {savedNow ? 'Saved' : 'Save'}
+                </button>
               )}
             </div>
 
@@ -771,6 +852,13 @@ export default function MarketAnalyzer() {
           </div>
         )}
       </div>
+
+      {showCompare && (
+        <MarketCompareModal
+          markets={selectedForCompare}
+          onClose={() => setShowCompare(false)}
+        />
+      )}
     </div>
   )
 }
