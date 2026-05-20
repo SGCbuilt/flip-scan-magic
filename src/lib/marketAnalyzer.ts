@@ -98,92 +98,121 @@ export interface AIMarketData {
   dataNote: string
 }
 
+function buildMarketPrompt(location: string): string {
+  return `You are a real estate market intelligence expert. Analyze the real estate market for "${location}" and return ONLY a valid JSON object — no markdown, no explanation, no backticks, just raw JSON.
+
+Use your knowledge to provide real, accurate estimates for this specific location. If it is a zip code, identify the city/neighborhood it belongs to.
+
+Return exactly this structure:
+{
+  "population": 0,
+  "populationGrowth": 0.0,
+  "medianAge": 0,
+  "medianHouseholdIncome": 0,
+  "medianHomeValue": 0,
+  "ownerOccupancyRate": 0.0,
+  "vacancyRate": 0.0,
+  "unemploymentRate": 0.0,
+  "povertyRate": 0.0,
+  "collegeDegreeRate": 0.0,
+  "avgHouseholdSize": 0.0,
+  "medianRent": 0,
+  "homeValueChange1yr": 0.0,
+  "homeValueChange3yr": 0.0,
+  "homeValueChange5yr": 0.0,
+  "avgDaysOnMarket": 0,
+  "listToSaleRatio": 0.0,
+  "inventoryMonths": 0.0,
+  "foreclosureRate": 0.0,
+  "newPermitsYoY": 0.0,
+  "majorDevelopments": ["string"],
+  "infrastructureProjects": ["string"],
+  "zoningTrends": "string",
+  "crimeIndexOverall": 0,
+  "crimeVsNational": "string",
+  "crimeTrend": "stable",
+  "violentCrimeIndex": 0,
+  "propertyCrimeIndex": 0,
+  "schoolRatingAvg": 0.0,
+  "topSchools": ["string"],
+  "schoolDistrictQuality": "good",
+  "majorEmployers": ["string"],
+  "jobGrowthRate": 0.0,
+  "dominantIndustries": ["string"],
+  "economicOutlook": "stable",
+  "investorScore": 0,
+  "flipScore": 0,
+  "brrrScore": 0,
+  "marketType": "stable",
+  "signals": ["string"],
+  "risks": ["string"],
+  "opportunities": ["string"],
+  "summary": "string",
+  "dataNote": "AI analysis based on training data through early 2025. Verify with local sources."
+}`
+}
+
 export async function fetchAIMarketAnalysis(location: string): Promise<AIMarketData | null> {
   const keys = getApiKeys()
   if (!keys.anthropic) return null
 
-  const prompt = `You are a real estate market intelligence expert. Analyze the real estate market for "${location}" and return ONLY a valid JSON object with NO markdown, NO explanation, NO backticks — just the raw JSON.
+  const isProduction = typeof window !== 'undefined' &&
+    !window.location.hostname.includes('localhost') &&
+    !window.location.hostname.includes('127.0.0.1')
 
-Return this exact structure with real data you know about this market:
-
-{
-  "population": <number>,
-  "populationGrowth": <annual % as decimal e.g. 2.3>,
-  "medianAge": <number>,
-  "medianHouseholdIncome": <number in dollars>,
-  "medianHomeValue": <number in dollars>,
-  "ownerOccupancyRate": <percentage 0-100>,
-  "vacancyRate": <percentage 0-100>,
-  "unemploymentRate": <percentage 0-100>,
-  "povertyRate": <percentage 0-100>,
-  "collegeDegreeRate": <percentage 0-100>,
-  "avgHouseholdSize": <number>,
-  "medianRent": <monthly dollars>,
-  "homeValueChange1yr": <percentage e.g. 4.2 or -1.5>,
-  "homeValueChange3yr": <percentage>,
-  "homeValueChange5yr": <percentage>,
-  "avgDaysOnMarket": <days>,
-  "listToSaleRatio": <percentage e.g. 98.5>,
-  "inventoryMonths": <months e.g. 2.1>,
-  "foreclosureRate": <percentage of sales>,
-  "newPermitsYoY": <percentage change>,
-  "majorDevelopments": ["<project name>", ...],
-  "infrastructureProjects": ["<project>", ...],
-  "zoningTrends": "<brief description>",
-  "crimeIndexOverall": <0-100 lower=safer>,
-  "crimeVsNational": "<e.g. '25% below national average'>",
-  "crimeTrend": "<improving|stable|worsening>",
-  "violentCrimeIndex": <0-100>,
-  "propertyCrimeIndex": <0-100>,
-  "schoolRatingAvg": <1-10>,
-  "topSchools": ["<school name>", ...],
-  "schoolDistrictQuality": "<excellent|good|average|poor>",
-  "majorEmployers": ["<employer>", ...],
-  "jobGrowthRate": <percentage>,
-  "dominantIndustries": ["<industry>", ...],
-  "economicOutlook": "<strong|stable|uncertain|weak>",
-  "investorScore": <0-100>,
-  "flipScore": <0-100>,
-  "brrrScore": <0-100>,
-  "marketType": "<emerging|established|peak|declining|stable>",
-  "signals": ["<opportunity signal>", ...],
-  "risks": ["<risk factor>", ...],
-  "opportunities": ["<specific opportunity for investors>", ...],
-  "summary": "<2-3 sentence market summary for a real estate investor>",
-  "dataNote": "AI analysis based on market knowledge through mid-2025. Verify current conditions with local sources."
-}`
+  const payload = {
+    model: 'claude-sonnet-4-20250514',
+    max_tokens: 2000,
+    messages: [{ role: 'user', content: buildMarketPrompt(location) }],
+  }
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': keys.anthropic,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 2000,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
+    let res: Response
+
+    if (isProduction) {
+      // Route through Vercel proxy — server-to-server, no CORS issues
+      res = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          provider: 'anthropic',
+          payload,
+          customKey: keys.anthropic,  // sent to proxy, used server-side
+        }),
+      })
+    } else {
+      // Dev: call Anthropic directly from browser
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': keys.anthropic,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify(payload),
+      })
+    }
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
-      console.error('Anthropic API error:', res.status, errText)
+      console.error(`[MarketAnalyzer] API ${res.status}:`, errText.slice(0, 300))
       return null
     }
 
     const data = await res.json()
-    const text = data?.content?.[0]?.text || ''
-    if (!text) { console.error('Empty response from Claude'); return null }
 
-    // Strip any accidental markdown fences
+    // Unwrap proxy envelope if present
+    const content = data?.content || data?.data?.content
+    const text = content?.[0]?.text || ''
+    if (!text) { console.error('[MarketAnalyzer] Empty AI response'); return null }
+
+    // Strip markdown fences if Claude added any
     const clean = text.replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
-    return JSON.parse(clean)
-  } catch (e) {
-    console.error('Market AI error:', e)
+    const parsed = JSON.parse(clean)
+    return parsed as AIMarketData
+  } catch (e: any) {
+    console.error('[MarketAnalyzer] AI error:', e?.message || e)
     return null
   }
 }
@@ -208,16 +237,22 @@ export interface RentCastMarket {
 }
 
 export async function fetchRentCastMarket(zip?: string, city?: string, state?: string): Promise<RentCastMarket | null> {
-  const params: Record<string, string> = { dataType: 'All', historyMonths: '18' }
-  if (zip) params.zipCode = zip
-  else if (city && state) { params.city = city; params.state = state }
-  else return null
+  const tryFetch = async (params: Record<string, string>) => {
+    const data = await safeFetch(
+      `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...params, dataType: 'All', historyMonths: '18' })}`,
+      { headers: { 'X-Api-Key': RENTCAST_KEY } }
+    )
+    return data
+  }
 
-  const data = await safeFetch(
-    `https://api.rentcast.io/v1/markets?${new URLSearchParams(params)}`,
-    { headers: { 'X-Api-Key': RENTCAST_KEY } }
-  )
+  let data: any = null
+
+  // Try zip first, then city+state, then state alone
+  if (zip) data = await tryFetch({ zipCode: zip })
+  if (!data && city && state) data = await tryFetch({ city, state })
+  if (!data && state) data = await tryFetch({ state })
   if (!data) return null
+
   return {
     saleData:   data.saleData   || data.sale   || null,
     rentalData: data.rentalData || data.rental  || null,
@@ -271,9 +306,9 @@ export async function analyzeArea(
   const rentcast = rentcastResult.status === 'fulfilled' ? rentcastResult.value : null
   const fredObs  = fredResult.status     === 'fulfilled' ? fredResult.value     : null
 
-  if (!ai && !keys.anthropic) errors.push('Add your Anthropic API key in the panel on the left to enable AI analysis')
-  if (!ai && keys.anthropic)  errors.push('AI analysis failed — open browser DevTools → Console to see the exact error')
-  if (!rentcast)              errors.push('RentCast: no market data for this location — try a nearby city or zip')
+  if (!ai && !keys.anthropic) errors.push('Set your Anthropic API key in the left panel to enable AI analysis')
+  if (!ai && keys.anthropic)  errors.push('AI call failed — ensure ANTHROPIC_API_KEY is set in Vercel environment variables')
+  if (!rentcast)              errors.push('RentCast: no live data for this exact location')
 
   const mortgageRate = fredObs?.length ? parseFloat(fredObs[0].value) : null
 
