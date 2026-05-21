@@ -547,45 +547,98 @@ function buildSignals(
   const unemp = bls?.unemploymentRate ?? c?.unemploymentRate
 
   if (c) {
-    if (unemp && unemp < 4)
-      signals.push(`💼 ${unemp.toFixed(1)}% unemployment — strong employment base`)
-    if (c.vacancyRate > 8)
-      signals.push(`🏚️ ${c.vacancyRate.toFixed(1)}% vacancy — below-market acquisition opportunities`)
-    if (c.ownerOccupancyRate < 55)
-      signals.push(`🏠 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — active rental market`)
+    // Employment
+    if (unemp != null) {
+      if      (unemp < 3)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — exceptionally tight labor market`)
+      else if (unemp < 4)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — strong employment base`)
+      else if (unemp < 5)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — healthy job market`)
+      else if (unemp > 9)   risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — severe job weakness, expect distress`)
+      else if (unemp > 7)   risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — weak buyer pool, plan longer hold`)
+      else if (unemp > 5.5) risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — softening labor market`)
+    }
+
+    // Income
+    if (c.medianHouseholdIncome > 0) {
+      const k = Math.round(c.medianHouseholdIncome / 1000)
+      if      (c.medianHouseholdIncome >= 130000) signals.push(`💵 $${k}k median income — affluent buyer pool, premium ARV`)
+      else if (c.medianHouseholdIncome >= 100000) signals.push(`💵 $${k}k median income — strong buyer financing capacity`)
+      else if (c.medianHouseholdIncome >= 75000)  signals.push(`💵 $${k}k median income — solid middle-market demand`)
+      else if (c.medianHouseholdIncome < 40000)   risks.push(`⚠️ $${k}k median income — limited buyer financing, FHA-only market`)
+      else if (c.medianHouseholdIncome < 55000)   risks.push(`⚠️ $${k}k median income — entry-level buyer pool only`)
+    }
+
+    // Vacancy
+    if      (c.vacancyRate > 14) signals.push(`🏚️ ${c.vacancyRate.toFixed(1)}% vacancy — abundant distressed inventory`)
+    else if (c.vacancyRate > 8)  signals.push(`🏚️ ${c.vacancyRate.toFixed(1)}% vacancy — below-market acquisition opportunities`)
+    else if (c.vacancyRate < 3)  signals.push(`🔥 ${c.vacancyRate.toFixed(1)}% vacancy — extremely tight, strong flip exit`)
+    if      (c.vacancyRate > 18) risks.push(`⚠️ ${c.vacancyRate.toFixed(1)}% vacancy — possible declining demand, vet carefully`)
+
+    // Owner occupancy
+    if      (c.ownerOccupancyRate < 45) signals.push(`🏠 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — dominant rental market, ideal BRRRR`)
+    else if (c.ownerOccupancyRate < 55) signals.push(`🏠 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — active rental demand`)
+    else if (c.ownerOccupancyRate > 75) signals.push(`🏡 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — stable neighborhood, flip-friendly`)
+
+    // Yield / 1% rule
     if (c.medianRent > 0 && c.medianHomeValue > 0) {
       const gy = (c.medianRent * 12 / c.medianHomeValue) * 100
-      if (gy >= 8)  signals.push(`💰 ${gy.toFixed(1)}% gross yield — strong cash flow potential`)
-      if (gy >= 1)  signals.push(`✅ 1% rule: ${(c.medianRent / c.medianHomeValue * 100).toFixed(2)}% monthly`)
+      const onePct = (c.medianRent / c.medianHomeValue) * 100
+      if      (gy >= 10) signals.push(`💰 ${gy.toFixed(1)}% gross yield — exceptional cash flow market`)
+      else if (gy >= 8)  signals.push(`💰 ${gy.toFixed(1)}% gross yield — strong cash flow potential`)
+      else if (gy >= 6)  signals.push(`💰 ${gy.toFixed(1)}% gross yield — solid rental returns`)
+      else if (gy < 4)   risks.push(`⚠️ ${gy.toFixed(1)}% gross yield — appreciation play only, weak cash flow`)
+      if (onePct >= 1)   signals.push(`✅ Meets 1% rule: ${onePct.toFixed(2)}% rent-to-value`)
+      else if (onePct < 0.5) risks.push(`⚠️ ${onePct.toFixed(2)}% rent-to-value — well below 1% rule`)
     }
-    if (c.collegeDegreeRate > 40)
-      signals.push(`🎓 ${c.collegeDegreeRate.toFixed(0)}% college-educated — higher-income tenant/buyer base`)
-    if (unemp && unemp > 7)
-      risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — weak buyer pool, plan longer hold`)
-    if (c.povertyRate > 20)
-      risks.push(`⚠️ ${c.povertyRate.toFixed(1)}% poverty rate — constrained ARV ceiling`)
-    if (c.medianHouseholdIncome < 45000)
-      risks.push(`⚠️ $${Math.round(c.medianHouseholdIncome/1000)}k median income — limited buyer financing capacity`)
+
+    // Education
+    if      (c.collegeDegreeRate > 50) signals.push(`🎓 ${c.collegeDegreeRate.toFixed(0)}% college-educated — premium tenant/buyer base`)
+    else if (c.collegeDegreeRate > 40) signals.push(`🎓 ${c.collegeDegreeRate.toFixed(0)}% college-educated — higher-income demand`)
+    else if (c.collegeDegreeRate < 20) risks.push(`⚠️ ${c.collegeDegreeRate.toFixed(0)}% college-educated — limited professional tenant pool`)
+
+    // Poverty
+    if      (c.povertyRate > 28) risks.push(`⚠️ ${c.povertyRate.toFixed(1)}% poverty rate — severe ARV ceiling, lender caution`)
+    else if (c.povertyRate > 20) risks.push(`⚠️ ${c.povertyRate.toFixed(1)}% poverty rate — constrained ARV ceiling`)
+    else if (c.povertyRate < 8)  signals.push(`💼 ${c.povertyRate.toFixed(1)}% poverty rate — economically stable area`)
+
+    // Home value context
+    if (c.medianHomeValue > 0) {
+      const v = Math.round(c.medianHomeValue / 1000)
+      if      (c.medianHomeValue >= 600000) signals.push(`🏘️ $${v}k median home value — high-ARV market, premium margins`)
+      else if (c.medianHomeValue < 120000)  risks.push(`⚠️ $${v}k median home value — thin flip margins, watch fixed costs`)
+    }
+
+    // Population
+    if (c.population > 0) {
+      if      (c.population < 2000)  risks.push(`⚠️ ${c.population.toLocaleString()} population — thin market, slow exits`)
+      else if (c.population > 50000) signals.push(`📈 ${c.population.toLocaleString()} population — deep demand pool`)
+    }
   }
 
   if (rc?.saleData) {
     const dom = rc.saleData.averageDaysOnMarket
-    if (dom > 0 && dom < 25)
-      signals.push(`⚡ ${dom} avg days on market — fast flip exit`)
-    if (dom > 70)
-      risks.push(`⚠️ ${dom} avg days on market — slow exit, carry costs will hurt`)
+    if (dom > 0) {
+      if      (dom < 15) signals.push(`⚡ ${dom} avg days on market — red-hot exit speed`)
+      else if (dom < 25) signals.push(`⚡ ${dom} avg days on market — fast flip exit`)
+      else if (dom < 40) signals.push(`⏱️ ${dom} avg days on market — healthy turnover`)
+      else if (dom > 100) risks.push(`⚠️ ${dom} avg days on market — very slow exit, heavy carry costs`)
+      else if (dom > 70)  risks.push(`⚠️ ${dom} avg days on market — slow exit, carry costs will hurt`)
+    }
     if (rc.saleData.totalListings > 0 && rc.saleData.newListings > 0) {
       const mo = rc.saleData.totalListings / Math.max(rc.saleData.newListings, 1)
-      if (mo < 3)    signals.push(`📦 ${mo.toFixed(1)} months supply — seller's market`)
-      if (mo > 6)    risks.push(`⚠️ ${mo.toFixed(1)} months supply — buyer's market, ARV pressure`)
+      if      (mo < 2) signals.push(`📦 ${mo.toFixed(1)} months supply — extreme seller's market`)
+      else if (mo < 3) signals.push(`📦 ${mo.toFixed(1)} months supply — seller's market`)
+      else if (mo > 8) risks.push(`⚠️ ${mo.toFixed(1)} months supply — heavy buyer's market, ARV pressure`)
+      else if (mo > 6) risks.push(`⚠️ ${mo.toFixed(1)} months supply — buyer's market, ARV pressure`)
     }
   }
 
   if (cr) {
-    if (cr.violentVsNational < -20)
-      signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg (FBI UCR ${cr.dataYear})`)
-    if (cr.violentVsNational > 40)
-      risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — limits ARV, longer vacancy`)
+    if      (cr.violentVsNational < -40) signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg — premium safety (FBI ${cr.dataYear})`)
+    else if (cr.violentVsNational < -20) signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg (FBI ${cr.dataYear})`)
+    else if (cr.violentVsNational > 70)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — major ARV/insurance impact`)
+    else if (cr.violentVsNational > 40)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — limits ARV, longer vacancy`)
+    if (cr.crimeGrade === 'A' || cr.crimeGrade === 'A+') signals.push(`🛡️ Crime grade ${cr.crimeGrade} — top-tier safety profile`)
+    else if (cr.crimeGrade === 'F') risks.push(`⚠️ Crime grade F — lender and insurance friction likely`)
   }
 
   return { signals, risks }
