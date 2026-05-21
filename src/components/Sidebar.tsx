@@ -110,7 +110,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* Data Sources */}
-        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true}>
+        <Section id="src" title={`Data Sources  ${activeSources}/6`} open={isOpen("src", true)} onToggle={toggle}>
           <div className="flex gap-2 mb-1">
             <button onClick={() => toggleAll(true)}
               className="text-xs cursor-pointer bg-transparent border-none font-semibold"
