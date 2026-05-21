@@ -108,9 +108,53 @@ export default function MarketAnalyzer() {
   const [draftSupabaseAnon, setDraftSupabaseAnon] = useState('')
   const [deepSearch, setDeepSearch] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
+  const [testing, setTesting] = useState(false)
+  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
   const { saved, isSaved, toggle } = useMarketFavorites()
 
   const keys = getApiKeys()
+
+  const testSupabaseConnection = async () => {
+    setTesting(true); setTestResult(null)
+    try {
+      const url  = (draftSupabaseUrl  || keys.supabase  || '').trim().replace(/\/+$/, '')
+      const anon = (draftSupabaseAnon || (keys as any).supabaseAnon || '').trim()
+      if (!url || !anon) {
+        setTestResult({ ok: false, msg: 'Enter both Supabase URL and Anon Key first.' })
+        return
+      }
+      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) {
+        setTestResult({ ok: false, msg: 'URL should look like https://xxxx.supabase.co' })
+        return
+      }
+      const endpoint = `${url}/functions/v1/market-proxy`
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${anon}`,
+          'apikey': anon,
+        },
+        body: JSON.stringify({ url: 'https://api.census.gov/data/2022/acs/acs5?get=NAME&for=state:37' }),
+      })
+      const text = await res.text()
+      let data: any = null
+      try { data = JSON.parse(text) } catch {}
+      if (res.status === 401 || res.status === 403) {
+        setTestResult({ ok: false, msg: `Auth failed (HTTP ${res.status}). Check your Anon Key.` })
+      } else if (!res.ok) {
+        setTestResult({ ok: false, msg: `Proxy error HTTP ${res.status}: ${data?.error || text.slice(0,120)}` })
+      } else if (data?.error) {
+        setTestResult({ ok: false, msg: `Reachable, but upstream said: ${data.error}` })
+      } else {
+        setTestResult({ ok: true, msg: '✓ Connected — market-proxy is live and reachable.' })
+      }
+    } catch (e: any) {
+      setTestResult({ ok: false, msg: `Network error: ${e.message}` })
+    } finally {
+      setTesting(false)
+    }
+  }
 
   const handleAnalyze = async () => {
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
@@ -215,6 +259,22 @@ export default function MarketAnalyzer() {
               ))}
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
                 All keys stored in your browser only. Never sent to any server except the respective API.
+              </div>
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                <button onClick={testSupabaseConnection} disabled={testing}
+                  className="w-full text-xs px-2 py-2 rounded-lg border-none cursor-pointer text-white font-semibold"
+                  style={{ background: 'var(--sgc-navy)', opacity: testing ? 0.6 : 1 }}>
+                  {testing ? 'Testing…' : '🧪 Test Supabase Connection'}
+                </button>
+                {testResult && (
+                  <div className="mt-2 text-[10px] p-2 rounded-lg"
+                    style={{
+                      background: testResult.ok ? '#EDFAF3' : '#FEF0ED',
+                      color: testResult.ok ? '#1A7A4A' : '#C0341D',
+                    }}>
+                    {testResult.msg}
+                  </div>
+                )}
               </div>
             </div>
           )}
