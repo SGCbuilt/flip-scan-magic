@@ -8,6 +8,7 @@ const ENDPOINTS = {
   comparables: '/properties/comparables/sale',
   properties: '/properties',
   avm: '/avm/value',
+  avmRent: '/avm/rent',
 } as const
 
 // Whitelist of full paths the client may request directly via `path`
