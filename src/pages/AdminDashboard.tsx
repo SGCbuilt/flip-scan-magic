@@ -15,16 +15,16 @@ export default function AdminDashboard() {
       setChecking(false)
       return
     }
-    supabase
-      .rpc('has_role', { _user_id: user.id, _role: 'admin' })
-      .then(({ data }) => {
+    ;(async () => {
+      try {
+        const { data } = await Promise.resolve(supabase.rpc('has_role', { _user_id: user.id, _role: 'admin' }))
         setIsAdmin(!!data)
-        setChecking(false)
-      })
-      .catch(() => {
+      } catch {
         setIsAdmin(false)
+      } finally {
         setChecking(false)
-      })
+      }
+    })()
   }, [user])
 
   if (checking) {
