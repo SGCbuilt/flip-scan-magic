@@ -64,7 +64,18 @@ Deno.serve(async (req: Request) => {
       if (rentcastKey) upstreamHeaders['X-Api-Key'] = rentcastKey
     }
 
-    const upstream = await fetch(url, {
+    // Server-side key injection for government APIs so the browser never needs them.
+    let finalUrl = url
+    if (host === 'api.census.gov' && !/[?&]key=/.test(finalUrl)) {
+      const k = Deno.env.get('CENSUS_API_KEY')
+      if (k) finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(k)
+    }
+    if (host === 'api.usa.gov' && !/[?&]API_KEY=/i.test(finalUrl)) {
+      const k = Deno.env.get('FBI_API_KEY')
+      if (k) finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'API_KEY=' + encodeURIComponent(k)
+    }
+
+    const upstream = await fetch(finalUrl, {
       headers: upstreamHeaders,
       signal: AbortSignal.timeout(15000),
     })
