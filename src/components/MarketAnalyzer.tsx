@@ -279,14 +279,19 @@ export default function MarketAnalyzer() {
             </div>
             {mode === 'city' ? (
               <div className="space-y-2">
-                <input className={ic} value={city} onChange={e => setCity(e.target.value)}
+                <input className={ic} value={city} onChange={e => { setCity(e.target.value); setValError('') }}
                   placeholder="Wake Forest, Norfolk, Austin" onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
-                <input className={ic} value={state} onChange={e => setState(e.target.value.toUpperCase().slice(0,2))}
+                <input className={ic} value={state} onChange={e => { setState(e.target.value.toUpperCase().slice(0,2)); setValError('') }}
                   placeholder="NC · VA · TX" maxLength={2} onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
               </div>
             ) : (
-              <input className={ic} value={zip} onChange={e => setZip(e.target.value.replace(/\D/g,'').slice(0,5))}
+              <input className={ic} value={zip} onChange={e => { setZip(e.target.value.replace(/\D/g,'').slice(0,5)); setValError('') }}
                 placeholder="27587 · 23501 · 78701" onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+            )}
+            {valError && (
+              <div className="mt-2 text-[11px] font-semibold rounded-lg px-3 py-2" style={{ background: 'var(--sgc-danger-bg)', color: 'var(--sgc-danger)' }}>
+                {valError}
+              </div>
             )}
           </div>
 
