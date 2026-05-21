@@ -15,6 +15,28 @@ const FL = ({ children }: { children: React.ReactNode }) => (
   <div className="text-xs font-medium mb-1" style={{ color: 'var(--sgc-gray-mid)', letterSpacing: '0.03em' }}>{children}</div>
 )
 
+// Defined OUTSIDE the Sidebar component so its identity is stable across renders
+// (defining it inside causes React to unmount/remount the whole subtree on every
+// keystroke, which kicks focus out of inputs and scrolls the page).
+const Section = ({
+  id, title, open, onToggle, children,
+}: {
+  id: string
+  title: string
+  open: boolean
+  onToggle: (id: string) => void
+  children: React.ReactNode
+}) => (
+  <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+    <button onClick={() => onToggle(id)}
+      className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
+      <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{open ? '▾' : '▸'}</span>
+    </button>
+    {open && <div className="space-y-2.5">{children}</div>}
+  </div>
+)
+
 const SOURCES: { key: keyof DataSources; icon: string; label: string; desc: string; color: string }[] = [
   { key: 'activeMLS',         icon: '⊞', label: 'Active MLS',       desc: 'Live MLS listings',            color: '#1B3A8C' },
   { key: 'foreclosures',      icon: '⚖', label: 'Foreclosures',     desc: 'Bank-owned REO',               color: '#C0341D' },
@@ -57,17 +79,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
     onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as unknown as DataSources })
-
-  const Section = ({ id, title, def = true, children }: { id: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <button onClick={() => toggle(id)}
-        className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
-        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
-    </div>
-  )
 
   const activeSources = Object.values(params.sources).filter(Boolean).length
   const radiusLabel = params.radius >= 100 ? '100 mi' : `${params.radius} mi`
