@@ -52,7 +52,7 @@ export function saveApiKey(k: string, v: string) {
 const MEM_CACHE = new Map<string, { data: AreaAnalysis; ts: number }>()
 
 function cacheKey(zip?: string, city?: string, state?: string) {
-  return ['v2', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
+  return ['v4', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
 }
 function cacheGet(k: string): AreaAnalysis | null {
   const hit = MEM_CACHE.get(k)
@@ -80,8 +80,20 @@ async function proxyFetch(
 ): Promise<any> {
   const keys = getApiKeys()
 
-  if (!IS_DEV && keys.supabase) {
-    // Production: route through the Lovable Cloud Edge Function.
+  if (!IS_DEV) {
+    // Production: route through the deployed Lovable Cloud function so browser CORS and private keys are handled server-side.
+    try {
+      const { supabase } = await import('@/integrations/supabase/client')
+      const { data, error } = await supabase.functions.invoke('market-proxy', {
+        body: { url: targetUrl, headers },
+      })
+      if (!error && data != null) return data
+      if (error) console.warn('[market-proxy] invoke failed:', error.message)
+    } catch (err: any) {
+      console.warn('[market-proxy] invoke unavailable:', err?.message)
+    }
+
+    // Fallback for older sessions that saved a backend URL in browser storage.
     try {
       const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
       if (keys.supabaseAnon) {
@@ -95,8 +107,7 @@ async function proxyFetch(
         body: JSON.stringify({ url: targetUrl, headers }),
         signal: AbortSignal.timeout(20000),
       })
-      if (!res.ok) return null
-      return await res.json()
+      if (res.ok) return await res.json()
     } catch { return null }
   }
 
@@ -108,7 +119,11 @@ async function proxyFetch(
 }
 
 function usingCloudProxy() {
-  return !IS_DEV && !!getApiKeys().supabase
+  return !IS_DEV && (!!getApiKeys().supabase || !!import.meta.env.VITE_SUPABASE_URL)
+}
+
+function cleanName(value?: string) {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
