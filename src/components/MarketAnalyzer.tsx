@@ -407,7 +407,13 @@ export default function MarketAnalyzer() {
                 {/* Scores */}
                 {sc && (
                   <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <Sec icon="🎯" label="Investor Scores — Calculated from Real Data" />
+                    <Sec icon="🎯" label="Location Verdict — Calculated from Real Data" />
+                    {verdict && (
+                      <div className="mb-4 rounded-xl p-3" style={{ background: verdict.bg, color: verdict.color }}>
+                        <div className="text-base font-black">{verdict.label}</div>
+                        <div className="text-xs mt-0.5">{verdict.detail}</div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-6">
                       <ScoreArc score={sc.investorScore} label="Overall"   sub="All factors" />
                       <div className="w-px h-14" style={{ background: 'var(--sgc-gray-border)' }}/>
@@ -447,28 +453,8 @@ export default function MarketAnalyzer() {
 
                 {/* Signals / Risks */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border p-4" style={{ borderLeft: '3px solid #1A7A4A', borderColor: '#1A7A4A30' }}>
-                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1A7A4A' }}>✓ Opportunity Signals</div>
-                    {analysis.signals.length > 0
-                      ? analysis.signals.map((s, i) => (
-                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                            <span className="flex-shrink-0">{s.split(' ')[0]}</span>
-                            <span>{s.split(' ').slice(1).join(' ')}</span>
-                          </div>
-                        ))
-                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No strong signals — check individual tabs</div>}
-                  </div>
-                  <div className="bg-white rounded-2xl border p-4" style={{ borderLeft: '3px solid #C0341D', borderColor: '#C0341D30' }}>
-                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#C0341D' }}>⚠ Risk Factors</div>
-                    {analysis.risks.length > 0
-                      ? analysis.risks.map((r, i) => (
-                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                            <span className="flex-shrink-0">{r.split(' ')[0]}</span>
-                            <span>{r.split(' ').slice(1).join(' ')}</span>
-                          </div>
-                        ))
-                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No major risks identified</div>}
-                  </div>
+                  <InsightCard title="Pros from the numbers" note="Green items help flips, rentals, or buyer demand." items={analysis.signals} tone="pro" />
+                  <InsightCard title="Cons from the numbers" note="Red items can lower ARV, slow exits, or hurt cash flow." items={analysis.risks} tone="con" />
                 </div>
 
                 {/* Warnings */}
