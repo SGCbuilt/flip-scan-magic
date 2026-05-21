@@ -195,6 +195,7 @@ export default function MarketAnalyzer() {
   const unemp = bls?.unemploymentRate ?? cen?.unemploymentRate
   const grossYield = cen?.medianRent && cen?.medianHomeValue && cen.medianHomeValue > 0
     ? (cen.medianRent * 12 / cen.medianHomeValue) * 100 : null
+  const verdict = verdictFor(sc?.investorScore)
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
