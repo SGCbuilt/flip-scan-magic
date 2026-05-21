@@ -409,9 +409,9 @@ export default function MarketAnalyzer() {
               <div className="flex items-center gap-2 flex-shrink-0">
                 {mb && (
                   <div className="rounded-xl border px-4 py-2"
-                    style={{ background: mb.bg, borderColor: mb.c + '40' }}>
+                    style={{ background: mb.bg, borderColor: mb.c }}>
                     <div className="text-sm font-bold" style={{ color: mb.c }}>{mb.text}</div>
-                    <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
+                    <div className="text-[11px] mt-0.5 opacity-80" style={{ color: mb.c }}>{mb.desc}</div>
                   </div>
                 )}
                 <button
