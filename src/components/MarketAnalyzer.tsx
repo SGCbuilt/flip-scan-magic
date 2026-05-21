@@ -156,13 +156,29 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
+  const [valError, setValError] = useState('')
   const governmentKeysReady = true
 
   const handleAnalyze = async () => {
+    setValError('')
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
     const actualZip   = isZip ? (city.trim() || zip.trim()) : undefined
     const actualCity  = !isZip ? city.trim()  : undefined
     const actualState = !isZip ? state.trim() : undefined
+
+    // ── Validation ───────────────────────────────────────────────
+    if (mode === 'zip') {
+      if (!zip.trim()) { setValError('ZIP code is required.'); return }
+      if (!/^\d{5}$/.test(zip.trim())) { setValError('ZIP must be exactly 5 digits (e.g. 27587).'); return }
+    } else {
+      if (!city.trim()) { setValError('City is required.'); return }
+      if (!state.trim()) { setValError('State is required (2-letter code, e.g. NC).'); return }
+      if (!/^\d{5}$/.test(city.trim())) {
+        // city mode — no zip needed, but if user typed a zip in city field, accept it
+      }
+    }
+    // ── End Validation ────────────────────────────────────────────
+
     const location = actualZip || [actualCity, actualState].filter(Boolean).join(', ')
     if (!location) return
 
@@ -263,14 +279,19 @@ export default function MarketAnalyzer() {
             </div>
             {mode === 'city' ? (
               <div className="space-y-2">
-                <input className={ic} value={city} onChange={e => setCity(e.target.value)}
+                <input className={ic} value={city} onChange={e => { setCity(e.target.value); setValError('') }}
                   placeholder="Wake Forest, Norfolk, Austin" onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
-                <input className={ic} value={state} onChange={e => setState(e.target.value.toUpperCase().slice(0,2))}
+                <input className={ic} value={state} onChange={e => { setState(e.target.value.toUpperCase().slice(0,2)); setValError('') }}
                   placeholder="NC · VA · TX" maxLength={2} onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
               </div>
             ) : (
-              <input className={ic} value={zip} onChange={e => setZip(e.target.value.replace(/\D/g,'').slice(0,5))}
+              <input className={ic} value={zip} onChange={e => { setZip(e.target.value.replace(/\D/g,'').slice(0,5)); setValError('') }}
                 placeholder="27587 · 23501 · 78701" onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
+            )}
+            {valError && (
+              <div className="mt-2 text-[11px] font-semibold rounded-lg px-3 py-2" style={{ background: 'var(--sgc-danger-bg)', color: 'var(--sgc-danger)' }}>
+                {valError}
+              </div>
             )}
           </div>
 

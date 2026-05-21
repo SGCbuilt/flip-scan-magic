@@ -403,6 +403,10 @@ async function fetchRentCastMarket(
 ): Promise<RentCastMarket | null> {
   // RentCast /markets ONLY accepts zipCode.
   if (!zip) return null
+  if (!/^\d{5}$/.test(zip)) {
+    console.warn(`[fetchRentCastMarket] Invalid ZIP "${zip}" — must be 5 digits.`)
+    return null
+  }
   const zipCode = zip
 
   const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
@@ -794,19 +798,51 @@ export async function analyzeArea(
   const warnings: string[] = []
   const sources: string[]  = []
 
+  // ── Early validation: require a valid 5-digit ZIP ───────────────────────────
+  let zipResolved: string | undefined = zip
+  if (zip && !/^\d{5}$/.test(zip)) {
+    errors.push(`ZIP "${zip}" is invalid — must be exactly 5 digits.`)
+    zipResolved = undefined
+  }
+
   // Determine state code
   let stateCode = state?.toUpperCase().slice(0, 2) || ''
-  if (!stateCode && zip) {
+  if (!stateCode && zipResolved) {
     // Infer state from zip prefix (approximate, Census geocoder not always available)
-    stateCode = ZIP_STATE_PREFIX[zip.slice(0, 3)] || ''
+    stateCode = ZIP_STATE_PREFIX[zipResolved.slice(0, 3)] || ''
   }
 
   // When user searched by city/state, derive a representative ZIP up-front so
   // RentCast (zip-only) and Census/Crime/BLS all describe the SAME geography.
-  let zipResolved = zip
   if (!zipResolved && city && stateCode) {
     zipResolved = await zipFromCityState(city, stateCode)
     if (zipResolved) warnings.push(`Using representative ZIP ${zipResolved} for ${city}, ${stateCode} to align all data sources.`)
+  }
+
+  // If we still have no ZIP after city/state resolution, RentCast cannot run.
+  // Return early with clear errors so no empty tiles appear silently.
+  if (!zipResolved) {
+    if (!zip && !city) {
+      errors.push('No location provided — enter a ZIP code or city + state.')
+    } else if (!zip && city && !stateCode) {
+      errors.push('State is required to look up a city — enter a 2-letter state code (e.g. NC).')
+    } else if (zip && errors.length === 0) {
+      errors.push(`ZIP "${zip}" is invalid — must be exactly 5 digits.`)
+    } else if (!zip && city && stateCode) {
+      errors.push(`Could not find a ZIP code for ${city}, ${stateCode}. Check spelling or use a ZIP code directly.`)
+    }
+    return {
+      location,
+      geoName:    location,
+      census:     null, crime: null, bls: null, rentcast: null,
+      scores:     { investorScore: 0, flipScore: 0, brrrScore: 0, marketType: 'declining' },
+      signals:    [], risks: [],
+      ai:         null,
+      sources, errors, warnings,
+      dataIsReal: false,
+      analyzedAt: new Date().toISOString(),
+      cacheHit:   false,
+    }
   }
 
   // Run all 4 real data sources in parallel
@@ -840,10 +876,13 @@ export async function analyzeArea(
   if (!bls && stateCode) errors.push('BLS: unemployment data fetch failed')
   else if (bls) sources.push(bls.source)
 
-  if (!rentcast) errors.push(zip
-    ? 'RentCast: no market data for this ZIP'
-    : 'RentCast: needs a ZIP code — city/state lookup unavailable')
-  else sources.push('RentCast Markets API (licensed)')
+  if (!rentcast) {
+    errors.push(zip
+      ? 'RentCast: no market data for this ZIP'
+      : 'RentCast: needs a ZIP code — city/state lookup unavailable')
+  } else {
+    sources.push('RentCast Markets API (licensed)')
+  }
 
   // Deterministic scoring — same inputs = same scores
   const scores  = calcScores(census, rentcast, crime, bls)
