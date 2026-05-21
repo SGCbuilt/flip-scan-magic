@@ -43,42 +43,6 @@ const PRESETS = {
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
-const cleanStateInput = (value: string) => value.replace(/[^a-z]/gi, '').toUpperCase().slice(-2)
-const cleanZipInput = (value: string) => value.replace(/\D/g, '').slice(-5)
-
-const splitCityState = (q: string): { city: string; state: string } => {
-  const value = q || ''
-  const commaIndex = value.indexOf(',')
-  if (commaIndex >= 0) {
-    return { city: value.slice(0, commaIndex), state: cleanStateInput(value.slice(commaIndex + 1)) }
-  }
-  return { city: value, state: '' }
-}
-
-interface SectionProps {
-  id: string
-  title: string
-  def?: boolean
-  children: React.ReactNode
-  isOpen: (id: string, def?: boolean) => boolean
-  onToggle: (id: string) => void
-}
-
-function Section({ id, title, def = true, children, isOpen, onToggle }: SectionProps) {
-  const open = isOpen(id, def)
-
-  return (
-    <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <button onClick={() => onToggle(id)}
-        className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
-        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{open ? '▾' : '▸'}</span>
-      </button>
-      {open && <div className="space-y-2.5">{children}</div>}
-    </div>
-  )
-}
-
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -91,19 +55,21 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     if (t.type === 'checkbox') val = (t as HTMLInputElement).checked
     onChange({ ...params, [key]: val })
   }
-  const setCity = (city: string) => {
-    const { state } = splitCityState(params.locationQuery)
-    onChange({ ...params, locationQuery: state ? `${city}, ${state}` : city })
-  }
-  const setStatePart = (state: string) => {
-    const { city } = splitCityState(params.locationQuery)
-    const s = cleanStateInput(state)
-    onChange({ ...params, locationQuery: city ? `${city}, ${s}` : s })
-  }
   const setSource = (key: keyof DataSources, val: boolean) =>
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
     onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as unknown as DataSources })
+
+  const Section = ({ id, title, def = true, children }: { id: string; title: string; def?: boolean; children: React.ReactNode }) => (
+    <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+      <button onClick={() => toggle(id)}
+        className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
+        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
+        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
+      </button>
+      {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
+    </div>
+  )
 
   const activeSources = Object.values(params.sources).filter(Boolean).length
   const radiusLabel = params.radius >= 100 ? '100 mi' : `${params.radius} mi`
@@ -135,7 +101,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* Data Sources */}
-        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true} isOpen={isOpen} onToggle={toggle}>
+        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true}>
           <div className="flex gap-2 mb-1">
             <button onClick={() => toggleAll(true)}
               className="text-xs cursor-pointer bg-transparent border-none font-semibold"
@@ -167,7 +133,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Location */}
-        <Section id="loc" title="Location" def={true} isOpen={isOpen} onToggle={toggle}>
+        <Section id="loc" title="Location" def={true}>
           <div>
             <FL>Search Mode</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -184,44 +150,10 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <div className="text-[10px] mb-2 px-2 py-1.5 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
               {MODE_INFO[params.searchMode].hint}
             </div>
-            {params.searchMode === 'city' ? (
-              <div className="grid grid-cols-[1fr_70px] gap-2">
-                <div>
-                  <FL>City</FL>
-                  <input className={ic} type="text" autoComplete="address-level2"
-                    value={splitCityState(params.locationQuery).city}
-                    onChange={e => setCity(e.target.value)}
-                    placeholder="Norfolk"
-                    onKeyDown={e => e.key === 'Enter' && onSearch()} />
-                </div>
-                <div>
-                  <FL>State</FL>
-                  <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
-                    value={splitCityState(params.locationQuery).state}
-                    onChange={e => setStatePart(e.target.value)}
-                    placeholder="VA"
-                    onKeyDown={e => e.key === 'Enter' && onSearch()} />
-                </div>
-              </div>
-            ) : params.searchMode === 'state' ? (
-              <input className={ic + ' uppercase'} type="text" autoComplete="address-level1"
-                value={params.locationQuery}
-                onChange={e => onChange({ ...params, locationQuery: cleanStateInput(e.target.value) })}
-                placeholder="VA"
-                onKeyDown={e => e.key === 'Enter' && onSearch()} />
-            ) : params.searchMode === 'zip' ? (
-              <input className={ic} type="text" inputMode="numeric" autoComplete="postal-code"
-                value={params.locationQuery}
-                onChange={e => onChange({ ...params, locationQuery: cleanZipInput(e.target.value) })}
-                placeholder="23501"
-                onKeyDown={e => e.key === 'Enter' && onSearch()} />
-            ) : (
-              <input className={ic} type="text" autoComplete="street-address"
-                value={params.locationQuery}
-                onChange={set('locationQuery')}
-                placeholder={MODE_INFO[params.searchMode].placeholder}
-                onKeyDown={e => e.key === 'Enter' && onSearch()} />
-            )}
+            <input className={ic} value={params.locationQuery}
+              onChange={set('locationQuery')}
+              placeholder={MODE_INFO[params.searchMode].placeholder}
+              onKeyDown={e => e.key === 'Enter' && onSearch()} />
           </div>
 
           {params.searchMode !== 'state' && (
@@ -246,7 +178,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Property Filters */}
-        <Section id="prop" title="Property" def={true} isOpen={isOpen} onToggle={toggle}>
+        <Section id="prop" title="Property" def={true}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -284,7 +216,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Market Signals */}
-        <Section id="mkt" title="Market Signals" def={true} isOpen={isOpen} onToggle={toggle}>
+        <Section id="mkt" title="Market Signals" def={true}>
           <div>
             <div className="flex justify-between mb-1"><FL>Max DOM</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
@@ -304,7 +236,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Flip Criteria */}
-        <Section id="flip" title="Flip Criteria" def={true} isOpen={isOpen} onToggle={toggle}>
+        <Section id="flip" title="Flip Criteria" def={true}>
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.minFlipScore}</span>
@@ -334,7 +266,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Deal Math */}
-        <Section id="deal" title="Deal Math" def={false} isOpen={isOpen} onToggle={toggle}>
+        <Section id="deal" title="Deal Math" def={false}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>

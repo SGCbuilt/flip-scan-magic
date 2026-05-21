@@ -1,12 +1,12 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useAuth } from '@/context/AuthContext'
-import type { AIMarketData } from './marketAnalyzer'
+import type { AreaAnalysis } from './marketAnalyzer'
 
 export interface SavedMarket {
   id: string                // location string used as id
   location: string
   savedAt: number
-  ai: AIMarketData
+  analysis: AreaAnalysis
 }
 
 const keyFor = (uid?: string | null) => `flipscan:markets:${uid || 'anon'}`
