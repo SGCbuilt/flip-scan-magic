@@ -709,17 +709,23 @@ The following data for "${location}" comes from official government sources (Cen
 Data context (do not repeat these numbers — they are shown elsewhere):
 ${JSON.stringify(dataSnap, null, 0)}
 
-Return ONLY a valid JSON object, no markdown, no preamble:
+CRITICAL RULES:
+- Return ONLY a valid JSON object, no markdown, no preamble.
+- EVERY field must be populated with real, specific content about ${location}. No empty strings, no empty arrays, no "N/A", no "unknown".
+- For majorEmployers, dominantIndustries, and majorDevelopments: list real, verifiable entities for ${location} or the nearest metro. If ${location} is a small area, use the surrounding county/metro and say so.
+- Arrays must contain at least the minimum number of items specified below.
+
+Required JSON shape:
 {
   "summary": "2-3 sentence investor overview. Reference the market type and key dynamics. No raw numbers — those are shown separately.",
   "flipStrategy": "Specific fix-and-flip strategy for this market. What types of properties to target, which neighborhoods if known, what ARV range, exit strategy.",
   "brrrStrategy": "Specific BRRRR strategy for this market. Rental demand drivers, tenant profile, refinance outlook.",
-  "opportunities": ["3-5 specific actionable investor opportunities in ${location}"],
-  "majorEmployers": ["Top 5-7 real employers in ${location} — only list ones you are confident about"],
-  "dominantIndustries": ["Top 3-4 industries driving the local economy"],
-  "majorDevelopments": ["2-4 known recent or planned developments in ${location} — only if you are confident they are real"],
-  "schoolNote": "Brief factual note about school district quality in ${location}",
-  "economicContext": "1-2 sentences on the broader economic context and outlook for ${location}"
+  "opportunities": ["EXACTLY 5 specific actionable investor opportunities in ${location}"],
+  "majorEmployers": ["EXACTLY 6 real, named employers in ${location} or its metro (companies, hospitals, universities, government agencies, military bases)"],
+  "dominantIndustries": ["EXACTLY 4 industries driving the local economy"],
+  "majorDevelopments": ["EXACTLY 3 real recent or planned developments, infrastructure projects, or growth corridors near ${location}"],
+  "schoolNote": "1-2 sentence factual note about school district quality in ${location}",
+  "economicContext": "2 sentences on the broader economic context and outlook for ${location}"
 }`
 
   const prompt = deepSearch
