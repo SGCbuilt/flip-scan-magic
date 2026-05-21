@@ -52,7 +52,7 @@ export function saveApiKey(k: string, v: string) {
 const MEM_CACHE = new Map<string, { data: AreaAnalysis; ts: number }>()
 
 function cacheKey(zip?: string, city?: string, state?: string) {
-  return [zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
+  return ['v2', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
 }
 function cacheGet(k: string): AreaAnalysis | null {
   const hit = MEM_CACHE.get(k)
@@ -736,7 +736,7 @@ export async function analyzeArea(
     cacheHit:   false,
   }
 
-  cacheSet(ck, result)
+  if (result.dataIsReal) cacheSet(ck, result)
   return result
 }
 
