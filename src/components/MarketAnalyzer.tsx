@@ -99,11 +99,7 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
-  const [draftCensus,       setDraftCensus]       = useState('')
-  const [draftFBI,          setDraftFBI]           = useState('')
   const [draftAI,           setDraftAI]            = useState('')
-  const [draftSupabaseUrl,  setDraftSupabaseUrl]   = useState('')
-  const [draftSupabaseAnon, setDraftSupabaseAnon]  = useState('')
 
   const keys = getApiKeys()
   const governmentKeysReady = true
