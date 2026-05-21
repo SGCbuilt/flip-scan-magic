@@ -156,13 +156,29 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
+  const [valError, setValError] = useState('')
   const governmentKeysReady = true
 
   const handleAnalyze = async () => {
+    setValError('')
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
     const actualZip   = isZip ? (city.trim() || zip.trim()) : undefined
     const actualCity  = !isZip ? city.trim()  : undefined
     const actualState = !isZip ? state.trim() : undefined
+
+    // ── Validation ───────────────────────────────────────────────
+    if (mode === 'zip') {
+      if (!zip.trim()) { setValError('ZIP code is required.'); return }
+      if (!/^\d{5}$/.test(zip.trim())) { setValError('ZIP must be exactly 5 digits (e.g. 27587).'); return }
+    } else {
+      if (!city.trim()) { setValError('City is required.'); return }
+      if (!state.trim()) { setValError('State is required (2-letter code, e.g. NC).'); return }
+      if (!/^\d{5}$/.test(city.trim())) {
+        // city mode — no zip needed, but if user typed a zip in city field, accept it
+      }
+    }
+    // ── End Validation ────────────────────────────────────────────
+
     const location = actualZip || [actualCity, actualState].filter(Boolean).join(', ')
     if (!location) return
 
