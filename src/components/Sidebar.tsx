@@ -142,7 +142,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Location */}
-        <Section id="loc" title="Location" def={true}>
+        <Section id="loc" title={"Location"} open={isOpen("loc", true)} onToggle={toggle}>
           <div>
             <FL>Search Mode</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -194,7 +194,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Property Filters */}
-        <Section id="prop" title="Property" def={true}>
+        <Section id="prop" title={"Property"} open={isOpen("prop", true)} onToggle={toggle}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -232,7 +232,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Market Signals */}
-        <Section id="mkt" title="Market Signals" def={true}>
+        <Section id="mkt" title={"Market Signals"} open={isOpen("mkt", true)} onToggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Max DOM</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
@@ -252,7 +252,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Flip Criteria */}
-        <Section id="flip" title="Flip Criteria" def={true}>
+        <Section id="flip" title={"Flip Criteria"} open={isOpen("flip", true)} onToggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.minFlipScore}</span>
@@ -282,7 +282,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Deal Math */}
-        <Section id="deal" title="Deal Math" def={false}>
+        <Section id="deal" title={"Deal Math"} open={isOpen("deal", false)} onToggle={toggle}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
