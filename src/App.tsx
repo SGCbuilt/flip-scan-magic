@@ -10,6 +10,7 @@ import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from '
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
+import sgcLogo from '@/assets/sgc-logo.png'
 
 const DEFAULT_PARAMS: SearchParams = {
   searchMode: 'city', locationQuery: 'Norfolk, VA', radius: 25,
@@ -140,16 +141,10 @@ export default function App() {
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
-            {/* SGC house mark */}
-            <svg viewBox="0 0 38 38" className="w-8 h-8 flex-shrink-0">
-              <rect width="38" height="38" rx="5" fill="white" fillOpacity="0.12"/>
-              {/* house outline — gray like logo */}
-              <polyline points="19,6 32,16 32,33 6,33 6,16" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinejoin="round"/>
-              <line x1="19" y1="6" x2="6" y2="16" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round"/>
-              <rect x="14.5" y="24" width="9" height="9" rx="0.5" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
-              {/* SGC text */}
-              <text x="19" y="22" textAnchor="middle" fill="white" fontSize="9.5" fontWeight="700" fontFamily="Inter,sans-serif" letterSpacing="0.5">SGC</text>
-            </svg>
+            {/* SGC logo */}
+            <div className="w-9 h-9 flex-shrink-0 rounded bg-white flex items-center justify-center p-1">
+              <img src={sgcLogo} alt="SGC Built" className="w-full h-full object-contain" />
+            </div>
             <div>
               <div style={{ fontFamily: 'Inter,sans-serif', letterSpacing: '0.12em' }}
                 className="text-white font-bold text-sm uppercase leading-none tracking-widest">
