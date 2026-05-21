@@ -60,12 +60,19 @@ function SparkLine({
 
 // ── Buyer/Seller Gauge ────────────────────────────────────────────────────
 function MarketGauge({ score, type }: { score: number; type: string }) {
-  const colors: Record<string, { bar: string; text: string; bg: string; border: string }> = {
-    'strong-sellers': { bar: 'bg-[var(--sgc-danger)]',  text: 'text-[var(--sgc-danger)]',  bg: 'bg-[var(--sgc-danger-bg)]',  border: 'border-[var(--sgc-danger)]'  },
-    'sellers':        { bar: 'bg-[var(--sgc-orange)]',  text: 'text-[var(--sgc-orange)]',  bg: 'bg-[var(--sgc-orange-bg)]',  border: 'border-[var(--sgc-orange)]'  },
-    'balanced':       { bar: 'bg-[var(--sgc-navy)]',    text: 'text-[var(--sgc-navy)]',    bg: 'bg-[var(--sgc-navy-pale)]',  border: 'border-[var(--sgc-navy)]'    },
-    'buyers':         { bar: 'bg-[var(--sgc-navy-light)]', text: 'text-[var(--sgc-navy-light)]', bg: 'bg-[var(--sgc-navy-pale)]', border: 'border-[var(--sgc-navy-light)]' },
-    'strong-buyers':  { bar: 'bg-[var(--sgc-success)]', text: 'text-[var(--sgc-success)]', bg: 'bg-[var(--sgc-success-bg)]', border: 'border-[var(--sgc-success)]' },
+  // All states use the navy/blue family — matches layout brand
+  const navyPalette = {
+    bar:    'bg-[var(--sgc-navy)]',
+    text:   'text-[var(--sgc-navy)]',
+    bg:     'bg-[var(--sgc-navy-pale)]',
+    border: 'border-[var(--sgc-navy)]',
+  }
+  const colors: Record<string, typeof navyPalette> = {
+    'strong-sellers': navyPalette,
+    'sellers':        navyPalette,
+    'balanced':       navyPalette,
+    'buyers':         navyPalette,
+    'strong-buyers':  navyPalette,
   }
   const c = colors[type] || colors.balanced
   const labels: Record<string, string> = {
@@ -91,7 +98,15 @@ function MarketGauge({ score, type }: { score: number; type: string }) {
   }
 
   return (
-    <div className={`rounded-2xl border ${c.border} border-l-4 p-5 ${c.bg}`}>
+    <div
+      className={`rounded-2xl border ${c.border} border-l-4 p-5 ${c.bg} relative overflow-hidden`}
+      style={{
+        backgroundImage:
+          'repeating-linear-gradient(135deg, rgba(27,58,140,0.06) 0 2px, transparent 2px 12px),' +
+          'repeating-linear-gradient(45deg, rgba(27,58,140,0.04) 0 1px, transparent 1px 10px)',
+        backgroundColor: 'var(--sgc-navy-pale)',
+      }}
+    >
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-gray-mid)] mb-1">Market Condition</div>
@@ -114,11 +129,11 @@ function MarketGauge({ score, type }: { score: number; type: string }) {
           <span>100 Sellers</span>
         </div>
         <div className="h-3 bg-white border border-[var(--sgc-gray-border)] rounded-full overflow-hidden relative">
-          {/* Gradient background — buyers (success/green) → balanced (navy) → sellers (danger/red) */}
+          {/* Navy gradient — light navy (buyers) → mid → deep navy (sellers) */}
           <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to right, var(--sgc-success), var(--sgc-navy-pale) 50%, var(--sgc-danger))' }} />
+            style={{ background: 'linear-gradient(to right, var(--sgc-navy-mid), var(--sgc-navy-light) 50%, var(--sgc-navy-dark))' }} />
           {/* Score marker */}
-          <div className="absolute -top-0.5 -bottom-0.5 w-1.5 bg-[var(--sgc-black)] rounded-full transition-all shadow"
+          <div className="absolute -top-0.5 -bottom-0.5 w-1.5 bg-white border border-[var(--sgc-navy-dark)] rounded-full transition-all shadow"
             style={{ left: `calc(${score}% - 3px)` }} />
         </div>
       </div>
