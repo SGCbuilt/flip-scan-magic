@@ -22,24 +22,24 @@ interface Row {
 }
 
 const ROWS: Row[] = [
-  { label: 'Overall Investor Score', get: m => m.ai.investorScore,    fmt: v => v != null ? `${v}/100` : '—' },
-  { label: 'Flip Score',             get: m => m.ai.flipScore,         fmt: v => v != null ? `${v}/100` : '—' },
-  { label: 'BRRRR Score',            get: m => m.ai.brrrScore,         fmt: v => v != null ? `${v}/100` : '—' },
-  { label: 'Median Home Value',      get: m => m.ai.medianHomeValue,   fmt: fmt$ },
-  { label: 'Home Value 1yr',         get: m => m.ai.homeValueChange1yr,fmt: v => pct(v) },
-  { label: 'Home Value 5yr',         get: m => m.ai.homeValueChange5yr,fmt: v => pct(v) },
-  { label: 'Median Rent',            get: m => m.ai.medianRent,        fmt: fmt$ },
-  { label: 'Median Income',          get: m => m.ai.medianHouseholdIncome, fmt: fmt$ },
-  { label: 'Population Growth',      get: m => m.ai.populationGrowth,  fmt: v => pct(v) },
-  { label: 'Job Growth',             get: m => m.ai.jobGrowthRate,     fmt: v => pct(v) },
-  { label: 'Unemployment',           get: m => m.ai.unemploymentRate,  fmt: v => pct(v), inverted: true },
-  { label: 'Avg Days on Market',     get: m => m.ai.avgDaysOnMarket,   fmt: v => v != null ? `${v}d` : '—' },
-  { label: 'Inventory (months)',     get: m => m.ai.inventoryMonths,   fmt: v => v != null ? v.toFixed(1) : '—' },
-  { label: 'New Permits YoY',        get: m => m.ai.newPermitsYoY,     fmt: v => pct(v) },
-  { label: 'Crime Index',            get: m => m.ai.crimeIndexOverall, fmt: v => v != null ? `${v}/100` : '—', inverted: true },
-  { label: 'School Rating',          get: m => m.ai.schoolRatingAvg,   fmt: v => v != null ? `${v.toFixed(1)}/10` : '—' },
-  { label: 'Vacancy Rate',           get: m => m.ai.vacancyRate,       fmt: v => pct(v), inverted: true },
-  { label: 'Owner Occupancy',        get: m => m.ai.ownerOccupancyRate,fmt: v => pct(v) },
+  { label: 'Overall Investor Score', get: m => m.analysis.scores?.investorScore, fmt: v => v != null ? `${v}/100` : '—' },
+  { label: 'Flip Score',             get: m => m.analysis.scores?.flipScore,     fmt: v => v != null ? `${v}/100` : '—' },
+  { label: 'BRRRR Score',            get: m => m.analysis.scores?.brrrScore,     fmt: v => v != null ? `${v}/100` : '—' },
+  { label: 'Median Home Value',      get: m => m.analysis.census?.medianHomeValue,        fmt: fmt$ },
+  { label: 'Median Rent (Census)',   get: m => m.analysis.census?.medianRent,             fmt: fmt$ },
+  { label: 'Median Income',          get: m => m.analysis.census?.medianHouseholdIncome,  fmt: fmt$ },
+  { label: 'Population',             get: m => m.analysis.census?.population,             fmt: v => v != null ? v.toLocaleString() : '—' },
+  { label: 'Unemployment',           get: m => m.analysis.bls?.unemploymentRate ?? m.analysis.census?.unemploymentRate, fmt: v => pct(v), inverted: true },
+  { label: 'Poverty Rate',           get: m => m.analysis.census?.povertyRate,            fmt: v => pct(v), inverted: true },
+  { label: 'College Degree %',       get: m => m.analysis.census?.collegeDegreeRate,      fmt: v => pct(v) },
+  { label: 'Vacancy Rate',           get: m => m.analysis.census?.vacancyRate,            fmt: v => pct(v), inverted: true },
+  { label: 'Owner Occupancy',        get: m => m.analysis.census?.ownerOccupancyRate,     fmt: v => pct(v) },
+  { label: 'Avg Days on Market',     get: m => m.analysis.rentcast?.saleData?.averageDaysOnMarket, fmt: v => v != null && v > 0 ? `${v}d` : '—' },
+  { label: 'Avg Sale Price',         get: m => m.analysis.rentcast?.saleData?.averagePrice,        fmt: fmt$ },
+  { label: 'Avg Rent (RentCast)',    get: m => m.analysis.rentcast?.rentalData?.averageRent,       fmt: fmt$ },
+  { label: 'Violent Crime /100k',    get: m => m.analysis.crime?.violentCrimeRate,        fmt: v => v != null ? v.toFixed(1) : '—', inverted: true },
+  { label: 'Property Crime /100k',   get: m => m.analysis.crime?.propertyCrimeRate,       fmt: v => v != null ? v.toFixed(1) : '—', inverted: true },
+  { label: 'Crime vs National',      get: m => m.analysis.crime?.violentVsNational,       fmt: v => v != null ? (v > 0 ? '+' : '') + v.toFixed(0) + '%' : '—', inverted: true },
 ]
 
 export default function MarketCompareModal({ markets, onClose }: {
@@ -76,7 +76,7 @@ export default function MarketCompareModal({ markets, onClose }: {
                   <th key={m.id} className="text-left px-4 py-3" style={{ minWidth: 160 }}>
                     <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>{m.location}</div>
                     <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      {m.ai.marketType}
+                      {m.analysis.scores?.marketType || '—'}
                     </div>
                   </th>
                 ))}
