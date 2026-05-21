@@ -45,6 +45,18 @@ body {
 input[type="range"] { accent-color: var(--sgc-navy); }
 input[type="checkbox"] { accent-color: var(--sgc-navy); }
 
+/* Text inputs (sgc-input) — guaranteed to render correctly */
+.sgc-input {
+  border-color: var(--sgc-gray-border);
+  color: var(--sgc-black);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+.sgc-input::placeholder { color: var(--sgc-gray-mid); opacity: 0.7; }
+.sgc-input:focus {
+  border-color: var(--sgc-navy);
+  box-shadow: 0 0 0 3px var(--sgc-navy-pale);
+}
+
 /* Animations */
 @keyframes spin { to { transform: rotate(360deg); } }
 .spin { animation: spin 0.7s linear infinite; }
