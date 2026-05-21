@@ -4,6 +4,8 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import App from './App'
 import AuthPage from './pages/Auth'
 import ResetPasswordPage from './pages/ResetPassword'
+import AdminDashboard from './pages/AdminDashboard'
+import AdminFlipScan from './pages/AdminFlipScan'
 import ProtectedRoute from './components/ProtectedRoute'
 import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
@@ -19,6 +21,8 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
+          <Route path="/admin/flipscan" element={<ProtectedRoute><AdminFlipScan /></ProtectedRoute>} />
           <Route path="/" element={<ProtectedRoute><App /></ProtectedRoute>} />
           <Route path="*" element={<ProtectedRoute><App /></ProtectedRoute>} />
         </Routes>
