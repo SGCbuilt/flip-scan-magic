@@ -486,7 +486,7 @@ export default function MarketAnalyzer() {
                 {!cen ? (
                   <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                     <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      Census API key required. Get free key at <a href="https://api.census.gov/data/key_signup.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sgc-navy)' }}>api.census.gov/data/key_signup.html</a>
+                      Census demographics were not found for this location. Try a 5-digit ZIP code or city with state abbreviation.
                     </div>
                   </div>
                 ) : (
