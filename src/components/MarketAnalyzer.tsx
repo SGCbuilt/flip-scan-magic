@@ -99,9 +99,6 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
-  const [draftAI,           setDraftAI]            = useState('')
-
-  const keys = getApiKeys()
   const governmentKeysReady = true
 
   const handleAnalyze = async () => {
@@ -171,7 +168,7 @@ export default function MarketAnalyzer() {
             {[
               { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: governmentKeysReady },
               { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: governmentKeysReady },
-              { k: 'anthropic',   label: 'Claude AI',   url: 'console.anthropic.com',               set: keys.anthropic   },
+              { k: 'anthropic',   label: 'AI Strategy', url: 'console.anthropic.com',               set: governmentKeysReady },
               { k: 'supabase',    label: 'Backend',     url: 'supabase.com',                        set: governmentKeysReady },
             ].map(({ k, label, url, set }) => (
               <div key={k} className="flex items-center gap-2">
@@ -186,22 +183,8 @@ export default function MarketAnalyzer() {
           {/* Key inputs */}
           {showKeys && (
             <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-              {[
-                { k: 'anthropic', label: 'Anthropic Key',  ph: 'sk-ant-...',                 v: draftAI,     set: setDraftAI     },
-              ].map(({ k, label, ph, v, set }) => (
-                <div key={k}>
-                  <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
-                  <div className="flex gap-1">
-                    <input className={ic + ' text-xs py-1.5 flex-1'} type="password" value={v}
-                      onChange={e => set(e.target.value)} placeholder={ph} />
-                    <button onClick={() => saveApiKey(k as any, v)}
-                      className="text-xs px-2 py-1.5 rounded-lg border-none cursor-pointer text-white flex-shrink-0"
-                      style={{ background: 'var(--sgc-navy)' }}>Save</button>
-                  </div>
-                </div>
-              ))}
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
-                Census, FBI, BLS, and RentCast are handled by the secure backend. Claude AI is optional.
+                Census, FBI, BLS, RentCast, and AI are handled by the secure backend. No browser API keys are needed.
               </div>
             </div>
           )}
