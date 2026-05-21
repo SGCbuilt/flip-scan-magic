@@ -107,6 +107,10 @@ async function proxyFetch(
   } catch { return null }
 }
 
+function usingCloudProxy() {
+  return !IS_DEV && !!getApiKeys().supabase
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // SOURCE 1 — CENSUS ACS 5-YEAR 2023
 // Official source: api.census.gov
@@ -135,7 +139,7 @@ export interface CensusData {
 async function fetchCensusData(
   zip?: string, stateAbbr?: string, censusKey?: string
 ): Promise<CensusData | null> {
-  const key = censusKey || getApiKeys().census
+  const key = usingCloudProxy() ? '' : (censusKey || getApiKeys().census)
   // Key is optional client-side — the market-proxy injects CENSUS_API_KEY server-side.
 
   const vars = [
@@ -150,7 +154,7 @@ async function fetchCensusData(
 
   let geo = ''
   if (zip && /^\d{5}$/.test(zip)) {
-    geo = `for=zip%20code%20tabulation%20area:${zip}&in=state:*`
+    geo = `for=zip%20code%20tabulation%20area:${zip}`
   } else if (stateAbbr) {
     const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
     if (!fips) return null
@@ -226,7 +230,7 @@ const FBI_NAT_PROPERTY = 1954.4  // FBI 2022 national rate per 100k
 async function fetchCrimeData(
   stateAbbr: string, fbiKey?: string
 ): Promise<CrimeData | null> {
-  const key = fbiKey || getApiKeys().fbi
+  const key = usingCloudProxy() ? '' : (fbiKey || getApiKeys().fbi)
   // Key is optional client-side — the market-proxy injects FBI_API_KEY server-side.
 
   const st = stateAbbr.toUpperCase().slice(0, 2)
