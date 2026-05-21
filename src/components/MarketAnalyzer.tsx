@@ -378,7 +378,7 @@ export default function MarketAnalyzer() {
                     sub={bls ? `BLS ${bls.month} ${bls.year}` : 'Census ACS'}
                     color={unemp !== undefined && unemp < 4 ? '#1A7A4A' : unemp !== undefined && unemp > 7 ? '#C0341D' : 'var(--sgc-black)'} />
                   <Tile label="Violent Crime/100k" value={cr ? `${cr.violentCrimeRate}` : '—'}
-                    sub={cr ? `FBI UCR ${cr.dataYear} · Grade ${cr.crimeGrade}` : 'FBI key needed'}
+                    sub={cr ? `FBI UCR ${cr.dataYear} · Grade ${cr.crimeGrade}` : 'FBI data unavailable'}
                     color={cr ? (cr.violentVsNational < -15 ? '#1A7A4A' : cr.violentVsNational > 30 ? '#C0341D' : '#8A5700') : 'var(--sgc-gray-mid)'} />
                   <Tile label="Gross Yield" value={grossYield ? `${grossYield.toFixed(1)}%` : '—'}
                     sub="Census rent ÷ home value × 12"
@@ -531,12 +531,8 @@ export default function MarketAnalyzer() {
                 {!cr ? (
                   <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                     <div className="text-sm mb-2" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      FBI Crime Data API key required.
+                      FBI crime data was not available for this state/year.
                     </div>
-                    <a href="https://api.data.gov/signup/" target="_blank" rel="noopener noreferrer"
-                      className="text-sm font-semibold" style={{ color: 'var(--sgc-navy)' }}>
-                      Get free key at api.data.gov/signup ↗
-                    </a>
                     <div className="text-xs mt-3" style={{ color: 'var(--sgc-gray-mid)' }}>
                       Source: FBI UCR Program — voluntary reporting by 19,000+ agencies. Official DOJ Open Government Data.
                     </div>
@@ -635,9 +631,7 @@ export default function MarketAnalyzer() {
                 <Sec icon="🎯" label="SGC Investment Strategy — AI Narrative Based on Real Data" />
                 {!ai ? (
                   <div className="bg-white rounded-2xl border p-6 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-sm mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>Anthropic API key required for AI strategy narrative.</div>
-                    <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer"
-                      className="text-sm font-semibold" style={{ color: 'var(--sgc-navy)' }}>Get key at console.anthropic.com ↗</a>
+                    <div className="text-sm mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>AI strategy narrative is temporarily unavailable.</div>
                   </div>
                 ) : (
                   <>
