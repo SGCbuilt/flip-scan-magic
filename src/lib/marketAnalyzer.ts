@@ -136,7 +136,7 @@ async function fetchCensusData(
   zip?: string, stateAbbr?: string, censusKey?: string
 ): Promise<CensusData | null> {
   const key = censusKey || getApiKeys().census
-  if (!key) return null
+  // Key is optional client-side — the market-proxy injects CENSUS_API_KEY server-side.
 
   const vars = [
     'NAME',
@@ -159,7 +159,7 @@ async function fetchCensusData(
     return null
   }
 
-  const url = `https://api.census.gov/data/2023/acs/acs5?get=${vars}&${geo}&key=${key}`
+  const url = `https://api.census.gov/data/2023/acs/acs5?get=${vars}&${geo}${key ? `&key=${key}` : ''}`
   const data = await proxyFetch(url)
   if (!Array.isArray(data) || data.length < 2) return null
 
@@ -227,12 +227,12 @@ async function fetchCrimeData(
   stateAbbr: string, fbiKey?: string
 ): Promise<CrimeData | null> {
   const key = fbiKey || getApiKeys().fbi
-  if (!key) return null
+  // Key is optional client-side — the market-proxy injects FBI_API_KEY server-side.
 
   const st = stateAbbr.toUpperCase().slice(0, 2)
 
   const fetchOffense = async (offense: string, year: number) => {
-    const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}&API_KEY=${encodeURIComponent(key)}`
+    const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}${key ? `&API_KEY=${encodeURIComponent(key)}` : ''}`
     const data = await proxyFetch(url)
     const actuals = data?.offenses?.actuals || {}
     const populations = data?.populations?.population || {}
