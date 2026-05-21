@@ -52,7 +52,7 @@ export function saveApiKey(k: string, v: string) {
 const MEM_CACHE = new Map<string, { data: AreaAnalysis; ts: number }>()
 
 function cacheKey(zip?: string, city?: string, state?: string) {
-  return ['v2', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
+  return ['v4', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
 }
 function cacheGet(k: string): AreaAnalysis | null {
   const hit = MEM_CACHE.get(k)
@@ -80,8 +80,20 @@ async function proxyFetch(
 ): Promise<any> {
   const keys = getApiKeys()
 
-  if (!IS_DEV && keys.supabase) {
-    // Production: route through the Lovable Cloud Edge Function.
+  if (!IS_DEV) {
+    // Production: route through the deployed Lovable Cloud function so browser CORS and private keys are handled server-side.
+    try {
+      const { supabase } = await import('@/integrations/supabase/client')
+      const { data, error } = await supabase.functions.invoke('market-proxy', {
+        body: { url: targetUrl, headers },
+      })
+      if (!error && data != null) return data
+      if (error) console.warn('[market-proxy] invoke failed:', error.message)
+    } catch (err: any) {
+      console.warn('[market-proxy] invoke unavailable:', err?.message)
+    }
+
+    // Fallback for older sessions that saved a backend URL in browser storage.
     try {
       const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
       if (keys.supabaseAnon) {
@@ -95,8 +107,7 @@ async function proxyFetch(
         body: JSON.stringify({ url: targetUrl, headers }),
         signal: AbortSignal.timeout(20000),
       })
-      if (!res.ok) return null
-      return await res.json()
+      if (res.ok) return await res.json()
     } catch { return null }
   }
 
@@ -108,7 +119,11 @@ async function proxyFetch(
 }
 
 function usingCloudProxy() {
-  return !IS_DEV && !!getApiKeys().supabase
+  return !IS_DEV && (!!getApiKeys().supabase || !!import.meta.env.VITE_SUPABASE_URL)
+}
+
+function cleanName(value?: string) {
+  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -137,7 +152,7 @@ export interface CensusData {
 }
 
 async function fetchCensusData(
-  zip?: string, stateAbbr?: string, censusKey?: string
+  zip?: string, stateAbbr?: string, censusKey?: string, city?: string
 ): Promise<CensusData | null> {
   const key = usingCloudProxy() ? '' : (censusKey || getApiKeys().census)
   // Key is optional client-side — the market-proxy injects CENSUS_API_KEY server-side.
@@ -155,6 +170,10 @@ async function fetchCensusData(
   let geo = ''
   if (zip && /^\d{5}$/.test(zip)) {
     geo = `for=zip%20code%20tabulation%20area:${zip}`
+  } else if (city && stateAbbr) {
+    const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
+    if (!fips) return null
+    geo = `for=place:*&in=state:${fips}`
   } else if (stateAbbr) {
     const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
     if (!fips) return null
@@ -168,7 +187,10 @@ async function fetchCensusData(
   if (!Array.isArray(data) || data.length < 2) return null
 
   const h = data[0] as string[]
-  const r = data[1] as string[]
+  const cityKey = cleanName(city)
+  const r = cityKey && !zip
+    ? ((data.slice(1) as string[][]).find(row => cleanName(row[h.indexOf('NAME')]).startsWith(cityKey)) || data[1] as string[])
+    : data[1] as string[]
   const n = (v: string) => parseFloat(r[h.indexOf(v)]) || 0
 
   const ownerOcc   = n('B25003_002E'), totalOcc   = n('B25003_001E')
@@ -234,31 +256,42 @@ async function fetchCrimeData(
   // Key is optional client-side — the market-proxy injects FBI_API_KEY server-side.
 
   const st = stateAbbr.toUpperCase().slice(0, 2)
+  const stateName = STATE_NAMES[st] || st
+  const stateKey = cleanName(stateName)
 
   const fetchOffense = async (offense: string, year: number) => {
     const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}${key ? `&API_KEY=${encodeURIComponent(key)}` : ''}`
     const data = await proxyFetch(url)
     const actuals = data?.offenses?.actuals || {}
-    const populations = data?.populations?.population || {}
-    const stateActualKey = Object.keys(actuals).find(k => !k.toLowerCase().includes('united states'))
-    const statePopKey = Object.keys(populations).find(k => !k.toLowerCase().includes('united states'))
+    const rates = data?.offenses?.rates || {}
+    const populations = data?.populations?.population || data?.populations?.participated_population || {}
+    const stateActualKey = Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
+      || Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
+      || Object.keys(actuals).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
+    const stateRateKey = Object.keys(rates).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
+      || Object.keys(rates).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
+      || Object.keys(rates).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
+    const statePopKey = Object.keys(populations).find(k => cleanName(k).includes(stateKey))
+      || Object.keys(populations).find(k => !cleanName(k).includes('unitedstates'))
     const actualValues = stateActualKey ? Object.values(actuals[stateActualKey] || {}) : []
     const popValues = statePopKey ? Object.values(populations[statePopKey] || {}) : []
     const count = actualValues.reduce((sum: number, v: any) => sum + (Number(v) || 0), 0)
     const pop = Number(popValues.find((v: any) => Number(v) > 0)) || 0
-    return { count, pop }
+    const monthlyRates = stateRateKey ? Object.values(rates[stateRateKey] || {}).map((v: any) => Number(v)).filter(v => Number.isFinite(v) && v > 0) : []
+    const apiAnnualRate = monthlyRates.length ? Math.round(monthlyRates.reduce((sum, v) => sum + v, 0) * 10) / 10 : 0
+    return { count, pop, apiAnnualRate }
   }
 
   const currentYear = new Date().getFullYear()
-  let dataYear = currentYear - 2
-  let violent = { count: 0, pop: 0 }
-  let property = { count: 0, pop: 0 }
-  let homicide = { count: 0, pop: 0 }
-  let robbery = { count: 0, pop: 0 }
-  let burglary = { count: 0, pop: 0 }
-  let larceny = { count: 0, pop: 0 }
+  let dataYear = currentYear - 3
+  let violent = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let property = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let homicide = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let robbery = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let burglary = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let larceny = { count: 0, pop: 0, apiAnnualRate: 0 }
 
-  for (const year of [currentYear - 2, currentYear - 3, currentYear - 4]) {
+  for (const year of [currentYear - 3, currentYear - 4, currentYear - 5]) {
     const [v, p, h, r, b, l] = await Promise.all([
       fetchOffense('violent-crime', year),
       fetchOffense('property-crime', year),
@@ -277,8 +310,8 @@ async function fetchCrimeData(
   const pop = violent.pop || property.pop || 1
   if (!violent.count && !property.count) return null
 
-  const vRate = Math.round((violent.count  / pop) * 100000 * 10) / 10
-  const pRate = Math.round((property.count / pop) * 100000 * 10) / 10
+  const vRate = violent.apiAnnualRate || Math.round((violent.count  / pop) * 100000 * 10) / 10
+  const pRate = property.apiAnnualRate || Math.round((property.count / pop) * 100000 * 10) / 10
   const vDiff = Math.round(((vRate - FBI_NAT_VIOLENT)  / FBI_NAT_VIOLENT)  * 1000) / 10
   const pDiff = Math.round(((pRate - FBI_NAT_PROPERTY) / FBI_NAT_PROPERTY) * 1000) / 10
 
@@ -369,8 +402,17 @@ async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
   const tryRC = async (params: Record<string, string>) => {
-    const url = `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...params, dataType: 'All', historyMonths: '24' })}`
-    return proxyFetch(url)
+    const requestParams = { ...params, dataType: 'All', historyMonths: '24' }
+    if (!IS_DEV) {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client')
+        const { data, error } = await supabase.functions.invoke('rentcast', {
+          body: { endpoint: 'markets', params: requestParams },
+        })
+        if (!error && data != null) return data
+      } catch {}
+    }
+    return proxyFetch(`https://api.rentcast.io/v1/markets?${new URLSearchParams(requestParams)}`)
   }
 
   let d: any = null
@@ -690,7 +732,7 @@ export async function analyzeArea(
 
   // Run all 4 real data sources in parallel
   const [cRes, crRes, blsRes, rcRes] = await Promise.allSettled([
-    fetchCensusData(zip, stateCode, keys.census),
+    fetchCensusData(zip, stateCode, keys.census, city),
     stateCode ? fetchCrimeData(stateCode, keys.fbi) : Promise.resolve(null),
     stateCode ? fetchBLSData(stateCode)            : Promise.resolve(null),
     fetchRentCastMarket(zip, city, stateCode),
@@ -703,13 +745,13 @@ export async function analyzeArea(
 
   // Build error messages
   if (!census) {
-    if (!keys.census) errors.push('Census: API key not set — get free key at census.gov/developers')
+    if (!usingCloudProxy() && !keys.census) errors.push('Census: API key not set — get free key at census.gov/developers')
     else errors.push('Census: location not found — verify zip code or try state abbreviation')
   } else sources.push(census.source)
 
   if (!crime) {
     if (!stateCode) errors.push('Crime: state not detected — enter state abbreviation')
-    else if (!keys.fbi) errors.push('Crime: FBI API key not set — get free key at api.data.gov/signup')
+    else if (!usingCloudProxy() && !keys.fbi) errors.push('Crime: FBI API key not set — get free key at api.data.gov/signup')
     else errors.push(`Crime: FBI data not available for ${stateCode}`)
   } else {
     sources.push(crime.source)
@@ -753,6 +795,16 @@ const STATE_FIPS: Record<string, string> = {
   NC:'37',ND:'38',OH:'39',OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',
   SD:'46',TN:'47',TX:'48',UT:'49',VT:'50',VA:'51',WA:'53',WV:'54',
   WI:'55',WY:'56',DC:'11',
+}
+
+const STATE_NAMES: Record<string, string> = {
+  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',
+  FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',
+  KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',
+  MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',
+  NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
+  SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',
+  WI:'Wisconsin',WY:'Wyoming',DC:'District of Columbia',
 }
 
 // ── ZIP prefix → state (first 3 digits, approximate) ────────────────────────

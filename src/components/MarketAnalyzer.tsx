@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { analyzeArea, AreaAnalysis, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
+import { analyzeArea, AreaAnalysis } from '../lib/marketAnalyzer'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const pct   = (n?: number, d = 1) => n != null ? n.toFixed(d) + '%' : '—'
@@ -99,13 +99,7 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
-  const [draftCensus,       setDraftCensus]       = useState('')
-  const [draftFBI,          setDraftFBI]           = useState('')
-  const [draftAI,           setDraftAI]            = useState('')
-  const [draftSupabaseUrl,  setDraftSupabaseUrl]   = useState('')
-  const [draftSupabaseAnon, setDraftSupabaseAnon]  = useState('')
-
-  const keys = getApiKeys()
+  const governmentKeysReady = true
 
   const handleAnalyze = async () => {
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
@@ -172,10 +166,10 @@ export default function MarketAnalyzer() {
               </button>
             </div>
             {[
-              { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: keys.census      },
-              { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: keys.fbi         },
-              { k: 'anthropic',   label: 'Claude AI',   url: 'console.anthropic.com',               set: keys.anthropic   },
-              { k: 'supabase',    label: 'Supabase',    url: 'supabase.com',                        set: keys.supabase },
+              { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: governmentKeysReady },
+              { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: governmentKeysReady },
+              { k: 'anthropic',   label: 'AI Strategy', url: 'console.anthropic.com',               set: governmentKeysReady },
+              { k: 'supabase',    label: 'Backend',     url: 'supabase.com',                        set: governmentKeysReady },
             ].map(({ k, label, url, set }) => (
               <div key={k} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: set ? '#1A7A4A' : 'var(--sgc-gray-border)' }}/>
@@ -189,26 +183,8 @@ export default function MarketAnalyzer() {
           {/* Key inputs */}
           {showKeys && (
             <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-              {[
-                { k: 'supabase_url',  label: 'Supabase Project URL', ph: 'https://xxxx.supabase.co', v: draftSupabaseUrl,  set: setDraftSupabaseUrl  },
-                { k: 'supabase_anon', label: 'Supabase Anon Key',    ph: 'eyJh...',                  v: draftSupabaseAnon, set: setDraftSupabaseAnon },
-                { k: 'census',    label: 'Census API Key', ph: 'From census.gov/developers', v: draftCensus, set: setDraftCensus },
-                { k: 'fbi',       label: 'FBI API Key',    ph: 'From api.data.gov/signup',   v: draftFBI,    set: setDraftFBI    },
-                { k: 'anthropic', label: 'Anthropic Key',  ph: 'sk-ant-...',                 v: draftAI,     set: setDraftAI     },
-              ].map(({ k, label, ph, v, set }) => (
-                <div key={k}>
-                  <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
-                  <div className="flex gap-1">
-                    <input className={ic + ' text-xs py-1.5 flex-1'} type="password" value={v}
-                      onChange={e => set(e.target.value)} placeholder={ph} />
-                    <button onClick={() => saveApiKey(k as any, v)}
-                      className="text-xs px-2 py-1.5 rounded-lg border-none cursor-pointer text-white flex-shrink-0"
-                      style={{ background: 'var(--sgc-navy)' }}>Save</button>
-                  </div>
-                </div>
-              ))}
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
-                All keys stored in your browser only. Never sent to any server except the respective API.
+                Census, FBI, BLS, RentCast, and AI are handled by the secure backend. No browser API keys are needed.
               </div>
             </div>
           )}
@@ -402,7 +378,7 @@ export default function MarketAnalyzer() {
                     sub={bls ? `BLS ${bls.month} ${bls.year}` : 'Census ACS'}
                     color={unemp !== undefined && unemp < 4 ? '#1A7A4A' : unemp !== undefined && unemp > 7 ? '#C0341D' : 'var(--sgc-black)'} />
                   <Tile label="Violent Crime/100k" value={cr ? `${cr.violentCrimeRate}` : '—'}
-                    sub={cr ? `FBI UCR ${cr.dataYear} · Grade ${cr.crimeGrade}` : 'FBI key needed'}
+                    sub={cr ? `FBI UCR ${cr.dataYear} · Grade ${cr.crimeGrade}` : 'FBI data unavailable'}
                     color={cr ? (cr.violentVsNational < -15 ? '#1A7A4A' : cr.violentVsNational > 30 ? '#C0341D' : '#8A5700') : 'var(--sgc-gray-mid)'} />
                   <Tile label="Gross Yield" value={grossYield ? `${grossYield.toFixed(1)}%` : '—'}
                     sub="Census rent ÷ home value × 12"
@@ -510,7 +486,7 @@ export default function MarketAnalyzer() {
                 {!cen ? (
                   <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                     <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      Census API key required. Get free key at <a href="https://api.census.gov/data/key_signup.html" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--sgc-navy)' }}>api.census.gov/data/key_signup.html</a>
+                      Census demographics were not found for this location. Try a 5-digit ZIP code or city with state abbreviation.
                     </div>
                   </div>
                 ) : (
@@ -555,12 +531,8 @@ export default function MarketAnalyzer() {
                 {!cr ? (
                   <div className="bg-white rounded-2xl border p-8 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                     <div className="text-sm mb-2" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      FBI Crime Data API key required.
+                      FBI crime data was not available for this state/year.
                     </div>
-                    <a href="https://api.data.gov/signup/" target="_blank" rel="noopener noreferrer"
-                      className="text-sm font-semibold" style={{ color: 'var(--sgc-navy)' }}>
-                      Get free key at api.data.gov/signup ↗
-                    </a>
                     <div className="text-xs mt-3" style={{ color: 'var(--sgc-gray-mid)' }}>
                       Source: FBI UCR Program — voluntary reporting by 19,000+ agencies. Official DOJ Open Government Data.
                     </div>
@@ -659,9 +631,7 @@ export default function MarketAnalyzer() {
                 <Sec icon="🎯" label="SGC Investment Strategy — AI Narrative Based on Real Data" />
                 {!ai ? (
                   <div className="bg-white rounded-2xl border p-6 text-center" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <div className="text-sm mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>Anthropic API key required for AI strategy narrative.</div>
-                    <a href="https://console.anthropic.com" target="_blank" rel="noopener noreferrer"
-                      className="text-sm font-semibold" style={{ color: 'var(--sgc-navy)' }}>Get key at console.anthropic.com ↗</a>
+                    <div className="text-sm mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>AI strategy narrative is temporarily unavailable.</div>
                   </div>
                 ) : (
                   <>
