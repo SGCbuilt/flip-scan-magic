@@ -540,7 +540,8 @@ async function fetchAINarrative(
   cr: CrimeData | null,
   bls: BLSData | null,
   rc: RentCastMarket | null,
-  scores: InvestorScores
+  scores: InvestorScores,
+  deepSearch = false,
 ): Promise<AIInterpretation> {
   const empty: AIInterpretation = {
     summary: '', flipStrategy: '', brrrStrategy: '',
@@ -548,9 +549,6 @@ async function fetchAINarrative(
     dominantIndustries: [], majorDevelopments: [],
     schoolNote: '', economicContext: '',
   }
-
-  const anthropicKey = getApiKeys().anthropic
-  if (!anthropicKey) return empty
 
   // Build a data summary for Claude — real numbers only
   const dataSnap = {
@@ -578,7 +576,7 @@ async function fetchAINarrative(
     scores,
   }
 
-  const prompt = `You are a real estate investment analyst for SGC General Contractors (a fix-and-flip/GC operation in the DC/Virginia area).
+  const basePrompt = `You are a real estate investment analyst for SGC General Contractors (a fix-and-flip/GC operation in the DC/Virginia area).
 
 The following data for "${location}" comes from official government sources (Census ACS 2023, FBI UCR, BLS). These numbers are FIXED — do not reference, restate, or alter them. Your job is to write strategic narrative ONLY.
 
@@ -598,26 +596,17 @@ Return ONLY a valid JSON object, no markdown, no preamble:
   "economicContext": "1-2 sentences on the broader economic context and outlook for ${location}"
 }`
 
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': anthropicKey,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1200,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(20000),
-    })
+  const prompt = deepSearch
+    ? basePrompt + `\n\nUse extended reasoning. Be especially specific about local employers, neighborhoods, school districts, planned developments, and economic outlook. Cite only items you are confident are real.`
+    : basePrompt
 
-    if (!res.ok) { console.error('[AI] HTTP', res.status); return empty }
-    const d = await res.json()
-    const text = (d?.content?.[0]?.text || '').replace(/^```(?:json)?\s*/m,'').replace(/\s*```\s*$/m,'').trim()
+  try {
+    const { supabase } = await import('@/integrations/supabase/client')
+    const { data, error } = await supabase.functions.invoke('ai-analysis', {
+      body: { prompt, provider: deepSearch ? 'gemini' : 'claude' },
+    })
+    if (error) { console.error('[AI] invoke', error.message); return empty }
+    const text = (data?.text || '').replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
     if (!text) return empty
     return JSON.parse(text)
   } catch (e: any) {
@@ -661,10 +650,10 @@ export interface AreaAnalysis {
 }
 
 export async function analyzeArea(
-  zip?: string, city?: string, state?: string
+  zip?: string, city?: string, state?: string, deepSearch = false
 ): Promise<AreaAnalysis> {
   const ck = cacheKey(zip, city, state)
-  const hit = cacheGet(ck)
+  const hit = deepSearch ? null : cacheGet(ck)
   if (hit) return hit
 
   const location = zip || [city, state].filter(Boolean).join(', ') || 'Unknown'
@@ -718,8 +707,8 @@ export async function analyzeArea(
   const scores  = calcScores(census, rentcast, crime, bls)
   const { signals, risks } = buildSignals(census, rentcast, crime, bls)
 
-  // AI narrative (calls Anthropic with real data context)
-  const ai = await fetchAINarrative(location, census, crime, bls, rentcast, scores)
+  // AI narrative — via Lovable Cloud (Claude by default, Gemini for deep search)
+  const ai = await fetchAINarrative(location, census, crime, bls, rentcast, scores, deepSearch)
 
   const result: AreaAnalysis = {
     location,
