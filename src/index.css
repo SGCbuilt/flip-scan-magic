@@ -65,3 +65,28 @@ input[type="checkbox"] { accent-color: var(--sgc-navy); }
 .fade-up { animation: fade-up 0.25s ease-out; }
 
 .backdrop-blur-sm { backdrop-filter: blur(4px); }
+
+/* Print — Save report as PDF (preserves layout & colors) */
+@media print {
+  @page { size: Letter; margin: 0.5in; }
+  html, body { background: white !important; }
+  body * { visibility: hidden !important; }
+  #report-print-area, #report-print-area * { visibility: visible !important; }
+  #report-print-area {
+    position: absolute !important;
+    left: 0; top: 0;
+    width: 100% !important;
+    max-width: none !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+  #report-print-area [data-print-hide] { display: none !important; }
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+  /* Avoid breaking cards across pages */
+  #report-print-area .rounded-xl,
+  #report-print-area .rounded-2xl { break-inside: avoid; page-break-inside: avoid; }
+}

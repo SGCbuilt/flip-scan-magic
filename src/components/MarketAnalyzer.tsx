@@ -372,7 +372,7 @@ export default function MarketAnalyzer() {
 
         {/* Results */}
         {analysis && !loading && (
-          <div className="p-6 space-y-5 max-w-5xl">
+          <div id="report-print-area" className="p-6 space-y-5 max-w-5xl">
 
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
@@ -386,13 +386,24 @@ export default function MarketAnalyzer() {
                   <div className="text-xs mt-1" style={{ color: '#8A5700' }}>⚠ {analysis.errors.join(' · ')}</div>
                 )}
               </div>
-              {mb && (
-                <div className="flex-shrink-0 rounded-xl border px-4 py-2"
-                  style={{ background: mb.bg, borderColor: mb.c + '40' }}>
-                  <div className="text-sm font-bold" style={{ color: mb.c }}>{mb.text}</div>
-                  <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
-                </div>
-              )}
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {mb && (
+                  <div className="rounded-xl border px-4 py-2"
+                    style={{ background: mb.bg, borderColor: mb.c + '40' }}>
+                    <div className="text-sm font-bold" style={{ color: mb.c }}>{mb.text}</div>
+                    <div className="text-[11px] mt-0.5" style={{ color: mb.c + 'bb' }}>{mb.desc}</div>
+                  </div>
+                )}
+                <button
+                  onClick={() => window.print()}
+                  data-print-hide
+                  className="rounded-xl border px-3 py-2 text-xs font-bold hover:opacity-90 transition"
+                  style={{ background: 'var(--sgc-navy)', color: 'white', borderColor: 'var(--sgc-navy)' }}
+                  title="Save report as PDF"
+                >
+                  ⬇ Save PDF
+                </button>
+              </div>
             </div>
 
             {/* Attribution — required by Census ToS */}
