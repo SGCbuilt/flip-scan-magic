@@ -152,7 +152,7 @@ export interface CensusData {
 }
 
 async function fetchCensusData(
-  zip?: string, stateAbbr?: string, censusKey?: string
+  zip?: string, stateAbbr?: string, censusKey?: string, city?: string
 ): Promise<CensusData | null> {
   const key = usingCloudProxy() ? '' : (censusKey || getApiKeys().census)
   // Key is optional client-side — the market-proxy injects CENSUS_API_KEY server-side.
@@ -170,6 +170,10 @@ async function fetchCensusData(
   let geo = ''
   if (zip && /^\d{5}$/.test(zip)) {
     geo = `for=zip%20code%20tabulation%20area:${zip}`
+  } else if (city && stateAbbr) {
+    const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
+    if (!fips) return null
+    geo = `for=place:*&in=state:${fips}`
   } else if (stateAbbr) {
     const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
     if (!fips) return null
@@ -183,7 +187,10 @@ async function fetchCensusData(
   if (!Array.isArray(data) || data.length < 2) return null
 
   const h = data[0] as string[]
-  const r = data[1] as string[]
+  const cityKey = cleanName(city)
+  const r = cityKey && !zip
+    ? ((data.slice(1) as string[][]).find(row => cleanName(row[h.indexOf('NAME')]).startsWith(cityKey)) || data[1] as string[])
+    : data[1] as string[]
   const n = (v: string) => parseFloat(r[h.indexOf(v)]) || 0
 
   const ownerOcc   = n('B25003_002E'), totalOcc   = n('B25003_001E')
