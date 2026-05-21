@@ -18,6 +18,7 @@ async function callClaude(prompt: string): Promise<string> {
     body: JSON.stringify({
       model: 'claude-sonnet-4-5-20250929',
       max_tokens: 2000,
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
@@ -37,6 +38,7 @@ async function callGemini(prompt: string): Promise<string> {
     },
     body: JSON.stringify({
       model: 'google/gemini-2.5-pro',
+      temperature: 0,
       messages: [{ role: 'user', content: prompt }],
     }),
   })
