@@ -54,6 +54,63 @@ function Sec({ icon, label }: { icon: string; label: string }) {
   )
 }
 
+function parseInsight(text: string) {
+  const [lead, ...rest] = text.split(' — ')
+  const firstSpace = lead.indexOf(' ')
+  return {
+    icon: firstSpace > -1 ? lead.slice(0, firstSpace) : '•',
+    metric: firstSpace > -1 ? lead.slice(firstSpace + 1) : lead,
+    meaning: rest.join(' — ') || text,
+  }
+}
+
+function InsightCard({ title, note, items, tone }: { title: string; note: string; items: string[]; tone: 'pro'|'con' }) {
+  const good = tone === 'pro'
+  const main = good ? 'var(--sgc-success)' : 'var(--sgc-danger)'
+  const bg = good ? 'var(--sgc-success-bg)' : 'var(--sgc-danger-bg)'
+  return (
+    <div className="bg-white rounded-2xl border p-4" style={{ borderColor: main, borderLeft: `4px solid ${main}` }}>
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wider" style={{ color: main }}>{title}</div>
+          <div className="text-[11px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{note}</div>
+        </div>
+        <div className="text-[11px] font-bold rounded-full px-2 py-1" style={{ background: bg, color: main }}>
+          {items.length}
+        </div>
+      </div>
+      {items.length > 0 ? (
+        <div className="space-y-2">
+          {items.map((item, i) => {
+            const parsed = parseInsight(item)
+            return (
+              <div key={i} className="flex gap-2 rounded-xl p-2" style={{ background: 'var(--sgc-gray-light)' }}>
+                <span className="flex-shrink-0 leading-5">{parsed.icon}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-bold leading-snug" style={{ color: 'var(--sgc-black)' }}>{parsed.metric}</div>
+                  <div className="text-xs leading-relaxed" style={{ color: 'var(--sgc-gray-mid)' }}>{parsed.meaning}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>
+          {good ? 'No strong green-number advantages found.' : 'No major red-number risks found.'}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function verdictFor(score?: number) {
+  if (score == null) return null
+  if (score >= 72) return { label: 'Good location', detail: 'Most numbers support investing here. Still verify street-level comps before buying.', color: 'var(--sgc-success)', bg: 'var(--sgc-success-bg)' }
+  if (score >= 60) return { label: 'Workable location', detail: 'The numbers are mostly positive, but one or two risks need underwriting.', color: 'var(--sgc-navy)', bg: 'var(--sgc-navy-pale)' }
+  if (score >= 40) return { label: 'Mixed location', detail: 'There are usable opportunities, but the cons can erase profit if the buy price is not discounted.', color: 'var(--sgc-warn)', bg: 'var(--sgc-warn-bg)' }
+  return { label: 'Weak location', detail: 'The numbers point to higher risk. Only buy with a deep discount and a clear exit.', color: 'var(--sgc-danger)', bg: 'var(--sgc-danger-bg)' }
+}
+
 function CrimeBar({ value, label, national }: { value: number; label: string; national: number }) {
   const pctOfNat = Math.min(200, (value / national) * 100)
   const color = pctOfNat < 70 ? '#1A7A4A' : pctOfNat < 120 ? '#8A5700' : '#C0341D'
@@ -138,6 +195,7 @@ export default function MarketAnalyzer() {
   const unemp = bls?.unemploymentRate ?? cen?.unemploymentRate
   const grossYield = cen?.medianRent && cen?.medianHomeValue && cen.medianHomeValue > 0
     ? (cen.medianRent * 12 / cen.medianHomeValue) * 100 : null
+  const verdict = verdictFor(sc?.investorScore)
 
   return (
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
@@ -349,7 +407,13 @@ export default function MarketAnalyzer() {
                 {/* Scores */}
                 {sc && (
                   <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                    <Sec icon="🎯" label="Investor Scores — Calculated from Real Data" />
+                    <Sec icon="🎯" label="Location Verdict — Calculated from Real Data" />
+                    {verdict && (
+                      <div className="mb-4 rounded-xl p-3" style={{ background: verdict.bg, color: verdict.color }}>
+                        <div className="text-base font-black">{verdict.label}</div>
+                        <div className="text-xs mt-0.5">{verdict.detail}</div>
+                      </div>
+                    )}
                     <div className="flex items-center gap-6">
                       <ScoreArc score={sc.investorScore} label="Overall"   sub="All factors" />
                       <div className="w-px h-14" style={{ background: 'var(--sgc-gray-border)' }}/>
@@ -389,28 +453,8 @@ export default function MarketAnalyzer() {
 
                 {/* Signals / Risks */}
                 <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white rounded-2xl border p-4" style={{ borderLeft: '3px solid #1A7A4A', borderColor: '#1A7A4A30' }}>
-                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1A7A4A' }}>✓ Opportunity Signals</div>
-                    {analysis.signals.length > 0
-                      ? analysis.signals.map((s, i) => (
-                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                            <span className="flex-shrink-0">{s.split(' ')[0]}</span>
-                            <span>{s.split(' ').slice(1).join(' ')}</span>
-                          </div>
-                        ))
-                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No strong signals — check individual tabs</div>}
-                  </div>
-                  <div className="bg-white rounded-2xl border p-4" style={{ borderLeft: '3px solid #C0341D', borderColor: '#C0341D30' }}>
-                    <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#C0341D' }}>⚠ Risk Factors</div>
-                    {analysis.risks.length > 0
-                      ? analysis.risks.map((r, i) => (
-                          <div key={i} className="text-sm mb-1.5 flex items-start gap-2" style={{ color: 'var(--sgc-black)' }}>
-                            <span className="flex-shrink-0">{r.split(' ')[0]}</span>
-                            <span>{r.split(' ').slice(1).join(' ')}</span>
-                          </div>
-                        ))
-                      : <div className="text-sm" style={{ color: 'var(--sgc-gray-mid)' }}>No major risks identified</div>}
-                  </div>
+                  <InsightCard title="Pros from the numbers" note="Green items help flips, rentals, or buyer demand." items={analysis.signals} tone="pro" />
+                  <InsightCard title="Cons from the numbers" note="Red items can lower ARV, slow exits, or hurt cash flow." items={analysis.risks} tone="con" />
                 </div>
 
                 {/* Warnings */}
