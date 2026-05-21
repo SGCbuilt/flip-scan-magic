@@ -10,6 +10,7 @@ import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from '
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
+import sgcLogo from '@/assets/sgc-logo.png'
 
 const DEFAULT_PARAMS: SearchParams = {
   searchMode: 'city', locationQuery: 'Norfolk, VA', radius: 25,
