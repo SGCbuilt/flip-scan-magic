@@ -403,6 +403,10 @@ async function fetchRentCastMarket(
 ): Promise<RentCastMarket | null> {
   // RentCast /markets ONLY accepts zipCode.
   if (!zip) return null
+  if (!/^\d{5}$/.test(zip)) {
+    console.warn(`[fetchRentCastMarket] Invalid ZIP "${zip}" — must be 5 digits.`)
+    return null
+  }
   const zipCode = zip
 
   const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
