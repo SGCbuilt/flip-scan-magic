@@ -637,8 +637,7 @@ function buildSignals(
     else if (cr.violentVsNational < -20) signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg (FBI ${cr.dataYear})`)
     else if (cr.violentVsNational > 70)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — major ARV/insurance impact`)
     else if (cr.violentVsNational > 40)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — limits ARV, longer vacancy`)
-    if (cr.crimeGrade === 'A' || cr.crimeGrade === 'A+') signals.push(`🛡️ Crime grade ${cr.crimeGrade} — top-tier safety profile`)
-    else if (cr.crimeGrade === 'F') risks.push(`⚠️ Crime grade F — lender and insurance friction likely`)
+    if (cr.crimeGrade === 'F') risks.push(`⚠️ Crime grade F — lender and insurance friction likely`)
   }
 
   return { signals, risks }
