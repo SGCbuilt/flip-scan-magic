@@ -1,97 +1,26 @@
-/**
- * Supabase Edge Function: market-proxy
- *
- * PURPOSE: Proxy calls to government APIs that don't support browser CORS.
- * This runs on Supabase servers (not the browser), so CORS is not an issue.
- *
- * APIs proxied:
- *   - api.census.gov  (Census ACS demographics)
- *   - api.usa.gov     (FBI UCR crime data)
- *   - api.bls.gov     (BLS unemployment)
- *   - api.rentcast.io (RentCast market data)
- *
- * HOW TO DEPLOY IN LOVABLE:
- * Paste this into Lovable chat:
- * "Create a Supabase Edge Function called market-proxy that accepts a POST
- *  request with { url: string, headers?: Record<string,string> } and fetches
- *  that URL server-side, returning the JSON response. Add CORS headers."
- *
- * Then paste this file content when Lovable asks for the function code.
- *
- * ALLOWED URLS (whitelist for security):
- *   api.census.gov, api.usa.gov, api.bls.gov, api.rentcast.io
- */
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization, apikey, x-client-info',
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, apikey, x-client-info",
 }
 
-const ALLOWED_HOSTS = [
-  'api.census.gov',
-  'api.usa.gov',
-  'api.bls.gov',
-  'geocoding.geo.census.gov',
-  'api.rentcast.io',
-]
+const ALLOWED = ["api.census.gov", "api.usa.gov", "api.bls.gov", "geocoding.geo.census.gov"]
 
-Deno.serve(async (req: Request) => {
-  if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: CORS })
-  }
-
+serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: CORS })
   try {
     const { url, headers = {} } = await req.json()
-
-    if (!url || typeof url !== 'string') {
-      return new Response(JSON.stringify({ error: 'Missing url' }), {
-        status: 400, headers: { ...CORS, 'Content-Type': 'application/json' }
-      })
-    }
-
-    // Security: only allow whitelisted government APIs
-    const host = new URL(url).hostname
-    if (!ALLOWED_HOSTS.some(h => host === h || host.endsWith(`.${h}`))) {
-      return new Response(JSON.stringify({ error: `Host not allowed: ${host}` }), {
-        status: 403, headers: { ...CORS, 'Content-Type': 'application/json' }
-      })
-    }
-
-    const upstreamHeaders: Record<string, string> = { 'Accept': 'application/json', ...headers }
-    if (host === 'api.rentcast.io' && !upstreamHeaders['X-Api-Key']) {
-      const rentcastKey = Deno.env.get('RENTCAST_API_KEY')
-      if (rentcastKey) upstreamHeaders['X-Api-Key'] = rentcastKey
-    }
-
-    // Server-side key injection for government APIs so the browser never needs them.
-    let finalUrl = url
-    if (host === 'api.census.gov' && !/[?&]key=/.test(finalUrl)) {
-      const k = Deno.env.get('CENSUS_API_KEY')
-      if (k) finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'key=' + encodeURIComponent(k)
-    }
-    if (host === 'api.usa.gov' && !/[?&]API_KEY=/i.test(finalUrl)) {
-      const k = Deno.env.get('FBI_API_KEY')
-      if (k) finalUrl += (finalUrl.includes('?') ? '&' : '?') + 'API_KEY=' + encodeURIComponent(k)
-    }
-
-    const upstream = await fetch(finalUrl, {
-      headers: upstreamHeaders,
-      signal: AbortSignal.timeout(15000),
-    })
-
-    const text = await upstream.text()
-    let data: unknown
-    try { data = JSON.parse(text) } catch { data = { error: text || upstream.statusText } }
-
-    return new Response(JSON.stringify(data), {
-      status: upstream.status,
-      headers: { ...CORS, 'Content-Type': 'application/json' },
-    })
-
-  } catch (e: any) {
-    return new Response(JSON.stringify({ error: e.message }), {
-      status: 500, headers: { ...CORS, 'Content-Type': 'application/json' }
-    })
+    if (!url) return new Response(JSON.stringify({ error: "Missing url" }), { status: 400, headers: { ...CORS, "Content-Type": "application/json" } })
+    const hostname = new URL(url).hostname
+    if (!ALLOWED.some(h => hostname === h)) return new Response(JSON.stringify({ error: `Not allowed: ${hostname}` }), { status: 403, headers: { ...CORS, "Content-Type": "application/json" } })
+    const response = await fetch(url, { headers: { "Accept": "application/json", ...headers } })
+    const text = await response.text()
+    let data: any
+    try { data = JSON.parse(text) } catch { data = { raw: text } }
+    return new Response(JSON.stringify(data), { status: response.status, headers: { ...CORS, "Content-Type": "application/json" } })
+  } catch (err: any) {
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: { ...CORS, "Content-Type": "application/json" } })
   }
 })
