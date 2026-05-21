@@ -729,13 +729,13 @@ export async function analyzeArea(
 
   // Build error messages
   if (!census) {
-    if (!keys.census) errors.push('Census: API key not set — get free key at census.gov/developers')
+    if (!usingCloudProxy() && !keys.census) errors.push('Census: API key not set — get free key at census.gov/developers')
     else errors.push('Census: location not found — verify zip code or try state abbreviation')
   } else sources.push(census.source)
 
   if (!crime) {
     if (!stateCode) errors.push('Crime: state not detected — enter state abbreviation')
-    else if (!keys.fbi) errors.push('Crime: FBI API key not set — get free key at api.data.gov/signup')
+    else if (!usingCloudProxy() && !keys.fbi) errors.push('Crime: FBI API key not set — get free key at api.data.gov/signup')
     else errors.push(`Crime: FBI data not available for ${stateCode}`)
   } else {
     sources.push(crime.source)
