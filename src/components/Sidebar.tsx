@@ -8,9 +8,7 @@ interface Props {
   loading: boolean
 }
 
-const ic = `w-full rounded-lg border text-sm px-3 py-2 outline-none transition-colors`
-  + ` bg-white text-gray-900 border-[var(--sgc-gray-border)]`
-  + ` focus:border-[var(--sgc-navy)] focus:ring-1 focus:ring-[var(--sgc-navy)]/20 placeholder:text-gray-400`
+const ic = 'w-full rounded-lg border text-sm px-3 py-2 outline-none bg-white sgc-input'
 const sc = ic + ' cursor-pointer appearance-none'
 
 const FL = ({ children }: { children: React.ReactNode }) => (
@@ -150,10 +148,17 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
             <div className="text-[10px] mb-2 px-2 py-1.5 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
               {MODE_INFO[params.searchMode].hint}
             </div>
-            <input className={ic} value={params.locationQuery}
+            <input
+              className={ic}
+              type="text"
+              value={params.locationQuery}
               onChange={set('locationQuery')}
               placeholder={MODE_INFO[params.searchMode].placeholder}
-              onKeyDown={e => e.key === 'Enter' && onSearch()} />
+              inputMode={params.searchMode === 'zip' ? 'numeric' : 'text'}
+              maxLength={params.searchMode === 'zip' ? 5 : undefined}
+              autoComplete="off"
+              onKeyDown={e => e.key === 'Enter' && onSearch()}
+            />
           </div>
 
           {params.searchMode !== 'state' && (
