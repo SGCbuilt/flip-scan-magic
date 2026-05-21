@@ -32,7 +32,6 @@
  * In local dev: calls go directly (no CORS restriction server-side).
  */
 
-const RENTCAST_KEY = 'a03153e34276e4d75b0548add458816de'
 
 // ── Keys stored in localStorage ─────────────────────────────────────────────
 export function getApiKeys() {
@@ -41,8 +40,8 @@ export function getApiKeys() {
     census:    s('fscan_census'),      // free: api.census.gov/data/key_signup.html
     fbi:       s('fscan_fbi'),         // free: api.data.gov/signup
     anthropic: s('fscan_anthropic'),   // your Anthropic key
-    supabase:  s('fscan_supabase_url'),// your Supabase project URL (for Lovable proxy)
-    supabaseAnon: s('fscan_supabase_anon'), // Supabase anon key
+    supabase:  s('fscan_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '',
+    supabaseAnon: s('fscan_supabase_anon') || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
   }
 }
 export function saveApiKey(k: string, v: string) {
@@ -53,7 +52,7 @@ export function saveApiKey(k: string, v: string) {
 const MEM_CACHE = new Map<string, { data: AreaAnalysis; ts: number }>()
 
 function cacheKey(zip?: string, city?: string, state?: string) {
-  return [zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
+  return ['v2', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
 }
 function cacheGet(k: string): AreaAnalysis | null {
   const hit = MEM_CACHE.get(k)
@@ -82,18 +81,22 @@ async function proxyFetch(
   const keys = getApiKeys()
 
   if (!IS_DEV && keys.supabase) {
-    // Production: route through Supabase Edge Function
+    // Production: route through the Lovable Cloud Edge Function.
     try {
-      const res = await fetch(`${keys.supabase}/functions/v1/market-proxy`, {
+      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
+      if (keys.supabaseAnon) {
+        authHeaders.Authorization = `Bearer ${keys.supabaseAnon}`
+        authHeaders.apikey = keys.supabaseAnon
+      }
+
+      const res = await fetch(`${keys.supabase.replace(/\/$/, '')}/functions/v1/market-proxy`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${keys.supabaseAnon}`,
-        },
+        headers: authHeaders,
         body: JSON.stringify({ url: targetUrl, headers }),
         signal: AbortSignal.timeout(20000),
       })
-      return res.ok ? await res.json() : null
+      if (!res.ok) return null
+      return await res.json()
     } catch { return null }
   }
 
@@ -228,33 +231,50 @@ async function fetchCrimeData(
 
   const st = stateAbbr.toUpperCase().slice(0, 2)
 
-  // Primary: state-level UCR estimates (most complete, all agencies aggregated)
-  let url = `https://api.usa.gov/crime/fbi/sapi/api/estimates/states?state_abbr=${st}&api_key=${key}`
-  let data = await proxyFetch(url)
-
-  if (!data?.results?.length) {
-    // Fallback: summarized crimes by state
-    url = `https://api.usa.gov/crime/fbi/sapi/api/summarized/state/${st}/all-crimes?from=2018&to=2022&api_key=${key}`
-    data = await proxyFetch(url)
+  const fetchOffense = async (offense: string, year: number) => {
+    const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}&API_KEY=${encodeURIComponent(key)}`
+    const data = await proxyFetch(url)
+    const actuals = data?.offenses?.actuals || {}
+    const populations = data?.populations?.population || {}
+    const stateActualKey = Object.keys(actuals).find(k => !k.toLowerCase().includes('united states'))
+    const statePopKey = Object.keys(populations).find(k => !k.toLowerCase().includes('united states'))
+    const actualValues = stateActualKey ? Object.values(actuals[stateActualKey] || {}) : []
+    const popValues = statePopKey ? Object.values(populations[statePopKey] || {}) : []
+    const count = actualValues.reduce((sum: number, v: any) => sum + (Number(v) || 0), 0)
+    const pop = Number(popValues.find((v: any) => Number(v) > 0)) || 0
+    return { count, pop }
   }
 
-  if (!data?.results?.length) return null
+  const currentYear = new Date().getFullYear()
+  let dataYear = currentYear - 2
+  let violent = { count: 0, pop: 0 }
+  let property = { count: 0, pop: 0 }
+  let homicide = { count: 0, pop: 0 }
+  let robbery = { count: 0, pop: 0 }
+  let burglary = { count: 0, pop: 0 }
+  let larceny = { count: 0, pop: 0 }
 
-  const sorted = [...data.results].sort(
-    (a: any, b: any) => (b.data_year || b.year) - (a.data_year || a.year)
-  )
-  const r   = sorted[0]
-  const pop = r.population || 1
+  for (const year of [currentYear - 2, currentYear - 3, currentYear - 4]) {
+    const [v, p, h, r, b, l] = await Promise.all([
+      fetchOffense('violent-crime', year),
+      fetchOffense('property-crime', year),
+      fetchOffense('homicide', year),
+      fetchOffense('robbery', year),
+      fetchOffense('burglary', year),
+      fetchOffense('larceny', year),
+    ])
+    if (v.count > 0 || p.count > 0) {
+      dataYear = year
+      violent = v; property = p; homicide = h; robbery = r; burglary = b; larceny = l
+      break
+    }
+  }
 
-  const violent  = r.violent_crime  || r.violent  || 0
-  const property = r.property_crime || r.property || 0
-  const homicide = r.homicide || r.murder_manslaughter || 0
-  const robbery  = r.robbery  || 0
-  const burglary = r.burglary || 0
-  const larceny  = r.larceny  || r.larceny_theft || 0
+  const pop = violent.pop || property.pop || 1
+  if (!violent.count && !property.count) return null
 
-  const vRate = Math.round((violent  / pop) * 100000 * 10) / 10
-  const pRate = Math.round((property / pop) * 100000 * 10) / 10
+  const vRate = Math.round((violent.count  / pop) * 100000 * 10) / 10
+  const pRate = Math.round((property.count / pop) * 100000 * 10) / 10
   const vDiff = Math.round(((vRate - FBI_NAT_VIOLENT)  / FBI_NAT_VIOLENT)  * 1000) / 10
   const pDiff = Math.round(((pRate - FBI_NAT_PROPERTY) / FBI_NAT_PROPERTY) * 1000) / 10
 
@@ -267,17 +287,17 @@ async function fetchCrimeData(
   return {
     violentCrimeRate:   vRate,
     propertyCrimeRate:  pRate,
-    homicideRate:       Math.round((homicide / pop) * 100000 * 10) / 10,
-    robberyRate:        Math.round((robbery  / pop) * 100000 * 10) / 10,
-    burglaryRate:       Math.round((burglary / pop) * 100000 * 10) / 10,
-    larcenyRate:        Math.round((larceny  / pop) * 100000 * 10) / 10,
+    homicideRate:       Math.round((homicide.count / pop) * 100000 * 10) / 10,
+    robberyRate:        Math.round((robbery.count  / pop) * 100000 * 10) / 10,
+    burglaryRate:       Math.round((burglary.count / pop) * 100000 * 10) / 10,
+    larcenyRate:        Math.round((larceny.count  / pop) * 100000 * 10) / 10,
     violentVsNational:  vDiff,
     propertyVsNational: pDiff,
     crimeGrade,
-    dataYear:  r.data_year || r.year,
+    dataYear,
     state:     st,
-    coverageNote: 'State-level UCR data. Based on voluntary agency reporting — some jurisdictions may not be included. Rates per 100,000 population.',
-    source: `FBI Uniform Crime Reporting Program, ${r.data_year || r.year}. Department of Justice Open Government Data.`,
+    coverageNote: 'State-level FBI CDE/UCR data. Based on agency reporting — some jurisdictions may not be included. Rates per 100,000 population.',
+    source: `FBI Crime Data Explorer, ${dataYear}. Department of Justice Open Government Data.`,
   }
 }
 
@@ -300,8 +320,8 @@ async function fetchBLSData(stateAbbr: string): Promise<BLSData | null> {
   if (!fips) return null
 
   // LAUST series: Local Area Unemployment Statistics
-  // Series ID format: LAUST{state-fips}0000000000000003 (unemployment rate)
-  const seriesId = `LAUST${fips.padStart(2,'0')}0000000000000003`
+  // Series ID format: LAUST + 2-digit state FIPS + 13-digit area/measure suffix.
+  const seriesId = `LAUST${fips.padStart(2,'0')}0000000000003`
   const url = `https://api.bls.gov/publicAPI/v1/timeseries/data/${seriesId}`
 
   const data = await proxyFetch(url)
@@ -345,13 +365,8 @@ async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
   const tryRC = async (params: Record<string, string>) => {
-    try {
-      const res = await fetch(
-        `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...params, dataType: 'All', historyMonths: '24' })}`,
-        { headers: { 'X-Api-Key': RENTCAST_KEY }, signal: AbortSignal.timeout(12000) }
-      )
-      return res.ok ? await res.json() : null
-    } catch { return null }
+    const url = `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...params, dataType: 'All', historyMonths: '24' })}`
+    return proxyFetch(url)
   }
 
   let d: any = null
@@ -721,7 +736,7 @@ export async function analyzeArea(
     cacheHit:   false,
   }
 
-  cacheSet(ck, result)
+  if (result.dataIsReal) cacheSet(ck, result)
   return result
 }
 
