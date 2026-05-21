@@ -240,6 +240,30 @@ export default function MarketAnalyzer() {
             )}
           </div>
 
+          {/* Deep Search + Favorites */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-xs cursor-pointer select-none"
+              style={{ color: 'var(--sgc-navy)' }}>
+              <input type="checkbox" checked={deepSearch} onChange={e => setDeepSearch(e.target.checked)} />
+              <span className="font-semibold">🔬 Deep search (Gemini)</span>
+            </label>
+            <button onClick={handleAnalyze} disabled={loading}
+              className="w-full py-2 rounded-lg border-none cursor-pointer text-white text-xs font-bold"
+              style={{ background: 'var(--sgc-navy)', opacity: loading ? 0.6 : 1 }}>
+              {loading ? 'Analyzing…' : 'Analyze Area'}
+            </button>
+            <button onClick={() => setShowCompare(true)} disabled={saved.length === 0}
+              className="w-full py-1.5 rounded-lg border text-xs font-semibold cursor-pointer"
+              style={{
+                background: 'white',
+                borderColor: 'var(--sgc-gray-border)',
+                color: saved.length === 0 ? 'var(--sgc-gray-mid)' : 'var(--sgc-navy)',
+                opacity: saved.length === 0 ? 0.6 : 1,
+              }}>
+              ⭐ Compare ({saved.length})
+            </button>
+          </div>
+
           {/* Section nav */}
           {analysis && (
             <div>
