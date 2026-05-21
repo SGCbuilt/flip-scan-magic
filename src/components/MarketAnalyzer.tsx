@@ -260,6 +260,22 @@ export default function MarketAnalyzer() {
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
                 All keys stored in your browser only. Never sent to any server except the respective API.
               </div>
+              <div className="pt-2 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                <button onClick={testSupabaseConnection} disabled={testing}
+                  className="w-full text-xs px-2 py-2 rounded-lg border-none cursor-pointer text-white font-semibold"
+                  style={{ background: 'var(--sgc-navy)', opacity: testing ? 0.6 : 1 }}>
+                  {testing ? 'Testing…' : '🧪 Test Supabase Connection'}
+                </button>
+                {testResult && (
+                  <div className="mt-2 text-[10px] p-2 rounded-lg"
+                    style={{
+                      background: testResult.ok ? '#EDFAF3' : '#FEF0ED',
+                      color: testResult.ok ? '#1A7A4A' : '#C0341D',
+                    }}>
+                    {testResult.msg}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
