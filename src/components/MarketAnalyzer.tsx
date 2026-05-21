@@ -128,10 +128,10 @@ function CrimeBar({ value, label, national }: { value: number; label: string; na
 }
 
 const MARKET_LABEL: Record<string, { text: string; c: string; bg: string; desc: string }> = {
-  emerging:    { text: '🚀 Emerging',    c: '#1A7A4A', bg: '#EDFAF3', desc: 'Strong growth signals — buy before prices peak' },
-  established: { text: '✅ Established', c: '#185FA5', bg: '#E6F1FB', desc: 'Stable growth, reliable exit market'             },
-  stable:      { text: '⚖️ Stable',      c: '#534AB7', bg: '#EEEDFE', desc: 'Predictable — good for holds and BRRRR'         },
-  declining:   { text: '📉 Declining',   c: '#C0341D', bg: '#FEF0ED', desc: 'Only deeply discounted acquisitions make sense'  },
+  emerging:    { text: '🚀 Emerging',    c: 'var(--sgc-success)', bg: 'var(--sgc-success-bg)', desc: 'Strong growth signals — buy before prices peak' },
+  established: { text: '✅ Established', c: 'var(--sgc-navy)',    bg: 'var(--sgc-navy-pale)',  desc: 'Stable growth, reliable exit market'             },
+  stable:      { text: '⚖️ Stable',      c: 'var(--sgc-warn)',    bg: 'var(--sgc-warn-bg)',    desc: 'Predictable — good for holds and BRRRR'         },
+  declining:   { text: '📉 Declining',   c: 'var(--sgc-danger)',  bg: 'var(--sgc-danger-bg)',  desc: 'Only deeply discounted acquisitions make sense'  },
 }
 
 const TABS = [
@@ -143,8 +143,7 @@ const TABS = [
   { id: 'strategy',     label: 'SGC Strategy',  icon: '🎯' },
 ]
 
-const ic = `w-full rounded-lg border text-sm px-3 py-2 outline-none bg-white
-  border-[var(--sgc-gray-border)] focus:border-[var(--sgc-navy)] placeholder:text-gray-400`
+const ic = 'w-full rounded-lg border text-sm px-3 py-2 outline-none bg-white sgc-input'
 
 export default function MarketAnalyzer() {
   const [city,  setCity]  = useState('')
