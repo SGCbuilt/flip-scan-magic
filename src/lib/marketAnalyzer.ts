@@ -401,25 +401,31 @@ export interface RentCastMarket {
 async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
-  const tryRC = async (params: Record<string, string>) => {
-    const requestParams = { ...params, dataType: 'All', historyMonths: '24' }
-    if (!IS_DEV) {
-      try {
-        const { supabase } = await import('@/integrations/supabase/client')
-        const { data, error } = await supabase.functions.invoke('rentcast', {
-          body: { endpoint: 'markets', params: requestParams },
-        })
-        if (!error && data != null) return data
-      } catch {}
-    }
-    return proxyFetch(`https://api.rentcast.io/v1/markets?${new URLSearchParams(requestParams)}`)
+  // RentCast /markets ONLY accepts zipCode. If we don't have one, try to derive it.
+  let zipCode = zip
+  if (!zipCode && city && state) {
+    zipCode = await zipFromCityState(city, state)
   }
+  if (!zipCode) return null
 
+  const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
   let d: any = null
-  if (zip)              d = await tryRC({ zipCode: zip })
-  if (!d && city && state) d = await tryRC({ city, state })
-  if (!d && state)      d = await tryRC({ state })
-  if (!d)               return null
+  if (!IS_DEV) {
+    try {
+      const { supabase } = await import('@/integrations/supabase/client')
+      const { data, error } = await supabase.functions.invoke('rentcast', {
+        body: { endpoint: 'markets', params: requestParams },
+      })
+      if (error) console.warn('[rentcast] invoke error:', error.message)
+      if (!error && data != null) d = data
+    } catch (e: any) {
+      console.warn('[rentcast] invoke threw:', e?.message)
+    }
+  }
+  if (!d) {
+    d = await proxyFetch(`https://api.rentcast.io/v1/markets?${new URLSearchParams(requestParams)}`)
+  }
+  if (!d || (d.status && d.status >= 400)) return null
 
   const sd = d.saleData   || d.sale   || null
   const rd = d.rentalData || d.rental || null
@@ -443,6 +449,16 @@ async function fetchRentCastMarket(
     } : null,
     source: 'RentCast Markets API',
   }
+}
+
+// Derive a representative ZIP from a city/state via the free Zippopotam.us API
+async function zipFromCityState(city: string, state: string): Promise<string | undefined> {
+  try {
+    const res = await fetch(`https://api.zippopotam.us/us/${state.toLowerCase()}/${encodeURIComponent(city)}`)
+    if (!res.ok) return undefined
+    const j = await res.json() as { places?: { 'post code'?: string }[] }
+    return j.places?.[0]?.['post code']
+  } catch { return undefined }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -813,7 +829,9 @@ export async function analyzeArea(
   if (!bls && stateCode) errors.push('BLS: unemployment data fetch failed')
   else if (bls) sources.push(bls.source)
 
-  if (!rentcast) errors.push('RentCast: no market data for this location')
+  if (!rentcast) errors.push(zip
+    ? 'RentCast: no market data for this ZIP'
+    : 'RentCast: needs a ZIP code — city/state lookup unavailable')
   else sources.push('RentCast Markets API (licensed)')
 
   // Deterministic scoring — same inputs = same scores
