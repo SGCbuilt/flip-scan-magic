@@ -795,12 +795,20 @@ export async function analyzeArea(
     stateCode = ZIP_STATE_PREFIX[zip.slice(0, 3)] || ''
   }
 
+  // When user searched by city/state, derive a representative ZIP up-front so
+  // RentCast (zip-only) and Census/Crime/BLS all describe the SAME geography.
+  let zipResolved = zip
+  if (!zipResolved && city && stateCode) {
+    zipResolved = await zipFromCityState(city, stateCode)
+    if (zipResolved) warnings.push(`Using representative ZIP ${zipResolved} for ${city}, ${stateCode} to align all data sources.`)
+  }
+
   // Run all 4 real data sources in parallel
   const [cRes, crRes, blsRes, rcRes] = await Promise.allSettled([
-    fetchCensusData(zip, stateCode, keys.census, city),
+    fetchCensusData(zipResolved, stateCode, keys.census, city),
     stateCode ? fetchCrimeData(stateCode, keys.fbi) : Promise.resolve(null),
     stateCode ? fetchBLSData(stateCode)            : Promise.resolve(null),
-    fetchRentCastMarket(zip, city, stateCode),
+    fetchRentCastMarket(zipResolved, city, stateCode),
   ])
 
   const census  = cRes.status   === 'fulfilled' ? cRes.value   : null
