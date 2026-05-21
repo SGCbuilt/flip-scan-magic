@@ -175,7 +175,7 @@ export default function MarketAnalyzer() {
               { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: keys.census      },
               { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: keys.fbi         },
               { k: 'anthropic',   label: 'Claude AI',   url: 'console.anthropic.com',               set: keys.anthropic   },
-              { k: 'supabaseUrl', label: 'Supabase',    url: 'supabase.com',                        set: keys.supabaseUrl },
+              { k: 'supabase',    label: 'Supabase',    url: 'supabase.com',                        set: keys.supabase },
             ].map(({ k, label, url, set }) => (
               <div key={k} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: set ? '#1A7A4A' : 'var(--sgc-gray-border)' }}/>
