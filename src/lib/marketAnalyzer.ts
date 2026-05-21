@@ -401,12 +401,9 @@ export interface RentCastMarket {
 async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
-  // RentCast /markets ONLY accepts zipCode. If we don't have one, try to derive it.
-  let zipCode = zip
-  if (!zipCode && city && state) {
-    zipCode = await zipFromCityState(city, state)
-  }
-  if (!zipCode) return null
+  // RentCast /markets ONLY accepts zipCode.
+  if (!zip) return null
+  const zipCode = zip
 
   const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
   let d: any = null
@@ -712,17 +709,23 @@ The following data for "${location}" comes from official government sources (Cen
 Data context (do not repeat these numbers — they are shown elsewhere):
 ${JSON.stringify(dataSnap, null, 0)}
 
-Return ONLY a valid JSON object, no markdown, no preamble:
+CRITICAL RULES:
+- Return ONLY a valid JSON object, no markdown, no preamble.
+- EVERY field must be populated with real, specific content about ${location}. No empty strings, no empty arrays, no "N/A", no "unknown".
+- For majorEmployers, dominantIndustries, and majorDevelopments: list real, verifiable entities for ${location} or the nearest metro. If ${location} is a small area, use the surrounding county/metro and say so.
+- Arrays must contain at least the minimum number of items specified below.
+
+Required JSON shape:
 {
   "summary": "2-3 sentence investor overview. Reference the market type and key dynamics. No raw numbers — those are shown separately.",
   "flipStrategy": "Specific fix-and-flip strategy for this market. What types of properties to target, which neighborhoods if known, what ARV range, exit strategy.",
   "brrrStrategy": "Specific BRRRR strategy for this market. Rental demand drivers, tenant profile, refinance outlook.",
-  "opportunities": ["3-5 specific actionable investor opportunities in ${location}"],
-  "majorEmployers": ["Top 5-7 real employers in ${location} — only list ones you are confident about"],
-  "dominantIndustries": ["Top 3-4 industries driving the local economy"],
-  "majorDevelopments": ["2-4 known recent or planned developments in ${location} — only if you are confident they are real"],
-  "schoolNote": "Brief factual note about school district quality in ${location}",
-  "economicContext": "1-2 sentences on the broader economic context and outlook for ${location}"
+  "opportunities": ["EXACTLY 5 specific actionable investor opportunities in ${location}"],
+  "majorEmployers": ["EXACTLY 6 real, named employers in ${location} or its metro (companies, hospitals, universities, government agencies, military bases)"],
+  "dominantIndustries": ["EXACTLY 4 industries driving the local economy"],
+  "majorDevelopments": ["EXACTLY 3 real recent or planned developments, infrastructure projects, or growth corridors near ${location}"],
+  "schoolNote": "1-2 sentence factual note about school district quality in ${location}",
+  "economicContext": "2 sentences on the broader economic context and outlook for ${location}"
 }`
 
   const prompt = deepSearch
@@ -798,12 +801,20 @@ export async function analyzeArea(
     stateCode = ZIP_STATE_PREFIX[zip.slice(0, 3)] || ''
   }
 
+  // When user searched by city/state, derive a representative ZIP up-front so
+  // RentCast (zip-only) and Census/Crime/BLS all describe the SAME geography.
+  let zipResolved = zip
+  if (!zipResolved && city && stateCode) {
+    zipResolved = await zipFromCityState(city, stateCode)
+    if (zipResolved) warnings.push(`Using representative ZIP ${zipResolved} for ${city}, ${stateCode} to align all data sources.`)
+  }
+
   // Run all 4 real data sources in parallel
   const [cRes, crRes, blsRes, rcRes] = await Promise.allSettled([
-    fetchCensusData(zip, stateCode, keys.census, city),
+    fetchCensusData(zipResolved, stateCode, keys.census, city),
     stateCode ? fetchCrimeData(stateCode, keys.fbi) : Promise.resolve(null),
     stateCode ? fetchBLSData(stateCode)            : Promise.resolve(null),
-    fetchRentCastMarket(zip, city, stateCode),
+    fetchRentCastMarket(zipResolved, city, stateCode),
   ])
 
   const census  = cRes.status   === 'fulfilled' ? cRes.value   : null
