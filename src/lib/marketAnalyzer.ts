@@ -829,7 +829,9 @@ export async function analyzeArea(
   if (!bls && stateCode) errors.push('BLS: unemployment data fetch failed')
   else if (bls) sources.push(bls.source)
 
-  if (!rentcast) errors.push('RentCast: no market data for this location')
+  if (!rentcast) errors.push(zip
+    ? 'RentCast: no market data for this ZIP'
+    : 'RentCast: needs a ZIP code — city/state lookup unavailable')
   else sources.push('RentCast Markets API (licensed)')
 
   // Deterministic scoring — same inputs = same scores
