@@ -8,6 +8,7 @@
  *   - api.census.gov  (Census ACS demographics)
  *   - api.usa.gov     (FBI UCR crime data)
  *   - api.bls.gov     (BLS unemployment)
+ *   - api.rentcast.io (RentCast market data)
  *
  * HOW TO DEPLOY IN LOVABLE:
  * Paste this into Lovable chat:
@@ -18,7 +19,7 @@
  * Then paste this file content when Lovable asks for the function code.
  *
  * ALLOWED URLS (whitelist for security):
- *   api.census.gov, api.usa.gov, api.bls.gov
+ *   api.census.gov, api.usa.gov, api.bls.gov, api.rentcast.io
  */
 
 const CORS = {
@@ -32,6 +33,7 @@ const ALLOWED_HOSTS = [
   'api.usa.gov',
   'api.bls.gov',
   'geocoding.geo.census.gov',
+  'api.rentcast.io',
 ]
 
 Deno.serve(async (req: Request) => {
@@ -56,12 +58,20 @@ Deno.serve(async (req: Request) => {
       })
     }
 
+    const upstreamHeaders: Record<string, string> = { 'Accept': 'application/json', ...headers }
+    if (host === 'api.rentcast.io' && !upstreamHeaders['X-Api-Key']) {
+      const rentcastKey = Deno.env.get('RENTCAST_API_KEY')
+      if (rentcastKey) upstreamHeaders['X-Api-Key'] = rentcastKey
+    }
+
     const upstream = await fetch(url, {
-      headers: { 'Accept': 'application/json', ...headers },
+      headers: upstreamHeaders,
       signal: AbortSignal.timeout(15000),
     })
 
-    const data = await upstream.json()
+    const text = await upstream.text()
+    let data: unknown
+    try { data = JSON.parse(text) } catch { data = { error: text || upstream.statusText } }
 
     return new Response(JSON.stringify(data), {
       status: upstream.status,
