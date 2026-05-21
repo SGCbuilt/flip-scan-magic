@@ -367,7 +367,21 @@ export default function MarketAnalyzer() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h2 className="text-2xl font-bold" style={{ color: 'var(--sgc-navy)' }}>{analysis.geoName || analysis.location}</h2>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-2xl font-bold" style={{ color: 'var(--sgc-navy)' }}>{analysis.geoName || analysis.location}</h2>
+                  <button
+                    onClick={() => toggle({
+                      id: analysis.location,
+                      location: analysis.geoName || analysis.location,
+                      savedAt: Date.now(),
+                      analysis,
+                    })}
+                    title={isSaved(analysis.location) ? 'Remove from favorites' : 'Save to favorites'}
+                    className="text-xl leading-none bg-transparent border-none cursor-pointer"
+                    style={{ color: isSaved(analysis.location) ? '#F5A623' : 'var(--sgc-gray-mid)' }}>
+                    {isSaved(analysis.location) ? '★' : '☆'}
+                  </button>
+                </div>
                 <div className="text-xs mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
                   Analyzed {new Date(analysis.analyzedAt).toLocaleString()}
                   {analysis.cacheHit && ' · from cache'}
