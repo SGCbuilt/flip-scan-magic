@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import { analyzeArea, AreaAnalysis, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
+import { useMarketFavorites } from '../lib/marketFavorites'
+import MarketCompareModal from './MarketCompareModal'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const pct   = (n?: number, d = 1) => n != null ? n.toFixed(d) + '%' : '—'
@@ -102,6 +104,9 @@ export default function MarketAnalyzer() {
   const [draftCensus, setDraftCensus] = useState('')
   const [draftFBI,    setDraftFBI]    = useState('')
   const [draftAI,     setDraftAI]     = useState('')
+  const [deepSearch, setDeepSearch] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
+  const { saved, isSaved, toggle } = useMarketFavorites()
 
   const keys = getApiKeys()
 
@@ -120,12 +125,12 @@ export default function MarketAnalyzer() {
       'Pulling BLS unemployment data...',
       'Loading RentCast market trends...',
       'Computing investor scores...',
-      'Generating AI strategy narrative...',
+      deepSearch ? 'Gemini deep search — analyzing employers, schools, developments...' : 'Generating AI strategy narrative...',
     ]
     let mi = 0
     const iv = setInterval(() => setLoadMsg(msgs[mi++ % msgs.length]), 1600)
     try {
-      const r = await analyzeArea(actualZip, actualCity, actualState)
+      const r = await analyzeArea(actualZip, actualCity, actualState, deepSearch)
       setAnalysis(r); setTab('overview')
     } finally { clearInterval(iv); setLoading(false); setLoadMsg('') }
   }
