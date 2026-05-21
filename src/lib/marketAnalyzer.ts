@@ -395,8 +395,17 @@ async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
   const tryRC = async (params: Record<string, string>) => {
-    const url = `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...params, dataType: 'All', historyMonths: '24' })}`
-    return proxyFetch(url)
+    const requestParams = { ...params, dataType: 'All', historyMonths: '24' }
+    if (!IS_DEV) {
+      try {
+        const { supabase } = await import('@/integrations/supabase/client')
+        const { data, error } = await supabase.functions.invoke('rentcast', {
+          body: { endpoint: 'markets', params: requestParams },
+        })
+        if (!error && data != null) return data
+      } catch {}
+    }
+    return proxyFetch(`https://api.rentcast.io/v1/markets?${new URLSearchParams(requestParams)}`)
   }
 
   let d: any = null
