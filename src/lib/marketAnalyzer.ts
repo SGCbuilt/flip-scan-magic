@@ -401,12 +401,9 @@ export interface RentCastMarket {
 async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
-  // RentCast /markets ONLY accepts zipCode. If we don't have one, try to derive it.
-  let zipCode = zip
-  if (!zipCode && city && state) {
-    zipCode = await zipFromCityState(city, state)
-  }
-  if (!zipCode) return null
+  // RentCast /markets ONLY accepts zipCode.
+  if (!zip) return null
+  const zipCode = zip
 
   const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
   let d: any = null
