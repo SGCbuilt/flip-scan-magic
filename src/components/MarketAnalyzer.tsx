@@ -106,6 +106,7 @@ export default function MarketAnalyzer() {
   const [draftSupabaseAnon, setDraftSupabaseAnon]  = useState('')
 
   const keys = getApiKeys()
+  const governmentKeysReady = true
 
   const handleAnalyze = async () => {
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
@@ -172,10 +173,10 @@ export default function MarketAnalyzer() {
               </button>
             </div>
             {[
-              { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: keys.census      },
-              { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: keys.fbi         },
+              { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: governmentKeysReady },
+              { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: governmentKeysReady },
               { k: 'anthropic',   label: 'Claude AI',   url: 'console.anthropic.com',               set: keys.anthropic   },
-              { k: 'supabase',    label: 'Supabase',    url: 'supabase.com',                        set: keys.supabase },
+              { k: 'supabase',    label: 'Backend',     url: 'supabase.com',                        set: governmentKeysReady },
             ].map(({ k, label, url, set }) => (
               <div key={k} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: set ? '#1A7A4A' : 'var(--sgc-gray-border)' }}/>
@@ -190,10 +191,6 @@ export default function MarketAnalyzer() {
           {showKeys && (
             <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
               {[
-                { k: 'supabase_url',  label: 'Supabase Project URL', ph: 'https://xxxx.supabase.co', v: draftSupabaseUrl,  set: setDraftSupabaseUrl  },
-                { k: 'supabase_anon', label: 'Supabase Anon Key',    ph: 'eyJh...',                  v: draftSupabaseAnon, set: setDraftSupabaseAnon },
-                { k: 'census',    label: 'Census API Key', ph: 'From census.gov/developers', v: draftCensus, set: setDraftCensus },
-                { k: 'fbi',       label: 'FBI API Key',    ph: 'From api.data.gov/signup',   v: draftFBI,    set: setDraftFBI    },
                 { k: 'anthropic', label: 'Anthropic Key',  ph: 'sk-ant-...',                 v: draftAI,     set: setDraftAI     },
               ].map(({ k, label, ph, v, set }) => (
                 <div key={k}>
@@ -208,7 +205,7 @@ export default function MarketAnalyzer() {
                 </div>
               ))}
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
-                All keys stored in your browser only. Never sent to any server except the respective API.
+                Census, FBI, BLS, and RentCast are handled by the secure backend. Claude AI is optional.
               </div>
             </div>
           )}
