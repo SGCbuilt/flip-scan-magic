@@ -1,7 +1,5 @@
 import { useState } from 'react'
 import { analyzeArea, AreaAnalysis, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
-import { useMarketFavorites } from '../lib/marketFavorites'
-import MarketCompareModal from './MarketCompareModal'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const pct   = (n?: number, d = 1) => n != null ? n.toFixed(d) + '%' : '—'
@@ -101,60 +99,13 @@ export default function MarketAnalyzer() {
   const [loadMsg, setLoadMsg]   = useState('')
   const [analysis, setAnalysis] = useState<AreaAnalysis | null>(null)
   const [showKeys, setShowKeys] = useState(false)
-  const [draftCensus, setDraftCensus] = useState('')
-  const [draftFBI,    setDraftFBI]    = useState('')
-  const [draftAI,     setDraftAI]     = useState('')
-  const [draftSupabaseUrl,  setDraftSupabaseUrl]  = useState('')
-  const [draftSupabaseAnon, setDraftSupabaseAnon] = useState('')
-  const [deepSearch, setDeepSearch] = useState(false)
-  const [showCompare, setShowCompare] = useState(false)
-  const [testing, setTesting] = useState(false)
-  const [testResult, setTestResult] = useState<{ ok: boolean; msg: string } | null>(null)
-  const { saved, isSaved, toggle } = useMarketFavorites()
+  const [draftCensus,       setDraftCensus]       = useState('')
+  const [draftFBI,          setDraftFBI]           = useState('')
+  const [draftAI,           setDraftAI]            = useState('')
+  const [draftSupabaseUrl,  setDraftSupabaseUrl]   = useState('')
+  const [draftSupabaseAnon, setDraftSupabaseAnon]  = useState('')
 
   const keys = getApiKeys()
-
-  const testSupabaseConnection = async () => {
-    setTesting(true); setTestResult(null)
-    try {
-      const url  = (draftSupabaseUrl  || keys.supabase  || '').trim().replace(/\/+$/, '')
-      const anon = (draftSupabaseAnon || (keys as any).supabaseAnon || '').trim()
-      if (!url || !anon) {
-        setTestResult({ ok: false, msg: 'Enter both Supabase URL and Anon Key first.' })
-        return
-      }
-      if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) {
-        setTestResult({ ok: false, msg: 'URL should look like https://xxxx.supabase.co' })
-        return
-      }
-      const endpoint = `${url}/functions/v1/market-proxy`
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${anon}`,
-          'apikey': anon,
-        },
-        body: JSON.stringify({ url: 'https://api.census.gov/data/2022/acs/acs5?get=NAME&for=state:37' }),
-      })
-      const text = await res.text()
-      let data: any = null
-      try { data = JSON.parse(text) } catch {}
-      if (res.status === 401 || res.status === 403) {
-        setTestResult({ ok: false, msg: `Auth failed (HTTP ${res.status}). Check your Anon Key.` })
-      } else if (!res.ok) {
-        setTestResult({ ok: false, msg: `Proxy error HTTP ${res.status}: ${data?.error || text.slice(0,120)}` })
-      } else if (data?.error) {
-        setTestResult({ ok: false, msg: `Reachable, but upstream said: ${data.error}` })
-      } else {
-        setTestResult({ ok: true, msg: '✓ Connected — market-proxy is live and reachable.' })
-      }
-    } catch (e: any) {
-      setTestResult({ ok: false, msg: `Network error: ${e.message}` })
-    } finally {
-      setTesting(false)
-    }
-  }
 
   const handleAnalyze = async () => {
     const isZip = /^\d{5}$/.test(city.trim()) || /^\d{5}$/.test(zip.trim())
@@ -171,12 +122,12 @@ export default function MarketAnalyzer() {
       'Pulling BLS unemployment data...',
       'Loading RentCast market trends...',
       'Computing investor scores...',
-      deepSearch ? 'Gemini deep search — analyzing employers, schools, developments...' : 'Generating AI strategy narrative...',
+      'Generating AI strategy narrative...',
     ]
     let mi = 0
     const iv = setInterval(() => setLoadMsg(msgs[mi++ % msgs.length]), 1600)
     try {
-      const r = await analyzeArea(actualZip, actualCity, actualState, deepSearch)
+      const r = await analyzeArea(actualZip, actualCity, actualState)
       setAnalysis(r); setTab('overview')
     } finally { clearInterval(iv); setLoading(false); setLoadMsg('') }
   }
@@ -195,7 +146,6 @@ export default function MarketAnalyzer() {
     ? (cen.medianRent * 12 / cen.medianHomeValue) * 100 : null
 
   return (
-    <>
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
       {/* LEFT CONFIG */}
@@ -222,10 +172,10 @@ export default function MarketAnalyzer() {
               </button>
             </div>
             {[
-              { k: 'supabase',  label: 'Supabase',   url: 'supabase.com',                        set: keys.supabase     },
-              { k: 'census',    label: 'Census ACS', url: 'api.census.gov/data/key_signup.html', set: keys.census    },
-              { k: 'fbi',       label: 'FBI Crime',  url: 'api.data.gov/signup',                 set: keys.fbi       },
-              { k: 'anthropic', label: 'Claude AI',  url: 'console.anthropic.com',               set: keys.anthropic },
+              { k: 'census',      label: 'Census ACS',  url: 'api.census.gov/data/key_signup.html', set: keys.census      },
+              { k: 'fbi',         label: 'FBI Crime',   url: 'api.data.gov/signup',                 set: keys.fbi         },
+              { k: 'anthropic',   label: 'Claude AI',   url: 'console.anthropic.com',               set: keys.anthropic   },
+              { k: 'supabaseUrl', label: 'Supabase',    url: 'supabase.com',                        set: keys.supabaseUrl },
             ].map(({ k, label, url, set }) => (
               <div key={k} className="flex items-center gap-2">
                 <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: set ? '#1A7A4A' : 'var(--sgc-gray-border)' }}/>
@@ -242,9 +192,9 @@ export default function MarketAnalyzer() {
               {[
                 { k: 'supabase_url',  label: 'Supabase Project URL', ph: 'https://xxxx.supabase.co', v: draftSupabaseUrl,  set: setDraftSupabaseUrl  },
                 { k: 'supabase_anon', label: 'Supabase Anon Key',    ph: 'eyJh...',                  v: draftSupabaseAnon, set: setDraftSupabaseAnon },
-                { k: 'census', label: 'Census API Key', ph: 'From census.gov/developers', v: draftCensus, set: setDraftCensus },
-                { k: 'fbi',    label: 'FBI API Key',    ph: 'From api.data.gov/signup',    v: draftFBI,    set: setDraftFBI    },
-                { k: 'anthropic', label: 'Anthropic Key', ph: 'sk-ant-...', v: draftAI, set: setDraftAI },
+                { k: 'census',    label: 'Census API Key', ph: 'From census.gov/developers', v: draftCensus, set: setDraftCensus },
+                { k: 'fbi',       label: 'FBI API Key',    ph: 'From api.data.gov/signup',   v: draftFBI,    set: setDraftFBI    },
+                { k: 'anthropic', label: 'Anthropic Key',  ph: 'sk-ant-...',                 v: draftAI,     set: setDraftAI     },
               ].map(({ k, label, ph, v, set }) => (
                 <div key={k}>
                   <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{label}</div>
@@ -259,22 +209,6 @@ export default function MarketAnalyzer() {
               ))}
               <div className="text-[10px] p-2 rounded-lg" style={{ background: 'var(--sgc-navy-pale)', color: 'var(--sgc-navy)' }}>
                 All keys stored in your browser only. Never sent to any server except the respective API.
-              </div>
-              <div className="pt-2 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-                <button onClick={testSupabaseConnection} disabled={testing}
-                  className="w-full text-xs px-2 py-2 rounded-lg border-none cursor-pointer text-white font-semibold"
-                  style={{ background: 'var(--sgc-navy)', opacity: testing ? 0.6 : 1 }}>
-                  {testing ? 'Testing…' : '🧪 Test Supabase Connection'}
-                </button>
-                {testResult && (
-                  <div className="mt-2 text-[10px] p-2 rounded-lg"
-                    style={{
-                      background: testResult.ok ? '#EDFAF3' : '#FEF0ED',
-                      color: testResult.ok ? '#1A7A4A' : '#C0341D',
-                    }}>
-                    {testResult.msg}
-                  </div>
-                )}
               </div>
             </div>
           )}
@@ -304,30 +238,6 @@ export default function MarketAnalyzer() {
               <input className={ic} value={zip} onChange={e => setZip(e.target.value.replace(/\D/g,'').slice(0,5))}
                 placeholder="27587 · 23501 · 78701" onKeyDown={e => e.key === 'Enter' && handleAnalyze()} />
             )}
-          </div>
-
-          {/* Deep Search + Favorites */}
-          <div className="space-y-2">
-            <label className="flex items-center gap-2 text-xs cursor-pointer select-none"
-              style={{ color: 'var(--sgc-navy)' }}>
-              <input type="checkbox" checked={deepSearch} onChange={e => setDeepSearch(e.target.checked)} />
-              <span className="font-semibold">🔬 Deep search (Gemini)</span>
-            </label>
-            <button onClick={handleAnalyze} disabled={loading}
-              className="w-full py-2 rounded-lg border-none cursor-pointer text-white text-xs font-bold"
-              style={{ background: 'var(--sgc-navy)', opacity: loading ? 0.6 : 1 }}>
-              {loading ? 'Analyzing…' : 'Analyze Area'}
-            </button>
-            <button onClick={() => setShowCompare(true)} disabled={saved.length === 0}
-              className="w-full py-1.5 rounded-lg border text-xs font-semibold cursor-pointer"
-              style={{
-                background: 'white',
-                borderColor: 'var(--sgc-gray-border)',
-                color: saved.length === 0 ? 'var(--sgc-gray-mid)' : 'var(--sgc-navy)',
-                opacity: saved.length === 0 ? 0.6 : 1,
-              }}>
-              ⭐ Compare ({saved.length})
-            </button>
           </div>
 
           {/* Section nav */}
@@ -433,21 +343,7 @@ export default function MarketAnalyzer() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <div className="flex items-center gap-2">
-                  <h2 className="text-2xl font-bold" style={{ color: 'var(--sgc-navy)' }}>{analysis.geoName || analysis.location}</h2>
-                  <button
-                    onClick={() => toggle({
-                      id: analysis.location,
-                      location: analysis.geoName || analysis.location,
-                      savedAt: Date.now(),
-                      analysis,
-                    })}
-                    title={isSaved(analysis.location) ? 'Remove from favorites' : 'Save to favorites'}
-                    className="text-xl leading-none bg-transparent border-none cursor-pointer"
-                    style={{ color: isSaved(analysis.location) ? '#F5A623' : 'var(--sgc-gray-mid)' }}>
-                    {isSaved(analysis.location) ? '★' : '☆'}
-                  </button>
-                </div>
+                <h2 className="text-2xl font-bold" style={{ color: 'var(--sgc-navy)' }}>{analysis.geoName || analysis.location}</h2>
                 <div className="text-xs mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
                   Analyzed {new Date(analysis.analyzedAt).toLocaleString()}
                   {analysis.cacheHit && ' · from cache'}
@@ -842,7 +738,5 @@ export default function MarketAnalyzer() {
         )}
       </div>
     </div>
-    {showCompare && <MarketCompareModal markets={saved} onClose={() => setShowCompare(false)} />}
-    </>
   )
 }
