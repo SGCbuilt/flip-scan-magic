@@ -149,6 +149,7 @@ export default function MarketAnalyzer() {
     ? (cen.medianRent * 12 / cen.medianHomeValue) * 100 : null
 
   return (
+    <>
     <div className="h-full flex overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
       {/* LEFT CONFIG */}
