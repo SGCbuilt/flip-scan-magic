@@ -104,6 +104,8 @@ export default function MarketAnalyzer() {
   const [draftCensus, setDraftCensus] = useState('')
   const [draftFBI,    setDraftFBI]    = useState('')
   const [draftAI,     setDraftAI]     = useState('')
+  const [draftSupabaseUrl,  setDraftSupabaseUrl]  = useState('')
+  const [draftSupabaseAnon, setDraftSupabaseAnon] = useState('')
   const [deepSearch, setDeepSearch] = useState(false)
   const [showCompare, setShowCompare] = useState(false)
   const { saved, isSaved, toggle } = useMarketFavorites()
@@ -176,6 +178,7 @@ export default function MarketAnalyzer() {
               </button>
             </div>
             {[
+              { k: 'supabase',  label: 'Supabase',   url: 'supabase.com',                        set: keys.supabase     },
               { k: 'census',    label: 'Census ACS', url: 'api.census.gov/data/key_signup.html', set: keys.census    },
               { k: 'fbi',       label: 'FBI Crime',  url: 'api.data.gov/signup',                 set: keys.fbi       },
               { k: 'anthropic', label: 'Claude AI',  url: 'console.anthropic.com',               set: keys.anthropic },
@@ -193,6 +196,8 @@ export default function MarketAnalyzer() {
           {showKeys && (
             <div className="rounded-xl border p-3 space-y-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
               {[
+                { k: 'supabase_url',  label: 'Supabase Project URL', ph: 'https://xxxx.supabase.co', v: draftSupabaseUrl,  set: setDraftSupabaseUrl  },
+                { k: 'supabase_anon', label: 'Supabase Anon Key',    ph: 'eyJh...',                  v: draftSupabaseAnon, set: setDraftSupabaseAnon },
                 { k: 'census', label: 'Census API Key', ph: 'From census.gov/developers', v: draftCensus, set: setDraftCensus },
                 { k: 'fbi',    label: 'FBI API Key',    ph: 'From api.data.gov/signup',    v: draftFBI,    set: setDraftFBI    },
                 { k: 'anthropic', label: 'Anthropic Key', ph: 'sk-ant-...', v: draftAI, set: setDraftAI },
