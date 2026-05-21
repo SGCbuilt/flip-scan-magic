@@ -732,7 +732,7 @@ export async function analyzeArea(
 
   // Run all 4 real data sources in parallel
   const [cRes, crRes, blsRes, rcRes] = await Promise.allSettled([
-    fetchCensusData(zip, stateCode, keys.census),
+    fetchCensusData(zip, stateCode, keys.census, city),
     stateCode ? fetchCrimeData(stateCode, keys.fbi) : Promise.resolve(null),
     stateCode ? fetchBLSData(stateCode)            : Promise.resolve(null),
     fetchRentCastMarket(zip, city, stateCode),
