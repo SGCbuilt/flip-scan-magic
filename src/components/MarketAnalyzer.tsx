@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { analyzeArea, AreaAnalysis, getApiKeys, saveApiKey } from '../lib/marketAnalyzer'
+import { analyzeArea, AreaAnalysis } from '../lib/marketAnalyzer'
 
 const fmt$ = (n?: number) => n && n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 const pct   = (n?: number, d = 1) => n != null ? n.toFixed(d) + '%' : '—'
