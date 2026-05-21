@@ -249,31 +249,42 @@ async function fetchCrimeData(
   // Key is optional client-side — the market-proxy injects FBI_API_KEY server-side.
 
   const st = stateAbbr.toUpperCase().slice(0, 2)
+  const stateName = STATE_NAMES[st] || st
+  const stateKey = cleanName(stateName)
 
   const fetchOffense = async (offense: string, year: number) => {
     const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}${key ? `&API_KEY=${encodeURIComponent(key)}` : ''}`
     const data = await proxyFetch(url)
     const actuals = data?.offenses?.actuals || {}
-    const populations = data?.populations?.population || {}
-    const stateActualKey = Object.keys(actuals).find(k => !k.toLowerCase().includes('united states'))
-    const statePopKey = Object.keys(populations).find(k => !k.toLowerCase().includes('united states'))
+    const rates = data?.offenses?.rates || {}
+    const populations = data?.populations?.population || data?.populations?.participated_population || {}
+    const stateActualKey = Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
+      || Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
+      || Object.keys(actuals).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
+    const stateRateKey = Object.keys(rates).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
+      || Object.keys(rates).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
+      || Object.keys(rates).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
+    const statePopKey = Object.keys(populations).find(k => cleanName(k).includes(stateKey))
+      || Object.keys(populations).find(k => !cleanName(k).includes('unitedstates'))
     const actualValues = stateActualKey ? Object.values(actuals[stateActualKey] || {}) : []
     const popValues = statePopKey ? Object.values(populations[statePopKey] || {}) : []
     const count = actualValues.reduce((sum: number, v: any) => sum + (Number(v) || 0), 0)
     const pop = Number(popValues.find((v: any) => Number(v) > 0)) || 0
-    return { count, pop }
+    const monthlyRates = stateRateKey ? Object.values(rates[stateRateKey] || {}).map((v: any) => Number(v)).filter(v => Number.isFinite(v) && v > 0) : []
+    const apiAnnualRate = monthlyRates.length ? Math.round(monthlyRates.reduce((sum, v) => sum + v, 0) * 10) / 10 : 0
+    return { count, pop, apiAnnualRate }
   }
 
   const currentYear = new Date().getFullYear()
-  let dataYear = currentYear - 2
-  let violent = { count: 0, pop: 0 }
-  let property = { count: 0, pop: 0 }
-  let homicide = { count: 0, pop: 0 }
-  let robbery = { count: 0, pop: 0 }
-  let burglary = { count: 0, pop: 0 }
-  let larceny = { count: 0, pop: 0 }
+  let dataYear = currentYear - 3
+  let violent = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let property = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let homicide = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let robbery = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let burglary = { count: 0, pop: 0, apiAnnualRate: 0 }
+  let larceny = { count: 0, pop: 0, apiAnnualRate: 0 }
 
-  for (const year of [currentYear - 2, currentYear - 3, currentYear - 4]) {
+  for (const year of [currentYear - 3, currentYear - 4, currentYear - 5]) {
     const [v, p, h, r, b, l] = await Promise.all([
       fetchOffense('violent-crime', year),
       fetchOffense('property-crime', year),
@@ -292,8 +303,8 @@ async function fetchCrimeData(
   const pop = violent.pop || property.pop || 1
   if (!violent.count && !property.count) return null
 
-  const vRate = Math.round((violent.count  / pop) * 100000 * 10) / 10
-  const pRate = Math.round((property.count / pop) * 100000 * 10) / 10
+  const vRate = violent.apiAnnualRate || Math.round((violent.count  / pop) * 100000 * 10) / 10
+  const pRate = property.apiAnnualRate || Math.round((property.count / pop) * 100000 * 10) / 10
   const vDiff = Math.round(((vRate - FBI_NAT_VIOLENT)  / FBI_NAT_VIOLENT)  * 1000) / 10
   const pDiff = Math.round(((pRate - FBI_NAT_PROPERTY) / FBI_NAT_PROPERTY) * 1000) / 10
 
