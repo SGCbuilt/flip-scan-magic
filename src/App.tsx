@@ -7,6 +7,7 @@ import DealHunter from './components/DealHunter'
 import ReferenceHub from './components/ReferenceHub'
 import MarketAnalyzer from './components/MarketAnalyzer'
 import FinancialTools, { FinancialSeed } from './components/FinancialTools'
+import LeadRadar from './components/LeadRadar'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
@@ -50,7 +51,7 @@ export default function App() {
   const [sortKey, setSortKey]           = useState<SortKey>('score')
   const [viewMode, setViewMode]         = useState<ViewMode>('cards')
   const [activeStrategy, setActiveStrategy] = useState('all')
-  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'reference'>('deals')
+  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'radar' | 'reference'>('deals')
   const [toast, setToast]               = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta]     = useState<{ time: number; raw: number } | null>(null)
   const [financialSeed, setFinancialSeed] = useState<FinancialSeed | undefined>(undefined)
@@ -227,6 +228,7 @@ export default function App() {
               { id: 'market',   label: 'Market Trends',       icon: '📊', badge: undefined },
               { id: 'analyzer',  label: 'Area Intelligence',   icon: '🔬', badge: undefined },
               { id: 'financial', label: 'Financial Tools',      icon: '💹', badge: undefined },
+              { id: 'radar',    label: 'Lead Radar',            icon: '📡', badge: undefined },
               { id: 'hunt',      label: 'Deal Hunter',          icon: '🎯', badge: undefined },
               { id: 'reference',label: 'Lead Sources',        icon: '📚', badge: undefined },
             ].map(t => (
@@ -266,6 +268,7 @@ export default function App() {
             )}
             {activeTab === 'analyzer'  && <MarketAnalyzer />}
             {activeTab === 'financial' && <FinancialTools seed={financialSeed} />}
+            {activeTab === 'radar'     && <LeadRadar />}
             {activeTab === 'hunt'      && <DealHunter />}
             {activeTab === 'reference' && <ReferenceHub />}
           </div>
