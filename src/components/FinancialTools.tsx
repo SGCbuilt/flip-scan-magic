@@ -197,12 +197,19 @@ function LiveRatesBar({ rates }: { rates: LiveRates }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: FLIP ANALYZER — complete deal analysis
 // ─────────────────────────────────────────────────────────────────────────────
-function FlipAnalyzer({ rates }: { rates: LiveRates }) {
+export interface FinancialSeed {
+  price?: number
+  arv?: number
+  rehab?: number
+  addr?: string
+}
+
+function FlipAnalyzer({ rates, seed }: { rates: LiveRates; seed?: FinancialSeed }) {
   const liveRate = rates.rate30yr?.value || 7.0
 
-  const [arv,          setArv]          = useState(350000)
-  const [purchasePrice,setPurchase]      = useState(200000)
-  const [rehabCost,    setRehab]         = useState(45000)
+  const [arv,          setArv]          = useState(seed?.arv   ?? 350000)
+  const [purchasePrice,setPurchase]      = useState(seed?.price ?? 200000)
+  const [rehabCost,    setRehab]         = useState(seed?.rehab ?? 45000)
   const [holdMonths,   setHold]          = useState(6)
   const [downPct,      setDownPct]       = useState(20)
   const [interestRate, setRate]          = useState(liveRate)
@@ -215,6 +222,14 @@ function FlipAnalyzer({ rates }: { rates: LiveRates }) {
   const [miscMo,         setMisc]        = useState(100)
 
   useEffect(() => { setRate(liveRate) }, [liveRate])
+
+  // Re-seed whenever a new property is sent in from Deal Scanner
+  useEffect(() => {
+    if (!seed) return
+    if (seed.price != null) setPurchase(seed.price)
+    if (seed.arv   != null) setArv(seed.arv)
+    if (seed.rehab != null) setRehab(seed.rehab)
+  }, [seed])
 
   // Core math
   const downPayment      = purchasePrice * (downPct / 100)
