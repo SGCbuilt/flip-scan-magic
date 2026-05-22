@@ -59,7 +59,7 @@ export default function App() {
     setFinancialSeed({
       price: p.price,
       arv: p.arv,
-      rehab: p.rehab,
+      rehab: p.rehabCost,
       addr: `${p.addr}, ${p.city}, ${p.state}`,
     })
     setActiveTab('financial')
