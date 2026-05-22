@@ -6,6 +6,7 @@ import MarketPanel from './components/MarketPanel'
 import DealHunter from './components/DealHunter'
 import ReferenceHub from './components/ReferenceHub'
 import MarketAnalyzer from './components/MarketAnalyzer'
+import FinancialTools from './components/FinancialTools'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
@@ -49,7 +50,7 @@ export default function App() {
   const [sortKey, setSortKey]           = useState<SortKey>('score')
   const [viewMode, setViewMode]         = useState<ViewMode>('cards')
   const [activeStrategy, setActiveStrategy] = useState('all')
-  const [activeTab, setActiveTab]       = useState<'deals' | 'market' | 'analyzer' | 'hunt' | 'reference'>('deals')
+  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'reference'>('deals')
   const [toast, setToast]               = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta]     = useState<{ time: number; raw: number } | null>(null)
 
@@ -213,8 +214,9 @@ export default function App() {
             {[
               { id: 'deals',    label: 'Deal Scanner',       icon: '⊞', badge: strategyFiltered.length > 0 ? strategyFiltered.length : undefined },
               { id: 'market',   label: 'Market Trends',       icon: '📊', badge: undefined },
-              { id: 'analyzer', label: 'Area Intelligence',   icon: '🔬', badge: undefined },
-              { id: 'hunt',     label: 'Deal Hunter',         icon: '🎯', badge: undefined },
+              { id: 'analyzer',  label: 'Area Intelligence',   icon: '🔬', badge: undefined },
+              { id: 'financial', label: 'Financial Tools',      icon: '💹', badge: undefined },
+              { id: 'hunt',      label: 'Deal Hunter',          icon: '🎯', badge: undefined },
               { id: 'reference',label: 'Lead Sources',        icon: '📚', badge: undefined },
             ].map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id as any)}
@@ -250,8 +252,9 @@ export default function App() {
               <MarketPanel locationQuery={params.locationQuery} searchMode={params.searchMode}
                 results={results} visible={activeTab === 'market'} />
             )}
-            {activeTab === 'analyzer' && <MarketAnalyzer />}
-            {activeTab === 'hunt' && <DealHunter />}
+            {activeTab === 'analyzer'  && <MarketAnalyzer />}
+            {activeTab === 'financial' && <FinancialTools />}
+            {activeTab === 'hunt'      && <DealHunter />}
             {activeTab === 'reference' && <ReferenceHub />}
           </div>
         </div>

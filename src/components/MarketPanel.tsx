@@ -60,19 +60,12 @@ function SparkLine({
 
 // ── Buyer/Seller Gauge ────────────────────────────────────────────────────
 function MarketGauge({ score, type }: { score: number; type: string }) {
-  // All states use the navy/blue family — matches layout brand
-  const navyPalette = {
-    bar:    'bg-[var(--sgc-navy)]',
-    text:   'text-[var(--sgc-navy)]',
-    bg:     'bg-[var(--sgc-navy-pale)]',
-    border: 'border-[var(--sgc-navy)]',
-  }
-  const colors: Record<string, typeof navyPalette> = {
-    'strong-sellers': navyPalette,
-    'sellers':        navyPalette,
-    'balanced':       navyPalette,
-    'buyers':         navyPalette,
-    'strong-buyers':  navyPalette,
+  const colors: Record<string, { bar: string; text: string; bg: string }> = {
+    'strong-sellers': { bar: 'bg-[var(--sgc-danger)]',    text: 'text-[var(--sgc-danger)]',    bg: 'bg-red-950/30'    },
+    'sellers':        { bar: 'bg-orange-500', text: 'text-orange-400', bg: 'bg-orange-950/30' },
+    'balanced':       { bar: 'bg-amber-500',  text: 'text-[var(--sgc-navy)]',  bg: 'bg-amber-950/20'  },
+    'buyers':         { bar: 'bg-blue-500',   text: 'text-blue-400',   bg: 'bg-blue-950/30'   },
+    'strong-buyers':  { bar: 'bg-cyan-500',   text: 'text-cyan-400',   bg: 'bg-cyan-950/30'   },
   }
   const c = colors[type] || colors.balanced
   const labels: Record<string, string> = {
@@ -98,15 +91,7 @@ function MarketGauge({ score, type }: { score: number; type: string }) {
   }
 
   return (
-    <div
-      className={`rounded-2xl border ${c.border} border-l-4 p-5 ${c.bg} relative overflow-hidden`}
-      style={{
-        backgroundImage:
-          'repeating-linear-gradient(135deg, rgba(27,58,140,0.06) 0 2px, transparent 2px 12px),' +
-          'repeating-linear-gradient(45deg, rgba(27,58,140,0.04) 0 1px, transparent 1px 10px)',
-        backgroundColor: 'var(--sgc-navy-pale)',
-      }}
-    >
+    <div className={`rounded-2xl border border-[var(--sgc-gray-border)] p-5 ${c.bg}`}>
       <div className="flex items-start justify-between mb-4">
         <div>
           <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-gray-mid)] mb-1">Market Condition</div>
@@ -128,18 +113,17 @@ function MarketGauge({ score, type }: { score: number; type: string }) {
           <span>Balanced 50</span>
           <span>100 Sellers</span>
         </div>
-        <div className="h-3 bg-white border border-[var(--sgc-gray-border)] rounded-full overflow-hidden relative">
-          {/* Navy gradient — light navy (buyers) → mid → deep navy (sellers) */}
-          <div className="absolute inset-0"
-            style={{ background: 'linear-gradient(to right, var(--sgc-navy-mid), var(--sgc-navy-light) 50%, var(--sgc-navy-dark))' }} />
+        <div className="h-3 bg-[var(--sgc-gray-border)] rounded-full overflow-hidden relative">
+          {/* Gradient background */}
+          <div className="absolute inset-0 bg-gradient-to-r from-cyan-900/60 via-amber-900/40 to-red-900/60" />
           {/* Score marker */}
-          <div className="absolute -top-0.5 -bottom-0.5 w-1.5 bg-white border border-[var(--sgc-navy-dark)] rounded-full transition-all shadow"
-            style={{ left: `calc(${score}% - 3px)` }} />
+          <div className="absolute top-0 bottom-0 w-1 bg-white rounded-full transition-all"
+            style={{ left: `calc(${score}% - 2px)` }} />
         </div>
       </div>
 
       {/* Flip tip */}
-      <div className="text-[11px] text-[var(--sgc-black)] bg-white rounded-lg px-3 py-2 border border-[var(--sgc-gray-border)]">
+      <div className="text-[11px] text-[var(--sgc-gray-mid)] bg-[var(--sgc-gray-light)]/60 rounded-lg px-3 py-2 border border-[var(--sgc-gray-border)]">
         {flipTips[type]}
       </div>
     </div>
