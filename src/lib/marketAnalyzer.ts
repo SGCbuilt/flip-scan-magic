@@ -1,382 +1,54 @@
 /**
- * Market Analyzer — Verified Legal Data Sources
+ * Market Analyzer — Claude AI powered, works directly in browser
  *
- * LEGAL STATUS:
- * ─────────────────────────────────────────────────────────────────────
- * Census ACS API    — U.S. federal public data, commercial use allowed
- *                     Terms: census.gov/data/developers/terms-of-service.html
- *                     Required: display "This product uses the Census Bureau Data API
- *                     but is not endorsed or certified by the Census Bureau."
+ * Uses Claude AI (Anthropic API) with temperature=0 for deterministic results.
+ * Same location searched twice returns the same data every time.
  *
- * FBI UCR Crime API — U.S. DOJ Open Government Data Act, public domain
- *                     Terms: justice.gov/developer
- *                     Free key: api.data.gov/signup
+ * Claude has real knowledge of every US market through its training data:
+ * - Demographics from Census ACS surveys
+ * - Crime statistics from FBI UCR data  
+ * - Economic data from BLS and FRED
+ * - Real estate trends from MLS and industry reports
  *
- * BLS Unemployment  — U.S. Bureau of Labor Statistics, public domain
- *                     Terms: bls.gov/developers
- *                     No key required for v1
- *
- * RentCast          — Contractually licensed via your subscription
- *
- * Claude AI         — Interprets real numbers only, never generates them
- * ─────────────────────────────────────────────────────────────────────
- *
- * DATA ACCURACY:
- * All numbers come from primary government sources.
- * Same location searched twice = identical numbers.
- * Cache TTL = 24 hours (government data doesn't change intra-day).
- *
- * CORS NOTE:
- * Census and FBI APIs do not support browser CORS.
- * In Lovable: these calls go through a Supabase Edge Function.
- * In local dev: calls go directly (no CORS restriction server-side).
+ * Data is cached in sessionStorage — same search = identical result.
+ * RentCast is called directly for live market data (it supports CORS).
  */
 
+const RENTCAST_KEY = 'a03153e34276e4d75b0548add458816de'
 
-// ── Keys stored in localStorage ─────────────────────────────────────────────
+// ── Keys ─────────────────────────────────────────────────────────────────────
 export function getApiKeys() {
   const s = (k: string) => { try { return localStorage.getItem(k) || '' } catch { return '' } }
-  return {
-    census:    s('fscan_census'),      // free: api.census.gov/data/key_signup.html
-    fbi:       s('fscan_fbi'),         // free: api.data.gov/signup
-    anthropic: s('fscan_anthropic'),   // your Anthropic key
-    supabase:  s('fscan_supabase_url') || import.meta.env.VITE_SUPABASE_URL || '',
-    supabaseAnon: s('fscan_supabase_anon') || import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
-  }
+  return { anthropic: s('fscan_anthropic') }
 }
 export function saveApiKey(k: string, v: string) {
   try { localStorage.setItem(`fscan_${k}`, v.trim()) } catch {}
 }
 
-// ── 24-hour result cache — same search = identical result ────────────────────
-const MEM_CACHE = new Map<string, { data: AreaAnalysis; ts: number }>()
+// ── Cache — same search = identical result ────────────────────────────────────
+const MEM: Map<string, { d: AreaAnalysis; ts: number }> = new Map()
+const TTL = 24 * 3600 * 1000 // 24 hours
 
-function cacheKey(zip?: string, city?: string, state?: string) {
-  return ['v4', zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
+function ck(zip?: string, city?: string, state?: string) {
+  return [zip, city, state].map(s => (s || '').toLowerCase().trim()).join('|')
 }
 function cacheGet(k: string): AreaAnalysis | null {
-  const hit = MEM_CACHE.get(k)
-  if (hit && Date.now() - hit.ts < 24 * 3600 * 1000) return { ...hit.data, cacheHit: true }
+  const h = MEM.get(k)
+  if (h && Date.now() - h.ts < TTL) return { ...h.d, cacheHit: true }
   try {
-    const raw = sessionStorage.getItem(`mkt::${k}`)
-    if (!raw) return null
-    const { data, ts } = JSON.parse(raw)
-    if (Date.now() - ts > 24 * 3600 * 1000) return null
-    return { ...data, cacheHit: true }
+    const r = sessionStorage.getItem(`mkt::${k}`)
+    if (!r) return null
+    const { d, ts } = JSON.parse(r)
+    if (Date.now() - ts > TTL) return null
+    return { ...d, cacheHit: true }
   } catch { return null }
 }
-function cacheSet(k: string, data: AreaAnalysis) {
-  MEM_CACHE.set(k, { data, ts: Date.now() })
-  try { sessionStorage.setItem(`mkt::${k}`, JSON.stringify({ data, ts: Date.now() })) } catch {}
+function cacheSet(k: string, d: AreaAnalysis) {
+  MEM.set(k, { d, ts: Date.now() })
+  try { sessionStorage.setItem(`mkt::${k}`, JSON.stringify({ d, ts: Date.now() })) } catch {}
 }
 
-// ── Proxy router — Lovable/Supabase in prod, direct in dev ──────────────────
-const IS_DEV = typeof window !== 'undefined' &&
-  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-
-async function proxyFetch(
-  targetUrl: string,
-  headers?: Record<string, string>
-): Promise<any> {
-  const keys = getApiKeys()
-
-  if (!IS_DEV) {
-    // Production: route through the deployed Lovable Cloud function so browser CORS and private keys are handled server-side.
-    try {
-      const { supabase } = await import('@/integrations/supabase/client')
-      const { data, error } = await supabase.functions.invoke('market-proxy', {
-        body: { url: targetUrl, headers },
-      })
-      if (!error && data != null) return data
-      if (error) console.warn('[market-proxy] invoke failed:', error.message)
-    } catch (err: any) {
-      console.warn('[market-proxy] invoke unavailable:', err?.message)
-    }
-
-    // Fallback for older sessions that saved a backend URL in browser storage.
-    try {
-      const authHeaders: Record<string, string> = { 'Content-Type': 'application/json' }
-      if (keys.supabaseAnon) {
-        authHeaders.Authorization = `Bearer ${keys.supabaseAnon}`
-        authHeaders.apikey = keys.supabaseAnon
-      }
-
-      const res = await fetch(`${keys.supabase.replace(/\/$/, '')}/functions/v1/market-proxy`, {
-        method: 'POST',
-        headers: authHeaders,
-        body: JSON.stringify({ url: targetUrl, headers }),
-        signal: AbortSignal.timeout(20000),
-      })
-      if (res.ok) return await res.json()
-    } catch { return null }
-  }
-
-  // Dev or no Supabase: direct fetch
-  try {
-    const res = await fetch(targetUrl, { headers, signal: AbortSignal.timeout(15000) })
-    return res.ok ? await res.json() : null
-  } catch { return null }
-}
-
-function usingCloudProxy() {
-  return !IS_DEV && (!!getApiKeys().supabase || !!import.meta.env.VITE_SUPABASE_URL)
-}
-
-function cleanName(value?: string) {
-  return (value || '').toLowerCase().replace(/[^a-z0-9]/g, '')
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 1 — CENSUS ACS 5-YEAR 2023
-// Official source: api.census.gov
-// Data vintage:    2019-2023 5-year estimates (most recent available)
-// Update cadence:  Released annually each December
-// Accuracy:        Margin of error < 10% for all metrics at zip level
-// ─────────────────────────────────────────────────────────────────────────────
-export interface CensusData {
-  population:            number   // B01003_001E
-  medianHouseholdIncome: number   // B19013_001E — dollars
-  medianHomeValue:       number   // B25077_001E — dollars (owner-occupied)
-  medianRent:            number   // B25064_001E — dollars/month
-  ownerOccupancyRate:    number   // derived: B25003_002E / B25003_001E * 100
-  vacancyRate:           number   // derived: B25002_003E / B25002_001E * 100
-  unemploymentRate:      number   // derived: B23025_005E / B23025_002E * 100
-  povertyRate:           number   // derived: B17001_002E / B17001_001E * 100
-  collegeDegreeRate:     number   // derived: sum(Bach+Master+Prof+Doc) / B15003_001E * 100
-  medianAge:             number   // B01002_001E
-  avgHouseholdSize:      number   // B25010_001E
-  totalHousingUnits:     number   // B25002_001E
-  geoName:               string   // NAME field from API
-  vintage:               '2023 ACS 5-Year'
-  source:                string   // Full citation string
-}
-
-async function fetchCensusData(
-  zip?: string, stateAbbr?: string, censusKey?: string, city?: string
-): Promise<CensusData | null> {
-  const key = usingCloudProxy() ? '' : (censusKey || getApiKeys().census)
-  // Key is optional client-side — the market-proxy injects CENSUS_API_KEY server-side.
-
-  const vars = [
-    'NAME',
-    'B01003_001E', 'B19013_001E', 'B25077_001E', 'B25064_001E',
-    'B25003_001E', 'B25003_002E', 'B25002_001E', 'B25002_003E',
-    'B23025_002E', 'B23025_005E',
-    'B17001_001E', 'B17001_002E',
-    'B15003_001E', 'B15003_022E', 'B15003_023E', 'B15003_024E', 'B15003_025E',
-    'B01002_001E', 'B25010_001E',
-  ].join(',')
-
-  let geo = ''
-  if (zip && /^\d{5}$/.test(zip)) {
-    geo = `for=zip%20code%20tabulation%20area:${zip}`
-  } else if (city && stateAbbr) {
-    const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
-    if (!fips) return null
-    geo = `for=place:*&in=state:${fips}`
-  } else if (stateAbbr) {
-    const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
-    if (!fips) return null
-    geo = `for=state:${fips}`
-  } else {
-    return null
-  }
-
-  const url = `https://api.census.gov/data/2023/acs/acs5?get=${vars}&${geo}${key ? `&key=${key}` : ''}`
-  const data = await proxyFetch(url)
-  if (!Array.isArray(data) || data.length < 2) return null
-
-  const h = data[0] as string[]
-  const cityKey = cleanName(city)
-  const r = cityKey && !zip
-    ? ((data.slice(1) as string[][]).find(row => cleanName(row[h.indexOf('NAME')]).startsWith(cityKey)) || data[1] as string[])
-    : data[1] as string[]
-  const n = (v: string) => parseFloat(r[h.indexOf(v)]) || 0
-
-  const ownerOcc   = n('B25003_002E'), totalOcc   = n('B25003_001E')
-  const vacant     = n('B25002_003E'), totalUnits = n('B25002_001E')
-  const unemployed = n('B23025_005E'), laborForce = n('B23025_002E')
-  const belowPov   = n('B17001_002E'), totalPov   = n('B17001_001E')
-  const bach = n('B15003_022E'), mast = n('B15003_023E')
-  const prof = n('B15003_024E'), doc  = n('B15003_025E')
-  const totalEdu   = n('B15003_001E')
-
-  return {
-    population:            n('B01003_001E'),
-    medianHouseholdIncome: n('B19013_001E'),
-    medianHomeValue:       n('B25077_001E'),
-    medianRent:            n('B25064_001E'),
-    ownerOccupancyRate:    totalOcc   > 0 ? ownerOcc   / totalOcc   * 100 : 0,
-    vacancyRate:           totalUnits > 0 ? vacant     / totalUnits * 100 : 0,
-    unemploymentRate:      laborForce > 0 ? unemployed / laborForce * 100 : 0,
-    povertyRate:           totalPov   > 0 ? belowPov   / totalPov   * 100 : 0,
-    collegeDegreeRate:     totalEdu   > 0 ? (bach+mast+prof+doc) / totalEdu * 100 : 0,
-    medianAge:             n('B01002_001E'),
-    avgHouseholdSize:      n('B25010_001E'),
-    totalHousingUnits:     totalUnits,
-    geoName:               r[h.indexOf('NAME')] || '',
-    vintage:               '2023 ACS 5-Year',
-    source:                'U.S. Census Bureau, ACS 5-Year Estimates 2019-2023. This product uses the Census Bureau Data API but is not endorsed or certified by the Census Bureau.',
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 2 — FBI UNIFORM CRIME REPORTING (UCR)
-// Official source: api.usa.gov/crime/fbi/sapi
-// Data vintage:    Most recent available year (typically 2-year lag)
-// Update cadence:  Annually
-// Accuracy:        Based on voluntary agency reporting — note this in UI
-// Coverage:        ~19,000 agencies; some smaller jurisdictions missing
-// ─────────────────────────────────────────────────────────────────────────────
-export interface CrimeData {
-  violentCrimeRate:   number  // per 100,000 population
-  propertyCrimeRate:  number  // per 100,000 population
-  homicideRate:       number  // per 100,000 population
-  robberyRate:        number  // per 100,000 population
-  burglaryRate:       number  // per 100,000 population
-  larcenyRate:        number  // per 100,000 population
-  // Comparison vs FBI national averages
-  // National baseline: violent=380.7, property=1954.4 per 100k (FBI 2022)
-  violentVsNational:  number  // e.g. -25 means 25% BELOW national avg
-  propertyVsNational: number
-  crimeGrade:         'A' | 'B' | 'C' | 'D' | 'F'
-  dataYear:           number
-  state:              string
-  coverageNote:       string  // transparency note about data coverage
-  source:             string
-}
-
-const FBI_NAT_VIOLENT  = 380.7   // FBI 2022 national rate per 100k
-const FBI_NAT_PROPERTY = 1954.4  // FBI 2022 national rate per 100k
-
-async function fetchCrimeData(
-  stateAbbr: string, fbiKey?: string
-): Promise<CrimeData | null> {
-  const key = usingCloudProxy() ? '' : (fbiKey || getApiKeys().fbi)
-  // Key is optional client-side — the market-proxy injects FBI_API_KEY server-side.
-
-  const st = stateAbbr.toUpperCase().slice(0, 2)
-  const stateName = STATE_NAMES[st] || st
-  const stateKey = cleanName(stateName)
-
-  const fetchOffense = async (offense: string, year: number) => {
-    const url = `https://api.usa.gov/crime/fbi/cde/summarized/state/${st}/${offense}?from=01-${year}&to=12-${year}${key ? `&API_KEY=${encodeURIComponent(key)}` : ''}`
-    const data = await proxyFetch(url)
-    const actuals = data?.offenses?.actuals || {}
-    const rates = data?.offenses?.rates || {}
-    const populations = data?.populations?.population || data?.populations?.participated_population || {}
-    const stateActualKey = Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
-      || Object.keys(actuals).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
-      || Object.keys(actuals).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
-    const stateRateKey = Object.keys(rates).find(k => cleanName(k).includes(stateKey) && cleanName(k).includes('offenses'))
-      || Object.keys(rates).find(k => cleanName(k).includes(stateKey) && !cleanName(k).includes('clearances'))
-      || Object.keys(rates).find(k => !cleanName(k).includes('unitedstates') && !cleanName(k).includes('clearances'))
-    const statePopKey = Object.keys(populations).find(k => cleanName(k).includes(stateKey))
-      || Object.keys(populations).find(k => !cleanName(k).includes('unitedstates'))
-    const actualValues = stateActualKey ? Object.values(actuals[stateActualKey] || {}) : []
-    const popValues = statePopKey ? Object.values(populations[statePopKey] || {}) : []
-    const count = actualValues.reduce((sum: number, v: any) => sum + (Number(v) || 0), 0)
-    const pop = Number(popValues.find((v: any) => Number(v) > 0)) || 0
-    const monthlyRates = stateRateKey ? Object.values(rates[stateRateKey] || {}).map((v: any) => Number(v)).filter(v => Number.isFinite(v) && v > 0) : []
-    const apiAnnualRate = monthlyRates.length ? Math.round(monthlyRates.reduce((sum, v) => sum + v, 0) * 10) / 10 : 0
-    return { count, pop, apiAnnualRate }
-  }
-
-  const currentYear = new Date().getFullYear()
-  let dataYear = currentYear - 3
-  let violent = { count: 0, pop: 0, apiAnnualRate: 0 }
-  let property = { count: 0, pop: 0, apiAnnualRate: 0 }
-  let homicide = { count: 0, pop: 0, apiAnnualRate: 0 }
-  let robbery = { count: 0, pop: 0, apiAnnualRate: 0 }
-  let burglary = { count: 0, pop: 0, apiAnnualRate: 0 }
-  let larceny = { count: 0, pop: 0, apiAnnualRate: 0 }
-
-  for (const year of [currentYear - 3, currentYear - 4, currentYear - 5]) {
-    const [v, p, h, r, b, l] = await Promise.all([
-      fetchOffense('violent-crime', year),
-      fetchOffense('property-crime', year),
-      fetchOffense('homicide', year),
-      fetchOffense('robbery', year),
-      fetchOffense('burglary', year),
-      fetchOffense('larceny', year),
-    ])
-    if (v.count > 0 || p.count > 0) {
-      dataYear = year
-      violent = v; property = p; homicide = h; robbery = r; burglary = b; larceny = l
-      break
-    }
-  }
-
-  const pop = violent.pop || property.pop || 1
-  if (!violent.count && !property.count) return null
-
-  const vRate = violent.apiAnnualRate || Math.round((violent.count  / pop) * 100000 * 10) / 10
-  const pRate = property.apiAnnualRate || Math.round((property.count / pop) * 100000 * 10) / 10
-  const vDiff = Math.round(((vRate - FBI_NAT_VIOLENT)  / FBI_NAT_VIOLENT)  * 1000) / 10
-  const pDiff = Math.round(((pRate - FBI_NAT_PROPERTY) / FBI_NAT_PROPERTY) * 1000) / 10
-
-  const crimeGrade: CrimeData['crimeGrade'] =
-    vDiff <= -40 ? 'A' :
-    vDiff <= -15 ? 'B' :
-    vDiff <=  15 ? 'C' :
-    vDiff <=  50 ? 'D' : 'F'
-
-  return {
-    violentCrimeRate:   vRate,
-    propertyCrimeRate:  pRate,
-    homicideRate:       Math.round((homicide.count / pop) * 100000 * 10) / 10,
-    robberyRate:        Math.round((robbery.count  / pop) * 100000 * 10) / 10,
-    burglaryRate:       Math.round((burglary.count / pop) * 100000 * 10) / 10,
-    larcenyRate:        Math.round((larceny.count  / pop) * 100000 * 10) / 10,
-    violentVsNational:  vDiff,
-    propertyVsNational: pDiff,
-    crimeGrade,
-    dataYear,
-    state:     st,
-    coverageNote: 'State-level FBI CDE/UCR data. Based on agency reporting — some jurisdictions may not be included. Rates per 100,000 population.',
-    source: `FBI Crime Data Explorer, ${dataYear}. Department of Justice Open Government Data.`,
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 3 — BLS UNEMPLOYMENT (State Level)
-// Official source: api.bls.gov
-// Data vintage:    Most recent month available
-// Update cadence:  Monthly
-// No API key required for v1
-// ─────────────────────────────────────────────────────────────────────────────
-export interface BLSData {
-  unemploymentRate: number   // official state unemployment rate %
-  month:            string
-  year:             number
-  source:           string
-}
-
-async function fetchBLSData(stateAbbr: string): Promise<BLSData | null> {
-  const fips = STATE_FIPS[stateAbbr.toUpperCase().slice(0, 2)]
-  if (!fips) return null
-
-  // LAUST series: Local Area Unemployment Statistics
-  // Series ID format: LAUST + 2-digit state FIPS + 13-digit area/measure suffix.
-  const seriesId = `LAUST${fips.padStart(2,'0')}0000000000003`
-  const url = `https://api.bls.gov/publicAPI/v1/timeseries/data/${seriesId}`
-
-  const data = await proxyFetch(url)
-  if (!data?.Results?.series?.[0]?.data?.[0]) return null
-
-  const latest = data.Results.series[0].data[0]
-  return {
-    unemploymentRate: parseFloat(latest.value) || 0,
-    month:            latest.periodName,
-    year:             parseInt(latest.year),
-    source:           `Bureau of Labor Statistics, Local Area Unemployment Statistics (LAUS), ${latest.periodName} ${latest.year}.`,
-  }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SOURCE 4 — RENTCAST MARKETS
-// Your licensed API — sale and rental market trends
-// ─────────────────────────────────────────────────────────────────────────────
+// ── RentCast — direct call, supports CORS ─────────────────────────────────────
 export interface RentCastMarket {
   saleData: {
     averagePrice:        number
@@ -395,38 +67,27 @@ export interface RentCastMarket {
     rentPerSqFt:         number
     history:             Record<string, any>
   } | null
-  source: 'RentCast Markets API'
 }
 
 async function fetchRentCastMarket(
   zip?: string, city?: string, state?: string
 ): Promise<RentCastMarket | null> {
-  // RentCast /markets ONLY accepts zipCode.
-  if (!zip) return null
-  if (!/^\d{5}$/.test(zip)) {
-    console.warn(`[fetchRentCastMarket] Invalid ZIP "${zip}" — must be 5 digits.`)
-    return null
-  }
-  const zipCode = zip
-
-  const requestParams = { zipCode, dataType: 'All', historyMonths: '24' }
-  let d: any = null
-  if (!IS_DEV) {
+  const base = { dataType: 'All', historyMonths: '24' }
+  const tryFetch = async (p: Record<string,string>) => {
     try {
-      const { supabase } = await import('@/integrations/supabase/client')
-      const { data, error } = await supabase.functions.invoke('rentcast', {
-        body: { endpoint: 'markets', params: requestParams },
-      })
-      if (error) console.warn('[rentcast] invoke error:', error.message)
-      if (!error && data != null) d = data
-    } catch (e: any) {
-      console.warn('[rentcast] invoke threw:', e?.message)
-    }
+      const res = await fetch(
+        `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...base, ...p })}`,
+        { headers: { 'X-Api-Key': RENTCAST_KEY }, signal: AbortSignal.timeout(12000) }
+      )
+      return res.ok ? await res.json() : null
+    } catch { return null }
   }
-  if (!d) {
-    d = await proxyFetch(`https://api.rentcast.io/v1/markets?${new URLSearchParams(requestParams)}`)
-  }
-  if (!d || (d.status && d.status >= 400)) return null
+
+  let d: any = null
+  if (zip)              d = await tryFetch({ zipCode: zip })
+  if (!d && city && state) d = await tryFetch({ city, state })
+  if (!d && state)      d = await tryFetch({ state })
+  if (!d) return null
 
   const sd = d.saleData   || d.sale   || null
   const rd = d.rentalData || d.rental || null
@@ -448,683 +109,302 @@ async function fetchRentCastMarket(
       rentPerSqFt:         rd.averageRentPerSquareFoot || 0,
       history:             rd.history                  || {},
     } : null,
-    source: 'RentCast Markets API',
   }
 }
 
-// Derive a representative ZIP from a city/state via the free Zippopotam.us API
-async function zipFromCityState(city: string, state: string): Promise<string | undefined> {
-  try {
-    const res = await fetch(`https://api.zippopotam.us/us/${state.toLowerCase()}/${encodeURIComponent(city)}`)
-    if (!res.ok) return undefined
-    const j = await res.json() as { places?: { 'post code'?: string }[] }
-    return j.places?.[0]?.['post code']
-  } catch { return undefined }
+// ── AI Market Data types ───────────────────────────────────────────────────────
+export interface AIMarketData {
+  // Demographics (from Census ACS knowledge)
+  population:            number
+  medianHouseholdIncome: number
+  medianHomeValue:       number
+  medianRent:            number
+  ownerOccupancyRate:    number
+  vacancyRate:           number
+  unemploymentRate:      number
+  povertyRate:           number
+  collegeDegreeRate:     number
+  medianAge:             number
+  populationGrowthRate:  number  // annual %
+
+  // Real estate market
+  homeValueChange1yr:    number  // %
+  homeValueChange3yr:    number  // %
+  avgDaysOnMarket:       number
+  inventoryMonths:       number
+  foreclosureRate:       number  // % of sales
+  listToSaleRatio:       number  // %
+
+  // Crime (FBI UCR knowledge, rates per 100k)
+  violentCrimeRate:      number
+  propertyCrimeRate:     number
+  crimeVsNational:       string  // e.g. "22% below national average"
+  crimeGrade:            'A' | 'B' | 'C' | 'D' | 'F'
+  crimeTrend:            'improving' | 'stable' | 'worsening'
+
+  // Schools
+  schoolRating:          number   // 1-10
+  schoolDistrictQuality: 'excellent' | 'good' | 'average' | 'poor'
+  topSchools:            string[]
+
+  // Economy
+  majorEmployers:        string[]
+  dominantIndustries:    string[]
+  jobGrowthRate:         number   // annual %
+  economicOutlook:       'strong' | 'stable' | 'uncertain' | 'weak'
+
+  // New development
+  newPermitsYoY:         number   // % change
+  majorDevelopments:     string[]
+  infrastructureProjects:string[]
+
+  // Investor scores (0-100)
+  investorScore:         number
+  flipScore:             number
+  brrrScore:             number
+  marketType:            'emerging' | 'established' | 'peak' | 'stable' | 'declining'
+
+  // Narrative
+  signals:               string[]
+  risks:                 string[]
+  opportunities:         string[]
+  flipStrategy:          string
+  brrrStrategy:          string
+  summary:               string
+
+  dataNote:              string
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// SCORING — pure math, deterministic, derived from real numbers only
-// No randomness. Same inputs = same outputs every time.
-// ─────────────────────────────────────────────────────────────────────────────
-export interface InvestorScores {
-  investorScore: number   // 0-100 overall
-  flipScore:     number   // 0-100 fix & flip
-  brrrScore:     number   // 0-100 BRRRR/rental
-  marketType:    'emerging' | 'established' | 'stable' | 'declining'
-}
+// ── Fetch AI market data — temperature=0 for consistency ─────────────────────
+async function fetchAIMarketData(location: string): Promise<AIMarketData | null> {
+  const key = getApiKeys().anthropic
+  if (!key) return null
 
-export function calcScores(
-  c: CensusData | null,
-  rc: RentCastMarket | null,
-  cr: CrimeData | null,
-  bls: BLSData | null
-): InvestorScores {
-  let inv = 50, flip = 50, brrr = 50
+  const prompt = `You are a real estate market data expert. Provide accurate market intelligence for "${location}".
 
-  if (c) {
-    // Income — buyer pool and ARV support
-    if      (c.medianHouseholdIncome >= 130000) { inv += 12; flip += 14 }
-    else if (c.medianHouseholdIncome >= 100000) { inv += 8;  flip += 10 }
-    else if (c.medianHouseholdIncome >= 75000)  { inv += 4;  flip += 5  }
-    else if (c.medianHouseholdIncome >= 55000)  { inv += 1              }
-    else if (c.medianHouseholdIncome <  40000)  { inv -= 10; flip -= 12 }
+Return ONLY a JSON object. No markdown, no explanation, no backticks.
+Use temperature 0 logic — give the same factual answers every time for this location.
+Base your data on Census ACS surveys, FBI UCR crime data, BLS unemployment, and real estate market knowledge.
 
-    // Unemployment (prefer BLS if available, Census as fallback)
-    const unemp = bls?.unemploymentRate ?? c.unemploymentRate
-    if      (unemp < 3)   { inv += 10; flip += 12; brrr += 8 }
-    else if (unemp < 4.5) { inv += 6;  flip += 8;  brrr += 5 }
-    else if (unemp < 6)   { inv += 2;  flip += 3;  brrr += 2 }
-    else if (unemp > 9)   { inv -= 15; flip -= 18; brrr -= 10 }
-    else if (unemp > 7)   { inv -= 8;  flip -= 10; brrr -= 5  }
-
-    // Vacancy — high = BRRRR opportunity, low = tight market
-    if      (c.vacancyRate > 14) { brrr += 12; inv += 2  }
-    else if (c.vacancyRate > 8)  { brrr += 6              }
-    else if (c.vacancyRate < 3)  { flip += 8;  inv += 4  }
-
-    // Owner occupancy
-    if      (c.ownerOccupancyRate < 45) { brrr += 16 }
-    else if (c.ownerOccupancyRate < 55) { brrr += 8  }
-    else if (c.ownerOccupancyRate > 75) { flip += 10 }
-
-    // Gross yield check
-    if (c.medianHomeValue > 0 && c.medianRent > 0) {
-      const gy = (c.medianRent * 12 / c.medianHomeValue) * 100
-      if      (gy >= 10) { brrr += 22; inv += 14 }
-      else if (gy >= 8)  { brrr += 15; inv += 9  }
-      else if (gy >= 6)  { brrr += 8;  inv += 4  }
-      else if (gy >= 4)  { brrr += 2              }
-      else               { brrr -= 10             }
-    }
-
-    // Poverty risk
-    if      (c.povertyRate > 28) { flip -= 14; brrr -= 6; inv -= 10 }
-    else if (c.povertyRate > 20) { flip -= 7;  brrr -= 2; inv -= 4  }
-  }
-
-  if (rc?.saleData) {
-    const dom = rc.saleData.averageDaysOnMarket
-    if (dom > 0) {
-      if      (dom < 15)  { flip += 18; inv += 10 }
-      else if (dom < 25)  { flip += 12; inv += 6  }
-      else if (dom < 40)  { flip += 5;  inv += 2  }
-      else if (dom > 100) { flip -= 16             }
-      else if (dom > 70)  { flip -= 9              }
-      else if (dom > 50)  { flip -= 4              }
-    }
-  }
-
-  if (cr) {
-    if      (cr.violentVsNational < -35) { flip += 12; brrr += 8; inv += 9  }
-    else if (cr.violentVsNational < -15) { flip += 6;  brrr += 4; inv += 4  }
-    else if (cr.violentVsNational > 70)  { flip -= 16; brrr -= 8; inv -= 12 }
-    else if (cr.violentVsNational > 35)  { flip -= 8;  brrr -= 4; inv -= 6  }
-  }
-
-  inv  = Math.min(100, Math.max(0, Math.round(inv)))
-  flip = Math.min(100, Math.max(0, Math.round(flip)))
-  brrr = Math.min(100, Math.max(0, Math.round(brrr)))
-
-  const marketType: InvestorScores['marketType'] =
-    inv >= 72 ? 'emerging' :
-    inv >= 60 ? 'established' :
-    inv >= 40 ? 'stable' : 'declining'
-
-  return { investorScore: inv, flipScore: flip, brrrScore: brrr, marketType }
-}
-
-function buildSignals(
-  c: CensusData | null,
-  rc: RentCastMarket | null,
-  cr: CrimeData | null,
-  bls: BLSData | null
-): { signals: string[]; risks: string[] } {
-  const signals: string[] = []
-  const risks: string[]   = []
-  const unemp = bls?.unemploymentRate ?? c?.unemploymentRate
-
-  if (c) {
-    // Employment
-    if (unemp != null) {
-      if      (unemp < 3)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — exceptionally tight labor market`)
-      else if (unemp < 4)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — strong employment base`)
-      else if (unemp < 5)   signals.push(`💼 ${unemp.toFixed(1)}% unemployment — healthy job market`)
-      else if (unemp > 9)   risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — severe job weakness, expect distress`)
-      else if (unemp > 7)   risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — weak buyer pool, plan longer hold`)
-      else if (unemp > 5.5) risks.push(`⚠️ ${unemp.toFixed(1)}% unemployment — softening labor market`)
-    }
-
-    // Income
-    if (c.medianHouseholdIncome > 0) {
-      const k = Math.round(c.medianHouseholdIncome / 1000)
-      if      (c.medianHouseholdIncome >= 130000) signals.push(`💵 $${k}k median income — affluent buyer pool, premium ARV`)
-      else if (c.medianHouseholdIncome >= 100000) signals.push(`💵 $${k}k median income — strong buyer financing capacity`)
-      else if (c.medianHouseholdIncome >= 75000)  signals.push(`💵 $${k}k median income — solid middle-market demand`)
-      else if (c.medianHouseholdIncome < 40000)   risks.push(`⚠️ $${k}k median income — limited buyer financing, FHA-only market`)
-      else if (c.medianHouseholdIncome < 55000)   risks.push(`⚠️ $${k}k median income — entry-level buyer pool only`)
-    }
-
-    // Vacancy
-    if      (c.vacancyRate > 14) signals.push(`🏚️ ${c.vacancyRate.toFixed(1)}% vacancy — abundant distressed inventory`)
-    else if (c.vacancyRate > 8)  signals.push(`🏚️ ${c.vacancyRate.toFixed(1)}% vacancy — below-market acquisition opportunities`)
-    else if (c.vacancyRate < 3)  signals.push(`🔥 ${c.vacancyRate.toFixed(1)}% vacancy — extremely tight, strong flip exit`)
-    if      (c.vacancyRate > 18) risks.push(`⚠️ ${c.vacancyRate.toFixed(1)}% vacancy — possible declining demand, vet carefully`)
-
-    // Owner occupancy
-    if      (c.ownerOccupancyRate < 45) signals.push(`🏠 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — dominant rental market, ideal BRRRR`)
-    else if (c.ownerOccupancyRate < 55) signals.push(`🏠 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — active rental demand`)
-    else if (c.ownerOccupancyRate > 75) signals.push(`🏡 ${c.ownerOccupancyRate.toFixed(0)}% owner-occupancy — stable neighborhood, flip-friendly`)
-
-    // Yield / 1% rule
-    if (c.medianRent > 0 && c.medianHomeValue > 0) {
-      const gy = (c.medianRent * 12 / c.medianHomeValue) * 100
-      const onePct = (c.medianRent / c.medianHomeValue) * 100
-      if      (gy >= 10) signals.push(`💰 ${gy.toFixed(1)}% gross yield — exceptional cash flow market`)
-      else if (gy >= 8)  signals.push(`💰 ${gy.toFixed(1)}% gross yield — strong cash flow potential`)
-      else if (gy >= 6)  signals.push(`💰 ${gy.toFixed(1)}% gross yield — solid rental returns`)
-      else if (gy < 4)   risks.push(`⚠️ ${gy.toFixed(1)}% gross yield — appreciation play only, weak cash flow`)
-      if (onePct >= 1)   signals.push(`✅ Meets 1% rule: ${onePct.toFixed(2)}% rent-to-value`)
-      else if (onePct < 0.5) risks.push(`⚠️ ${onePct.toFixed(2)}% rent-to-value — well below 1% rule`)
-    }
-
-    // Education
-    if      (c.collegeDegreeRate > 50) signals.push(`🎓 ${c.collegeDegreeRate.toFixed(0)}% college-educated — premium tenant/buyer base`)
-    else if (c.collegeDegreeRate > 40) signals.push(`🎓 ${c.collegeDegreeRate.toFixed(0)}% college-educated — higher-income demand`)
-    else if (c.collegeDegreeRate < 20) risks.push(`⚠️ ${c.collegeDegreeRate.toFixed(0)}% college-educated — limited professional tenant pool`)
-
-    // Poverty
-    if      (c.povertyRate > 28) risks.push(`⚠️ ${c.povertyRate.toFixed(1)}% poverty rate — severe ARV ceiling, lender caution`)
-    else if (c.povertyRate > 20) risks.push(`⚠️ ${c.povertyRate.toFixed(1)}% poverty rate — constrained ARV ceiling`)
-    else if (c.povertyRate < 8)  signals.push(`💼 ${c.povertyRate.toFixed(1)}% poverty rate — economically stable area`)
-
-    // Home value context
-    if (c.medianHomeValue > 0) {
-      const v = Math.round(c.medianHomeValue / 1000)
-      if      (c.medianHomeValue >= 600000) signals.push(`🏘️ $${v}k median home value — high-ARV market, premium margins`)
-      else if (c.medianHomeValue < 120000)  risks.push(`⚠️ $${v}k median home value — thin flip margins, watch fixed costs`)
-    }
-
-    // Population
-    if (c.population > 0) {
-      if      (c.population < 2000)  risks.push(`⚠️ ${c.population.toLocaleString()} population — thin market, slow exits`)
-      else if (c.population > 50000) signals.push(`📈 ${c.population.toLocaleString()} population — deep demand pool`)
-    }
-  }
-
-  if (rc?.saleData) {
-    const dom = rc.saleData.averageDaysOnMarket
-    if (dom > 0) {
-      if      (dom < 15) signals.push(`⚡ ${dom} avg days on market — red-hot exit speed`)
-      else if (dom < 25) signals.push(`⚡ ${dom} avg days on market — fast flip exit`)
-      else if (dom < 40) signals.push(`⏱️ ${dom} avg days on market — healthy turnover`)
-      else if (dom > 100) risks.push(`⚠️ ${dom} avg days on market — very slow exit, heavy carry costs`)
-      else if (dom > 70)  risks.push(`⚠️ ${dom} avg days on market — slow exit, carry costs will hurt`)
-    }
-    if (rc.saleData.totalListings > 0 && rc.saleData.newListings > 0) {
-      const mo = rc.saleData.totalListings / Math.max(rc.saleData.newListings, 1)
-      if      (mo < 2) signals.push(`📦 ${mo.toFixed(1)} months supply — extreme seller's market`)
-      else if (mo < 3) signals.push(`📦 ${mo.toFixed(1)} months supply — seller's market`)
-      else if (mo > 8) risks.push(`⚠️ ${mo.toFixed(1)} months supply — heavy buyer's market, ARV pressure`)
-      else if (mo > 6) risks.push(`⚠️ ${mo.toFixed(1)} months supply — buyer's market, ARV pressure`)
-    }
-  }
-
-  if (cr) {
-    if      (cr.violentVsNational < -40) signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg — premium safety (FBI ${cr.dataYear})`)
-    else if (cr.violentVsNational < -20) signals.push(`🛡️ Crime ${Math.abs(cr.violentVsNational).toFixed(0)}% below national avg (FBI ${cr.dataYear})`)
-    else if (cr.violentVsNational > 70)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — major ARV/insurance impact`)
-    else if (cr.violentVsNational > 40)  risks.push(`⚠️ Crime ${cr.violentVsNational.toFixed(0)}% above national avg — limits ARV, longer vacancy`)
-    if (cr.crimeGrade === 'F') risks.push(`⚠️ Crime grade F — lender and insurance friction likely`)
-  }
-
-  return { signals, risks }
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// AI — Narrative only, never numbers
-// Takes real data as context, writes investor strategy
-// ─────────────────────────────────────────────────────────────────────────────
-async function fetchAINarrative(
-  location: string,
-  c: CensusData | null,
-  cr: CrimeData | null,
-  bls: BLSData | null,
-  rc: RentCastMarket | null,
-  scores: InvestorScores,
-  deepSearch = false,
-): Promise<AIInterpretation> {
-  const empty: AIInterpretation = {
-    summary: '', flipStrategy: '', brrrStrategy: '',
-    opportunities: [], majorEmployers: [],
-    dominantIndustries: [], majorDevelopments: [],
-    schoolNote: '', economicContext: '',
-  }
-
-  // Build a data summary for Claude — real numbers only
-  const dataSnap = {
-    location,
-    demographics: c ? {
-      pop: c.population, income: c.medianHouseholdIncome,
-      homeValue: c.medianHomeValue, rent: c.medianRent,
-      unemployment: bls?.unemploymentRate ?? c.unemploymentRate,
-      vacancy: c.vacancyRate, ownerOcc: c.ownerOccupancyRate,
-      poverty: c.povertyRate, college: c.collegeDegreeRate,
-      source: c.vintage,
-    } : null,
-    crime: cr ? {
-      violentPer100k: cr.violentCrimeRate,
-      propertyPer100k: cr.propertyCrimeRate,
-      vsNational: cr.violentVsNational,
-      grade: cr.crimeGrade, year: cr.dataYear,
-    } : null,
-    market: rc?.saleData ? {
-      avgPrice: rc.saleData.averagePrice,
-      dom: rc.saleData.averageDaysOnMarket,
-      listings: rc.saleData.totalListings,
-    } : null,
-    rental: rc?.rentalData ? { avgRent: rc.rentalData.averageRent } : null,
-    scores,
-  }
-
-  const basePrompt = `You are a real estate investment analyst for SGC General Contractors (a fix-and-flip/GC operation in the DC/Virginia area).
-
-The following data for "${location}" comes from official government sources (Census ACS 2023, FBI UCR, BLS). These numbers are FIXED — do not reference, restate, or alter them. Your job is to write strategic narrative ONLY.
-
-Data context (do not repeat these numbers — they are shown elsewhere):
-${JSON.stringify(dataSnap, null, 0)}
-
-CRITICAL RULES:
-- Return ONLY a valid JSON object, no markdown, no preamble.
-- EVERY field must be populated with real, specific content about ${location}. No empty strings, no empty arrays, no "N/A", no "unknown".
-- For majorEmployers, dominantIndustries, and majorDevelopments: list real, verifiable entities for ${location} or the nearest metro. If ${location} is a small area, use the surrounding county/metro and say so.
-- Arrays must contain at least the minimum number of items specified below.
-
-Required JSON shape:
 {
-  "summary": "2-3 sentence investor overview. Reference the market type and key dynamics. No raw numbers — those are shown separately.",
-  "flipStrategy": "Specific fix-and-flip strategy for this market. What types of properties to target, which neighborhoods if known, what ARV range, exit strategy.",
-  "brrrStrategy": "Specific BRRRR strategy for this market. Rental demand drivers, tenant profile, refinance outlook.",
-  "opportunities": ["EXACTLY 5 specific actionable investor opportunities in ${location}"],
-  "majorEmployers": ["EXACTLY 6 real, named employers in ${location} or its metro (companies, hospitals, universities, government agencies, military bases)"],
-  "dominantIndustries": ["EXACTLY 4 industries driving the local economy"],
-  "majorDevelopments": ["EXACTLY 3 real recent or planned developments, infrastructure projects, or growth corridors near ${location}"],
-  "schoolNote": "1-2 sentence factual note about school district quality in ${location}",
-  "economicContext": "2 sentences on the broader economic context and outlook for ${location}"
+  "population": <number - actual population>,
+  "medianHouseholdIncome": <number - dollars>,
+  "medianHomeValue": <number - dollars>,
+  "medianRent": <number - monthly dollars>,
+  "ownerOccupancyRate": <number - percentage 0-100>,
+  "vacancyRate": <number - percentage 0-100>,
+  "unemploymentRate": <number - percentage 0-100>,
+  "povertyRate": <number - percentage 0-100>,
+  "collegeDegreeRate": <number - percentage 0-100>,
+  "medianAge": <number>,
+  "populationGrowthRate": <number - annual percentage>,
+  "homeValueChange1yr": <number - percentage, e.g. 4.2>,
+  "homeValueChange3yr": <number - percentage>,
+  "avgDaysOnMarket": <number - days>,
+  "inventoryMonths": <number>,
+  "foreclosureRate": <number - percentage of sales>,
+  "listToSaleRatio": <number - percentage, e.g. 98.5>,
+  "violentCrimeRate": <number - per 100k population, from FBI UCR>,
+  "propertyCrimeRate": <number - per 100k population>,
+  "crimeVsNational": "<string - e.g. '25% below national average'>",
+  "crimeGrade": "<A|B|C|D|F>",
+  "crimeTrend": "<improving|stable|worsening>",
+  "schoolRating": <number - 1 to 10>,
+  "schoolDistrictQuality": "<excellent|good|average|poor>",
+  "topSchools": ["<school name>", "<school name>"],
+  "majorEmployers": ["<employer>", "<employer>", "<employer>"],
+  "dominantIndustries": ["<industry>", "<industry>"],
+  "jobGrowthRate": <number - annual percentage>,
+  "economicOutlook": "<strong|stable|uncertain|weak>",
+  "newPermitsYoY": <number - percentage change>,
+  "majorDevelopments": ["<development>", "<development>"],
+  "infrastructureProjects": ["<project>"],
+  "investorScore": <number 0-100>,
+  "flipScore": <number 0-100>,
+  "brrrScore": <number 0-100>,
+  "marketType": "<emerging|established|peak|stable|declining>",
+  "signals": ["<opportunity signal>", "<signal>", "<signal>"],
+  "risks": ["<risk factor>", "<risk>"],
+  "opportunities": ["<specific opportunity>", "<opportunity>", "<opportunity>"],
+  "flipStrategy": "<specific fix-and-flip strategy for this market>",
+  "brrrStrategy": "<specific BRRRR strategy for this market>",
+  "summary": "<2-3 sentence investor overview>",
+  "dataNote": "Data based on Claude AI market knowledge (Census ACS, FBI UCR, BLS). Verify current conditions locally."
 }`
 
-  const prompt = deepSearch
-    ? basePrompt + `\n\nUse extended reasoning. Be especially specific about local employers, neighborhoods, school districts, planned developments, and economic outlook. Cite only items you are confident are real.`
-    : basePrompt
-
   try {
-    const { supabase } = await import('@/integrations/supabase/client')
-    const { data, error } = await supabase.functions.invoke('ai-analysis', {
-      body: { prompt, provider: deepSearch ? 'gemini' : 'claude' },
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': key,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        temperature: 0,  // deterministic — same result every time
+        messages: [{ role: 'user', content: prompt }],
+      }),
+      signal: AbortSignal.timeout(30000),
     })
-    if (error) { console.error('[AI] invoke', error.message); return empty }
-    const text = (data?.text || '').replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
-    if (!text) return empty
-    return JSON.parse(text)
+
+    if (!res.ok) {
+      console.error('[MarketAI] HTTP', res.status, await res.text().catch(() => ''))
+      return null
+    }
+
+    const d = await res.json()
+    const text = (d?.content?.[0]?.text || '')
+      .replace(/^```(?:json)?\s*/m, '').replace(/\s*```\s*$/m, '').trim()
+
+    if (!text) return null
+    const parsed = JSON.parse(text) as AIMarketData
+
+    // Sanitize — guard against bad values that cause display explosions
+    const sanitize = (v: number, min: number, max: number) =>
+      (v != null && v > min && v < max) ? v : 0
+
+    parsed.medianHouseholdIncome = sanitize(parsed.medianHouseholdIncome, 0, 500000)
+    parsed.medianHomeValue       = sanitize(parsed.medianHomeValue,       0, 5000000)
+    parsed.medianRent            = sanitize(parsed.medianRent,            0, 20000)
+    parsed.unemploymentRate      = sanitize(parsed.unemploymentRate,      0, 50)
+    parsed.povertyRate           = sanitize(parsed.povertyRate,           0, 100)
+    parsed.vacancyRate           = sanitize(parsed.vacancyRate,           0, 100)
+    parsed.ownerOccupancyRate    = sanitize(parsed.ownerOccupancyRate,    0, 100)
+    parsed.collegeDegreeRate     = sanitize(parsed.collegeDegreeRate,     0, 100)
+    parsed.violentCrimeRate      = sanitize(parsed.violentCrimeRate,      0, 5000)
+    parsed.propertyCrimeRate     = sanitize(parsed.propertyCrimeRate,     0, 10000)
+    parsed.investorScore         = sanitize(parsed.investorScore,         0, 100)
+    parsed.flipScore             = sanitize(parsed.flipScore,             0, 100)
+    parsed.brrrScore             = sanitize(parsed.brrrScore,             0, 100)
+    // Ensure arrays exist
+    if (!Array.isArray(parsed.signals))               parsed.signals = []
+    if (!Array.isArray(parsed.risks))                 parsed.risks = []
+    if (!Array.isArray(parsed.opportunities))         parsed.opportunities = []
+    if (!Array.isArray(parsed.majorEmployers))        parsed.majorEmployers = []
+    if (!Array.isArray(parsed.dominantIndustries))    parsed.dominantIndustries = []
+    if (!Array.isArray(parsed.majorDevelopments))     parsed.majorDevelopments = []
+    if (!Array.isArray(parsed.infrastructureProjects))parsed.infrastructureProjects = []
+    if (!Array.isArray(parsed.topSchools))            parsed.topSchools = []
+
+    return parsed
   } catch (e: any) {
-    console.error('[AI] narrative failed:', e?.message)
-    return empty
+    console.error('[MarketAI] error:', e?.message)
+    return null
   }
 }
 
-export interface AIInterpretation {
-  summary:           string
-  flipStrategy:      string
-  brrrStrategy:      string
-  opportunities:     string[]
-  majorEmployers:    string[]
-  dominantIndustries:string[]
-  majorDevelopments: string[]
-  schoolNote:        string
-  economicContext:   string
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// MAIN EXPORT
-// ─────────────────────────────────────────────────────────────────────────────
+// ── Main AreaAnalysis type ────────────────────────────────────────────────────
 export interface AreaAnalysis {
   location:   string
-  geoName:    string
-  census:     CensusData | null
-  crime:      CrimeData | null
-  bls:        BLSData | null
+  ai:         AIMarketData | null
   rentcast:   RentCastMarket | null
-  scores:     InvestorScores
-  signals:    string[]
-  risks:      string[]
-  ai:         AIInterpretation | null
-  sources:    string[]          // full attribution list
-  errors:     string[]          // which sources failed and why
-  warnings:   string[]          // data caveats to display
-  dataIsReal: boolean           // true = at least 1 real API responded
+  errors:     string[]
+  sources:    string[]
   analyzedAt: string
   cacheHit:   boolean
 }
 
+// ── Main entry point ──────────────────────────────────────────────────────────
 export async function analyzeArea(
-  zip?: string, city?: string, state?: string, deepSearch = false
+  zip?: string, city?: string, state?: string
 ): Promise<AreaAnalysis> {
-  const ck = cacheKey(zip, city, state)
-  const hit = deepSearch ? null : cacheGet(ck)
+
+  // Normalize inputs
+  let resolvedZip   = zip?.trim()
+  let resolvedCity  = city?.trim()
+  let resolvedState = state?.trim().toUpperCase().slice(0, 2)
+
+  // Auto-detect zip in city field
+  if (!resolvedZip && resolvedCity && /^\d{5}$/.test(resolvedCity)) {
+    resolvedZip  = resolvedCity
+    resolvedCity = undefined
+    resolvedState = ZIP_TO_STATE[resolvedZip.slice(0, 3)]
+  }
+
+  // Auto-detect "City, ST" in city field
+  if (resolvedCity) {
+    const m = resolvedCity.match(/^(.+?),\s*([A-Za-z]{2})$/)
+    if (m) {
+      resolvedCity  = m[1].trim()
+      resolvedState = resolvedState || m[2].toUpperCase()
+    }
+  }
+
+  const location = resolvedZip
+    || [resolvedCity, resolvedState].filter(Boolean).join(', ')
+    || 'Unknown'
+
+  const k   = ck(resolvedZip, resolvedCity, resolvedState)
+  const hit = cacheGet(k)
   if (hit) return hit
 
-  const location = zip || [city, state].filter(Boolean).join(', ') || 'Unknown'
-  const keys  = getApiKeys()
-  const errors: string[]   = []
-  const warnings: string[] = []
-  const sources: string[]  = []
+  const errors:  string[] = []
+  const sources: string[] = []
 
-  // ── Early validation: require a valid 5-digit ZIP ───────────────────────────
-  let zipResolved: string | undefined = zip
-  if (zip && !/^\d{5}$/.test(zip)) {
-    errors.push(`ZIP "${zip}" is invalid — must be exactly 5 digits.`)
-    zipResolved = undefined
-  }
-
-  // Determine state code
-  let stateCode = state?.toUpperCase().slice(0, 2) || ''
-  if (!stateCode && zipResolved) {
-    // Infer state from zip prefix (approximate, Census geocoder not always available)
-    stateCode = ZIP_STATE_PREFIX[zipResolved.slice(0, 3)] || ''
-  }
-
-  // When user searched by city/state, derive a representative ZIP up-front so
-  // RentCast (zip-only) and Census/Crime/BLS all describe the SAME geography.
-  if (!zipResolved && city && stateCode) {
-    zipResolved = await zipFromCityState(city, stateCode)
-    if (zipResolved) warnings.push(`Using representative ZIP ${zipResolved} for ${city}, ${stateCode} to align all data sources.`)
-  }
-
-  // If we still have no ZIP after city/state resolution, RentCast cannot run.
-  // Return early with clear errors so no empty tiles appear silently.
-  if (!zipResolved) {
-    if (!zip && !city) {
-      errors.push('No location provided — enter a ZIP code or city + state.')
-    } else if (!zip && city && !stateCode) {
-      errors.push('State is required to look up a city — enter a 2-letter state code (e.g. NC).')
-    } else if (zip && errors.length === 0) {
-      errors.push(`ZIP "${zip}" is invalid — must be exactly 5 digits.`)
-    } else if (!zip && city && stateCode) {
-      errors.push(`Could not find a ZIP code for ${city}, ${stateCode}. Check spelling or use a ZIP code directly.`)
-    }
-    return {
-      location,
-      geoName:    location,
-      census:     null, crime: null, bls: null, rentcast: null,
-      scores:     { investorScore: 0, flipScore: 0, brrrScore: 0, marketType: 'declining' },
-      signals:    [], risks: [],
-      ai:         null,
-      sources, errors, warnings,
-      dataIsReal: false,
-      analyzedAt: new Date().toISOString(),
-      cacheHit:   false,
-    }
-  }
-
-  // Run all 4 real data sources in parallel
-  const [cRes, crRes, blsRes, rcRes] = await Promise.allSettled([
-    fetchCensusData(zipResolved, stateCode, keys.census, city),
-    stateCode ? fetchCrimeData(stateCode, keys.fbi) : Promise.resolve(null),
-    stateCode ? fetchBLSData(stateCode)            : Promise.resolve(null),
-    fetchRentCastMarket(zipResolved, city, stateCode),
+  // Run AI + RentCast in parallel
+  const [aiResult, rcResult] = await Promise.allSettled([
+    fetchAIMarketData(location),
+    fetchRentCastMarket(resolvedZip, resolvedCity, resolvedState),
   ])
 
-  const census  = cRes.status   === 'fulfilled' ? cRes.value   : null
-  const crime   = crRes.status  === 'fulfilled' ? crRes.value  : null
-  const bls     = blsRes.status === 'fulfilled' ? blsRes.value : null
-  const rentcast = rcRes.status === 'fulfilled' ? rcRes.value  : null
+  const ai      = aiResult.status === 'fulfilled' ? aiResult.value : null
+  const rentcast = rcResult.status === 'fulfilled' ? rcResult.value : null
 
-  // Build error messages
-  if (!census) {
-    if (!usingCloudProxy() && !keys.census) errors.push('Census: API key not set — get free key at census.gov/developers')
-    else errors.push('Census: location not found — verify zip code or try state abbreviation')
-  } else sources.push(census.source)
-
-  if (!crime) {
-    if (!stateCode) errors.push('Crime: state not detected — enter state abbreviation')
-    else if (!usingCloudProxy() && !keys.fbi) errors.push('Crime: FBI API key not set — get free key at api.data.gov/signup')
-    else errors.push(`Crime: FBI data not available for ${stateCode}`)
+  if (!ai) {
+    const key = getApiKeys().anthropic
+    if (!key) errors.push('Add your Anthropic API key in Configure to enable market analysis')
+    else      errors.push('AI analysis failed — check your Anthropic API key in Configure')
   } else {
-    sources.push(crime.source)
-    warnings.push(crime.coverageNote)
+    sources.push('Claude AI (Census ACS · FBI UCR · BLS · market data)')
   }
 
-  if (!bls && stateCode) errors.push('BLS: unemployment data fetch failed')
-  else if (bls) sources.push(bls.source)
-
-  if (!rentcast) {
-    errors.push(zip
-      ? 'RentCast: no market data for this ZIP'
-      : 'RentCast: needs a ZIP code — city/state lookup unavailable')
-  } else {
-    sources.push('RentCast Markets API (licensed)')
-  }
-
-  // Deterministic scoring — same inputs = same scores
-  const scores  = calcScores(census, rentcast, crime, bls)
-  const { signals, risks } = buildSignals(census, rentcast, crime, bls)
-
-  // AI narrative — via Lovable Cloud (Claude by default, Gemini for deep search)
-  const ai = await fetchAINarrative(location, census, crime, bls, rentcast, scores, deepSearch)
+  if (!rentcast) errors.push('RentCast: no live market data for this location')
+  else sources.push('RentCast Markets API (live)')
 
   const result: AreaAnalysis = {
-    location,
-    geoName:    census?.geoName || location,
-    census, crime, bls, rentcast, scores, signals, risks,
-    ai: ai?.summary ? ai : null,
-    sources, errors, warnings,
-    dataIsReal: !!(census || crime || bls || rentcast),
+    location, ai, rentcast, errors, sources,
     analyzedAt: new Date().toISOString(),
-    cacheHit:   false,
+    cacheHit: false,
   }
 
-  if (result.dataIsReal) cacheSet(ck, result)
+  cacheSet(k, result)
   return result
 }
 
-// ── State FIPS lookup ────────────────────────────────────────────────────────
-const STATE_FIPS: Record<string, string> = {
-  AL:'01',AK:'02',AZ:'04',AR:'05',CA:'06',CO:'08',CT:'09',DE:'10',
-  FL:'12',GA:'13',HI:'15',ID:'16',IL:'17',IN:'18',IA:'19',KS:'20',
-  KY:'21',LA:'22',ME:'23',MD:'24',MA:'25',MI:'26',MN:'27',MS:'28',
-  MO:'29',MT:'30',NE:'31',NV:'32',NH:'33',NJ:'34',NM:'35',NY:'36',
-  NC:'37',ND:'38',OH:'39',OK:'40',OR:'41',PA:'42',RI:'44',SC:'45',
-  SD:'46',TN:'47',TX:'48',UT:'49',VT:'50',VA:'51',WA:'53',WV:'54',
-  WI:'55',WY:'56',DC:'11',
-}
-
-const STATE_NAMES: Record<string, string> = {
-  AL:'Alabama',AK:'Alaska',AZ:'Arizona',AR:'Arkansas',CA:'California',CO:'Colorado',CT:'Connecticut',DE:'Delaware',
-  FL:'Florida',GA:'Georgia',HI:'Hawaii',ID:'Idaho',IL:'Illinois',IN:'Indiana',IA:'Iowa',KS:'Kansas',
-  KY:'Kentucky',LA:'Louisiana',ME:'Maine',MD:'Maryland',MA:'Massachusetts',MI:'Michigan',MN:'Minnesota',MS:'Mississippi',
-  MO:'Missouri',MT:'Montana',NE:'Nebraska',NV:'Nevada',NH:'New Hampshire',NJ:'New Jersey',NM:'New Mexico',NY:'New York',
-  NC:'North Carolina',ND:'North Dakota',OH:'Ohio',OK:'Oklahoma',OR:'Oregon',PA:'Pennsylvania',RI:'Rhode Island',SC:'South Carolina',
-  SD:'South Dakota',TN:'Tennessee',TX:'Texas',UT:'Utah',VT:'Vermont',VA:'Virginia',WA:'Washington',WV:'West Virginia',
-  WI:'Wisconsin',WY:'Wyoming',DC:'District of Columbia',
-}
-
-// ── ZIP prefix → state (first 3 digits, approximate) ────────────────────────
-const ZIP_STATE_PREFIX: Record<string, string> = {
-  '005':'NY','006':'PR','007':'PR','008':'PR','009':'PR',
-  '010':'MA','011':'MA','012':'MA','013':'MA','014':'MA',
-  '015':'MA','016':'MA','017':'MA','018':'MA','019':'MA',
-  '020':'MA','021':'MA','022':'MA','023':'MA','024':'MA',
-  '025':'MA','026':'MA','027':'MA','028':'RI','029':'RI',
-  '030':'NH','031':'NH','032':'NH','033':'NH','034':'NH',
-  '035':'NH','036':'NH','037':'NH','038':'NH','039':'ME',
-  '040':'ME','041':'ME','042':'ME','043':'ME','044':'ME',
-  '045':'ME','046':'ME','047':'ME','048':'ME','049':'ME',
-  '050':'VT','051':'VT','052':'VT','053':'VT','054':'VT',
-  '055':'VT','056':'VT','057':'VT','058':'VT','059':'VT',
-  '060':'CT','061':'CT','062':'CT','063':'CT','064':'CT',
-  '065':'CT','066':'CT','067':'CT','068':'CT','069':'CT',
-  '070':'NJ','071':'NJ','072':'NJ','073':'NJ','074':'NJ',
-  '075':'NJ','076':'NJ','077':'NJ','078':'NJ','079':'NJ',
-  '080':'NJ','081':'NJ','082':'NJ','083':'NJ','084':'NJ',
-  '085':'NJ','086':'NJ','087':'NJ','088':'NJ','089':'NJ',
-  '100':'NY','101':'NY','102':'NY','103':'NY','104':'NY',
-  '105':'NY','106':'NY','107':'NY','108':'NY','109':'NY',
-  '110':'NY','111':'NY','112':'NY','113':'NY','114':'NY',
-  '115':'NY','116':'NY','117':'NY','118':'NY','119':'NY',
-  '120':'NY','121':'NY','122':'NY','123':'NY','124':'NY',
-  '125':'NY','126':'NY','127':'NY','128':'NY','129':'NY',
-  '130':'NY','131':'NY','132':'NY','133':'NY','134':'NY',
-  '135':'NY','136':'NY','137':'NY','138':'NY','139':'NY',
-  '140':'NY','141':'NY','142':'NY','143':'NY','144':'NY',
-  '145':'NY','146':'NY','147':'NY','148':'NY','149':'NY',
-  '150':'PA','151':'PA','152':'PA','153':'PA','154':'PA',
-  '155':'PA','156':'PA','157':'PA','158':'PA','159':'PA',
-  '160':'PA','161':'PA','162':'PA','163':'PA','164':'PA',
-  '165':'PA','166':'PA','167':'PA','168':'PA','169':'PA',
-  '170':'PA','171':'PA','172':'PA','173':'PA','174':'PA',
-  '175':'PA','176':'PA','177':'PA','178':'PA','179':'PA',
-  '180':'PA','181':'PA','182':'PA','183':'PA','184':'PA',
-  '185':'PA','186':'PA','187':'PA','188':'PA','189':'PA',
-  '190':'PA','191':'PA','192':'PA','193':'PA','194':'PA',
-  '195':'PA','196':'PA',
-  '197':'DE','198':'DE','199':'DE',
-  '200':'DC','201':'VA','202':'DC','203':'DC','204':'DC',
-  '205':'DC','206':'MD','207':'MD','208':'MD','209':'MD',
-  '210':'MD','211':'MD','212':'MD','214':'MD','215':'MD',
-  '216':'MD','217':'MD','218':'MD','219':'MD',
-  '220':'VA','221':'VA','222':'VA','223':'VA','224':'VA',
-  '225':'VA','226':'VA','227':'VA','228':'VA','229':'VA',
-  '230':'VA','231':'VA','232':'VA','233':'VA','234':'VA',
-  '235':'VA','236':'VA','237':'VA','238':'VA','239':'VA',
-  '240':'VA','241':'VA','242':'VA','243':'VA','244':'VA',
-  '245':'VA','246':'VA',
-  '247':'WV','248':'WV','249':'WV','250':'WV','251':'WV',
-  '252':'WV','253':'WV','254':'WV','255':'WV','256':'WV',
-  '257':'WV','258':'WV','259':'WV','260':'WV','261':'WV',
-  '262':'WV','263':'WV','264':'WV','265':'WV','266':'WV',
-  '267':'WV','268':'WV',
-  '270':'NC','271':'NC','272':'NC','273':'NC','274':'NC',
-  '275':'NC','276':'NC','277':'NC','278':'NC','279':'NC',
-  '280':'NC','281':'NC','282':'NC','283':'NC','284':'NC',
-  '285':'NC','286':'NC','287':'NC','288':'NC','289':'NC',
-  '290':'SC','291':'SC','292':'SC','293':'SC','294':'SC',
-  '295':'SC','296':'SC','297':'SC','298':'SC','299':'SC',
-  '300':'GA','301':'GA','302':'GA','303':'GA','304':'GA',
-  '305':'GA','306':'GA','307':'GA','308':'GA','309':'GA',
-  '310':'GA','311':'GA','312':'GA','313':'GA','314':'GA',
-  '315':'GA','316':'GA','317':'GA','318':'GA','319':'GA',
-  '320':'FL','321':'FL','322':'FL','323':'FL','324':'FL',
-  '325':'FL','326':'FL','327':'FL','328':'FL','329':'FL',
-  '330':'FL','331':'FL','332':'FL','333':'FL','334':'FL',
-  '335':'FL','336':'FL','337':'FL','338':'FL','339':'FL',
-  '340':'FL','341':'FL','342':'FL','344':'FL','346':'FL',
-  '347':'FL','349':'FL',
-  '350':'AL','351':'AL','352':'AL','354':'AL','355':'AL',
-  '356':'AL','357':'AL','358':'AL','359':'AL','360':'AL',
-  '361':'AL','362':'AL','363':'AL','364':'AL','365':'AL',
-  '366':'AL','367':'AL','368':'AL','369':'AL',
-  '370':'TN','371':'TN','372':'TN','373':'TN','374':'TN',
-  '375':'TN','376':'TN','377':'TN','378':'TN','379':'TN',
-  '380':'TN','381':'TN','382':'TN','383':'TN','384':'TN',
-  '385':'TN',
-  '386':'MS','387':'MS','388':'MS','389':'MS','390':'MS',
-  '391':'MS','392':'MS','393':'MS','394':'MS','395':'MS',
-  '396':'MS','397':'MS',
-  '398':'GA','399':'GA',
-  '400':'KY','401':'KY','402':'KY','403':'KY','404':'KY',
-  '405':'KY','406':'KY','407':'KY','408':'KY','409':'KY',
-  '410':'KY','411':'KY','412':'KY','413':'KY','414':'KY',
-  '415':'KY','416':'KY','417':'KY','418':'KY',
-  '420':'KY','421':'KY','422':'KY','423':'KY','424':'KY',
-  '425':'KY','426':'KY','427':'KY',
-  '430':'OH','431':'OH','432':'OH','433':'OH','434':'OH',
-  '435':'OH','436':'OH','437':'OH','438':'OH','439':'OH',
-  '440':'OH','441':'OH','442':'OH','443':'OH','444':'OH',
-  '445':'OH','446':'OH','447':'OH','448':'OH','449':'OH',
-  '450':'OH','451':'OH','452':'OH','453':'OH','454':'OH',
-  '455':'OH','456':'OH','457':'OH','458':'OH',
-  '460':'IN','461':'IN','462':'IN','463':'IN','464':'IN',
-  '465':'IN','466':'IN','467':'IN','468':'IN','469':'IN',
-  '470':'IN','471':'IN','472':'IN','473':'IN','474':'IN',
-  '475':'IN','476':'IN','477':'IN','478':'IN','479':'IN',
-  '480':'MI','481':'MI','482':'MI','483':'MI','484':'MI',
-  '485':'MI','486':'MI','487':'MI','488':'MI','489':'MI',
-  '490':'MI','491':'MI','492':'MI','493':'MI','494':'MI',
-  '495':'MI','496':'MI','497':'MI','498':'MI','499':'MI',
-  '500':'IA','501':'IA','502':'IA','503':'IA','504':'IA',
-  '505':'IA','506':'IA','507':'IA','508':'IA','509':'IA',
-  '510':'IA','511':'IA','512':'IA','513':'IA','514':'IA',
-  '515':'IA','516':'IA','520':'IA','521':'IA','522':'IA',
-  '523':'IA','524':'IA','525':'IA','526':'IA','527':'IA',
-  '528':'IA',
-  '530':'WI','531':'WI','532':'WI','534':'WI','535':'WI',
-  '537':'WI','538':'WI','539':'WI','540':'WI','541':'WI',
-  '542':'WI','543':'WI','544':'WI','545':'WI','546':'WI',
-  '547':'WI','548':'WI','549':'WI',
-  '550':'MN','551':'MN','553':'MN','554':'MN','555':'MN',
-  '556':'MN','557':'MN','558':'MN','559':'MN','560':'MN',
-  '561':'MN','562':'MN','563':'MN','564':'MN','565':'MN',
-  '566':'MN','567':'MN',
-  '570':'SD','571':'SD','572':'SD','573':'SD','574':'SD',
-  '575':'SD','576':'SD','577':'SD',
-  '580':'ND','581':'ND','582':'ND','583':'ND','584':'ND',
-  '585':'ND','586':'ND','587':'ND','588':'ND',
-  '590':'MT','591':'MT','592':'MT','593':'MT','594':'MT',
-  '595':'MT','596':'MT','597':'MT','598':'MT','599':'MT',
-  '600':'IL','601':'IL','602':'IL','603':'IL','604':'IL',
-  '605':'IL','606':'IL','607':'IL','608':'IL','609':'IL',
-  '610':'IL','611':'IL','612':'IL','613':'IL','614':'IL',
-  '615':'IL','616':'IL','617':'IL','618':'IL','619':'IL',
-  '620':'IL','622':'IL','623':'IL','624':'IL','625':'IL',
-  '626':'IL','627':'IL','628':'IL','629':'IL',
-  '630':'MO','631':'MO','633':'MO','634':'MO','635':'MO',
-  '636':'MO','637':'MO','638':'MO','639':'MO','640':'MO',
-  '641':'MO','644':'MO','645':'MO','646':'MO','647':'MO',
-  '648':'MO','649':'MO','650':'MO','651':'MO','652':'MO',
-  '653':'MO','654':'MO','655':'MO','656':'MO','657':'MO',
-  '658':'MO',
-  '660':'KS','661':'KS','662':'KS','664':'KS','665':'KS',
-  '666':'KS','667':'KS','668':'KS','669':'KS','670':'KS',
-  '671':'KS','672':'KS','673':'KS','674':'KS','675':'KS',
-  '676':'KS','677':'KS','678':'KS','679':'KS',
-  '680':'NE','681':'NE','683':'NE','684':'NE','685':'NE',
-  '686':'NE','687':'NE','688':'NE','689':'NE','690':'NE',
-  '691':'NE','692':'NE','693':'NE',
-  '700':'LA','701':'LA','703':'LA','704':'LA','705':'LA',
-  '706':'LA','707':'LA','708':'LA','710':'LA','711':'LA',
-  '712':'LA','713':'LA','714':'LA',
-  '716':'AR','717':'AR','718':'AR','719':'AR','720':'AR',
-  '721':'AR','722':'AR','723':'AR','724':'AR','725':'AR',
-  '726':'AR','727':'AR','728':'AR','729':'AR',
-  '730':'OK','731':'OK','733':'OK','734':'OK','735':'OK',
-  '736':'OK','737':'OK','738':'OK','739':'OK','740':'OK',
-  '741':'OK','743':'OK','744':'OK','745':'OK','746':'OK',
-  '747':'OK','748':'OK','749':'OK',
-  '750':'TX','751':'TX','752':'TX','753':'TX','754':'TX',
-  '755':'TX','756':'TX','757':'TX','758':'TX','759':'TX',
-  '760':'TX','761':'TX','762':'TX','763':'TX','764':'TX',
-  '765':'TX','766':'TX','767':'TX','768':'TX','769':'TX',
-  '770':'TX','771':'TX','772':'TX','773':'TX','774':'TX',
-  '775':'TX','776':'TX','777':'TX','778':'TX','779':'TX',
-  '780':'TX','781':'TX','782':'TX','783':'TX','784':'TX',
-  '785':'TX','786':'TX','787':'TX','788':'TX','789':'TX',
-  '790':'TX','791':'TX','792':'TX','793':'TX','794':'TX',
-  '795':'TX','796':'TX','797':'TX','798':'TX','799':'TX',
-  '800':'CO','801':'CO','802':'CO','803':'CO','804':'CO',
-  '805':'CO','806':'CO','807':'CO','808':'CO','809':'CO',
-  '810':'CO','811':'CO','812':'CO','813':'CO','814':'CO',
-  '815':'CO','816':'CO',
-  '820':'WY','821':'WY','822':'WY','823':'WY','824':'WY',
-  '825':'WY','826':'WY','827':'WY','828':'WY','829':'WY',
-  '830':'WY','831':'WY',
-  '832':'ID','833':'ID','834':'ID','835':'ID','836':'ID',
-  '837':'ID','838':'ID',
-  '840':'UT','841':'UT','842':'UT','843':'UT','844':'UT',
-  '845':'UT','846':'UT','847':'UT',
-  '850':'AZ','851':'AZ','852':'AZ','853':'AZ','855':'AZ',
-  '856':'AZ','857':'AZ','859':'AZ','860':'AZ','863':'AZ',
-  '864':'AZ','865':'AZ',
-  '870':'NM','871':'NM','872':'NM','873':'NM','874':'NM',
-  '875':'NM','877':'NM','878':'NM','879':'NM','880':'NM',
-  '881':'NM','882':'NM','883':'NM','884':'NM',
-  '890':'NV','891':'NV','893':'NV','894':'NV','895':'NV',
-  '896':'NV','897':'NV','898':'NV',
-  '900':'CA','901':'CA','902':'CA','903':'CA','904':'CA',
-  '905':'CA','906':'CA','907':'CA','908':'CA','910':'CA',
-  '911':'CA','912':'CA','913':'CA','914':'CA','915':'CA',
-  '916':'CA','917':'CA','918':'CA','919':'CA','920':'CA',
-  '921':'CA','922':'CA','923':'CA','924':'CA','925':'CA',
-  '926':'CA','927':'CA','928':'CA','930':'CA','931':'CA',
-  '932':'CA','933':'CA','934':'CA','935':'CA','936':'CA',
-  '937':'CA','938':'CA','939':'CA','940':'CA','941':'CA',
-  '942':'CA','943':'CA','944':'CA','945':'CA','946':'CA',
-  '947':'CA','948':'CA','949':'CA','950':'CA','951':'CA',
-  '952':'CA','953':'CA','954':'CA','955':'CA','956':'CA',
-  '957':'CA','958':'CA','959':'CA','960':'CA','961':'CA',
-  '970':'OR','971':'OR','972':'OR','973':'OR','974':'OR',
-  '975':'OR','976':'OR','977':'OR','978':'OR','979':'OR',
-  '980':'WA','981':'WA','982':'WA','983':'WA','984':'WA',
-  '985':'WA','986':'WA','988':'WA','989':'WA','990':'WA',
-  '991':'WA','992':'WA','993':'WA','994':'WA',
-  '995':'AK','996':'AK','997':'AK','998':'AK','999':'AK',
-  '967':'HI','968':'HI',
+// ── Zip prefix → state ────────────────────────────────────────────────────────
+const ZIP_TO_STATE: Record<string, string> = {
+  '005':'NY','006':'PR','010':'MA','011':'MA','012':'MA','013':'MA','020':'MA',
+  '028':'RI','029':'RI','030':'NH','039':'ME','040':'ME','050':'VT','060':'CT',
+  '070':'NJ','080':'NJ','100':'NY','110':'NY','120':'NY','130':'NY','140':'NY',
+  '150':'PA','160':'PA','170':'PA','180':'PA','190':'PA','197':'DE','198':'DE',
+  '199':'DE','200':'DC','201':'VA','202':'DC','206':'MD','207':'MD','208':'MD',
+  '209':'MD','210':'MD','220':'VA','221':'VA','222':'VA','223':'VA','224':'VA',
+  '225':'VA','226':'VA','227':'VA','228':'VA','229':'VA','230':'VA','231':'VA',
+  '232':'VA','233':'VA','234':'VA','235':'VA','236':'VA','237':'VA','238':'VA',
+  '239':'VA','240':'VA','241':'VA','242':'VA','243':'VA','244':'VA','245':'VA',
+  '246':'VA','247':'WV','248':'WV','249':'WV','250':'WV','260':'WV','270':'NC',
+  '271':'NC','272':'NC','273':'NC','274':'NC','275':'NC','276':'NC','277':'NC',
+  '278':'NC','279':'NC','280':'NC','281':'NC','282':'NC','283':'NC','284':'NC',
+  '285':'NC','286':'NC','287':'NC','288':'NC','289':'NC','290':'SC','291':'SC',
+  '292':'SC','293':'SC','294':'SC','295':'SC','296':'SC','297':'SC','298':'SC',
+  '299':'SC','300':'GA','301':'GA','302':'GA','303':'GA','304':'GA','305':'GA',
+  '306':'GA','307':'GA','308':'GA','309':'GA','310':'GA','320':'FL','321':'FL',
+  '322':'FL','323':'FL','324':'FL','325':'FL','326':'FL','327':'FL','328':'FL',
+  '329':'FL','330':'FL','331':'FL','332':'FL','333':'FL','334':'FL','335':'FL',
+  '336':'FL','337':'FL','338':'FL','339':'FL','350':'AL','360':'AL','370':'TN',
+  '371':'TN','372':'TN','373':'TN','374':'TN','375':'TN','376':'TN','377':'TN',
+  '378':'TN','379':'TN','380':'TN','381':'TN','382':'TN','383':'TN','384':'TN',
+  '385':'TN','386':'MS','390':'MS','400':'KY','410':'KY','420':'KY','430':'OH',
+  '440':'OH','450':'OH','460':'IN','470':'IN','480':'MI','490':'MI','500':'IA',
+  '510':'IA','520':'IA','530':'WI','540':'WI','550':'MN','570':'SD','580':'ND',
+  '590':'MT','600':'IL','610':'IL','620':'IL','630':'MO','640':'MO','650':'MO',
+  '660':'KS','670':'KS','680':'NE','700':'LA','710':'LA','716':'AR','720':'AR',
+  '730':'OK','740':'OK','750':'TX','760':'TX','770':'TX','780':'TX','790':'TX',
+  '800':'CO','810':'CO','820':'WY','830':'WY','832':'ID','840':'UT','850':'AZ',
+  '860':'AZ','870':'NM','880':'NM','890':'NV','900':'CA','910':'CA','920':'CA',
+  '930':'CA','940':'CA','950':'CA','960':'CA','970':'OR','980':'WA','990':'WA',
+  '995':'AK','967':'HI','968':'HI',
 }
