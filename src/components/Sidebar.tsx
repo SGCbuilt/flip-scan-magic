@@ -43,6 +43,31 @@ const PRESETS = {
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
+const Section = ({
+  id,
+  title,
+  def = true,
+  children,
+  isOpen,
+  toggle,
+}: {
+  id: string
+  title: string
+  def?: boolean
+  children: React.ReactNode
+  isOpen: (id: string, def?: boolean) => boolean
+  toggle: (id: string) => void
+}) => (
+  <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+    <button type="button" onClick={() => toggle(id)}
+      className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
+      <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
+    </button>
+    {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -59,17 +84,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
     onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as unknown as DataSources })
-
-  const Section = ({ id, title, def = true, children }: { id: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <button onClick={() => toggle(id)}
-        className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
-        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
-    </div>
-  )
 
   const activeSources = Object.values(params.sources).filter(Boolean).length
   const radiusLabel = params.radius >= 100 ? '100 mi' : `${params.radius} mi`
@@ -101,7 +115,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* Data Sources */}
-        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true}>
+        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true} isOpen={isOpen} toggle={toggle}>
           <div className="flex gap-2 mb-1">
             <button onClick={() => toggleAll(true)}
               className="text-xs cursor-pointer bg-transparent border-none font-semibold"
@@ -133,7 +147,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Location */}
-        <Section id="loc" title="Location" def={true}>
+        <Section id="loc" title="Location" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Search Mode</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -178,7 +192,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Property Filters */}
-        <Section id="prop" title="Property" def={true}>
+        <Section id="prop" title="Property" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -216,7 +230,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Market Signals */}
-        <Section id="mkt" title="Market Signals" def={true}>
+        <Section id="mkt" title="Market Signals" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Max DOM</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
@@ -236,7 +250,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Flip Criteria */}
-        <Section id="flip" title="Flip Criteria" def={true}>
+        <Section id="flip" title="Flip Criteria" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.minFlipScore}</span>
@@ -266,7 +280,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Deal Math */}
-        <Section id="deal" title="Deal Math" def={false}>
+        <Section id="deal" title="Deal Math" def={false} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
