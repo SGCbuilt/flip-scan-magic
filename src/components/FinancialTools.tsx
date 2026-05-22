@@ -941,8 +941,11 @@ const TABS = [
   { id: 'market',   label: 'Market Conditions', icon: '📡' },
 ]
 
-export default function FinancialTools() {
+export default function FinancialTools({ seed }: { seed?: FinancialSeed } = {}) {
   const [tab, setTab] = useState('flip')
+
+  // When a new property is seeded from the Deal Scanner, auto-switch to Flip tab
+  useEffect(() => { if (seed) setTab('flip') }, [seed])
   const [rates, setRates] = useState<LiveRates>({
     rate30yr: null, rate15yr: null, rate10yr: null,
     cpi: null, hpi: null, loading: true, fetchedAt: '',
@@ -1002,7 +1005,19 @@ export default function FinancialTools() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5">
-        {tab === 'flip'     && <FlipAnalyzer     rates={rates} />}
+        {seed && (
+          <div className="mb-4 rounded-xl border px-4 py-3 flex items-center justify-between"
+            style={{ background: 'var(--sgc-navy-pale)', borderColor: 'var(--sgc-navy)40' }}>
+            <div>
+              <div className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--sgc-navy)' }}>Analyzing Property</div>
+              <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>{seed.addr || 'Selected deal'}</div>
+            </div>
+            <div className="text-xs" style={{ color: 'var(--sgc-navy)' }}>
+              Price {seed.price ? fmt$(seed.price) : '—'} · ARV {seed.arv ? fmt$(seed.arv) : '—'} · Rehab {seed.rehab ? fmt$(seed.rehab) : '—'}
+            </div>
+          </div>
+        )}
+        {tab === 'flip'     && <FlipAnalyzer     rates={rates} seed={seed} />}
         {tab === 'brrrr'    && <BRRRRAnalyzer     rates={rates} />}
         {tab === 'mortgage' && <MortgageCalc      rates={rates} />}
         {tab === 'mao'      && <MAOCalculator     rates={rates} />}
