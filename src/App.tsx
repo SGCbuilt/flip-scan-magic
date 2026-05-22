@@ -6,7 +6,7 @@ import MarketPanel from './components/MarketPanel'
 import DealHunter from './components/DealHunter'
 import ReferenceHub from './components/ReferenceHub'
 import MarketAnalyzer from './components/MarketAnalyzer'
-import FinancialTools from './components/FinancialTools'
+import FinancialTools, { FinancialSeed } from './components/FinancialTools'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
@@ -53,6 +53,17 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'reference'>('deals')
   const [toast, setToast]               = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta]     = useState<{ time: number; raw: number } | null>(null)
+  const [financialSeed, setFinancialSeed] = useState<FinancialSeed | undefined>(undefined)
+
+  const runFinancials = (p: AnalyzedProperty) => {
+    setFinancialSeed({
+      price: p.price,
+      arv: p.arv,
+      rehab: p.rehabCost,
+      addr: `${p.addr}, ${p.city}, ${p.state}`,
+    })
+    setActiveTab('financial')
+  }
 
   const showToast = (msg: string, err = false) => {
     setToast({ msg, err })
@@ -246,6 +257,7 @@ export default function App() {
                 marketStats={marketStats} apiErrors={apiErrors} loadingMsg={loadingMsg}
                 sortKey={sortKey} viewMode={viewMode} onSort={handleSort}
                 onViewMode={setViewMode} onSelect={setSelected} searchMeta={searchMeta} params={params}
+                onRunFinancials={runFinancials}
               />
             )}
             {activeTab === 'market' && (
@@ -253,7 +265,7 @@ export default function App() {
                 results={results} visible={activeTab === 'market'} />
             )}
             {activeTab === 'analyzer'  && <MarketAnalyzer />}
-            {activeTab === 'financial' && <FinancialTools />}
+            {activeTab === 'financial' && <FinancialTools seed={financialSeed} />}
             {activeTab === 'hunt'      && <DealHunter />}
             {activeTab === 'reference' && <ReferenceHub />}
           </div>

@@ -8,6 +8,7 @@ interface Props {
   sortKey: SortKey; viewMode: ViewMode; onSort: (k: SortKey) => void
   onViewMode: (v: ViewMode) => void; onSelect: (p: AnalyzedProperty) => void
   searchMeta: { time: number; raw: number } | null; params: SearchParams
+  onRunFinancials: (p: AnalyzedProperty) => void
 }
 
 const SORT_KEYS: { key: SortKey; label: string }[] = [
@@ -35,7 +36,7 @@ function StatCard({ label, value, sub, accent }: { label: string; value: string;
   )
 }
 
-function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
+function DealCard({ p, onSelect, onRunFinancials }: { p: AnalyzedProperty; onSelect: () => void; onRunFinancials: () => void }) {
   const isHot = p.flipScore >= 70
   const src = SOURCE_COLORS[p.source] || SOURCE_COLORS.active_mls
   const profitPct = p.arv > 0 ? Math.min(100, Math.max(0, (p.profit / p.arv) * 100)) : 0
@@ -134,12 +135,20 @@ function DealCard({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
             ))}
           </div>
         )}
+
+        {/* Run Financials CTA */}
+        <button
+          onClick={(e) => { e.stopPropagation(); onRunFinancials() }}
+          className="mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer border"
+          style={{ background: 'var(--sgc-navy)', color: 'white', borderColor: 'var(--sgc-navy-dark)' }}>
+          💹 Run Financials
+        </button>
       </div>
     </div>
   )
 }
 
-function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }) {
+function TableRow({ p, onSelect, onRunFinancials }: { p: AnalyzedProperty; onSelect: () => void; onRunFinancials: () => void }) {
   const src = SOURCE_COLORS[p.source] || SOURCE_COLORS.active_mls
   const scoreColor = p.flipScore >= 80 ? 'var(--sgc-success)' : p.flipScore >= 65 ? 'var(--sgc-warn)' : p.flipScore >= 50 ? 'var(--sgc-orange)' : 'var(--sgc-danger)'
   return (
@@ -166,12 +175,19 @@ function TableRow({ p, onSelect }: { p: AnalyzedProperty; onSelect: () => void }
           {p.flipScore}
         </div>
       </td>
+      <td className="py-3 px-3 pr-5">
+        <button onClick={(e) => { e.stopPropagation(); onRunFinancials() }}
+          className="text-[10px] font-semibold px-2.5 py-1.5 rounded-md cursor-pointer border"
+          style={{ background: 'var(--sgc-navy)', color: 'white', borderColor: 'var(--sgc-navy-dark)' }}>
+          💹 Financials
+        </button>
+      </td>
     </tr>
   )
 }
 
 export default function Dashboard({ appState, results, allAnalyzed, apiErrors, loadingMsg,
-  sortKey, viewMode, onSort, onViewMode, onSelect, searchMeta }: Props) {
+  sortKey, viewMode, onSort, onViewMode, onSelect, searchMeta, onRunFinancials }: Props) {
 
   const avg = (arr: number[]) => arr.length ? arr.reduce((s,n) => s+n,0) / arr.length : 0
 
@@ -300,19 +316,19 @@ export default function Dashboard({ appState, results, allAnalyzed, apiErrors, l
           <table className="w-full">
             <thead>
               <tr style={{ borderBottom: `1px solid var(--sgc-gray-border)`, background: 'var(--sgc-gray-light)' }}>
-                {['Property','Source','Price','ARV','Profit','ROI','DOM','Score'].map(h => (
+                {['Property','Source','Price','ARV','Profit','ROI','DOM','Score',''].map(h => (
                   <th key={h} className="text-left text-[10px] uppercase tracking-wider py-3 px-3 font-semibold first:pl-5 last:pr-5"
                     style={{ color: 'var(--sgc-gray-mid)' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {results.map(p => <TableRow key={p.id} p={p} onSelect={() => onSelect(p)} />)}
+              {results.map(p => <TableRow key={p.id} p={p} onSelect={() => onSelect(p)} onRunFinancials={() => onRunFinancials(p)} />)}
             </tbody>
           </table>
         ) : (
           <div className="grid gap-4 pt-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))' }}>
-            {results.map(p => <DealCard key={p.id} p={p} onSelect={() => onSelect(p)} />)}
+            {results.map(p => <DealCard key={p.id} p={p} onSelect={() => onSelect(p)} onRunFinancials={() => onRunFinancials(p)} />)}
           </div>
         )}
       </div>
