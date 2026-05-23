@@ -96,15 +96,15 @@ export const RADAR_SOURCES: RadarSource[] = [
   {
     id: 'virginia_beach', name: 'Virginia Beach Code Enforcement',
     city: 'Virginia Beach', state: 'VA', county: 'Virginia Beach',
-    type: 'arcgis', enabled: true,
+    type: 'arcgis', enabled: false,
     signalTypes: ['code_violation'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
   {
-    id: 'richmond', name: 'Richmond Code Enforcement',
+    id: 'richmond', name: 'Richmond Delinquent Real Estate Taxes',
     city: 'Richmond', state: 'VA', county: 'Richmond City',
     type: 'socrata', enabled: true,
-    signalTypes: ['code_violation'],
+    signalTypes: ['tax_delinquent'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
   // ── NORTH CAROLINA ────────────────────────────────────────────────────────
