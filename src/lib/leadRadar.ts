@@ -339,42 +339,43 @@ async function fetchVirginiaBeach(days: number): Promise<Lead[]> {
   })
 }
 
-// ── Richmond Code Enforcement (Socrata) ──────────────────────────────────────
+// ── Richmond Delinquent Real Estate Taxes (Socrata) ──────────────────────────
 async function fetchRichmond(days: number): Promise<Lead[]> {
-  const since = daysAgoISO(days)
-  // Richmond uses data.richmondgov.com — try known dataset IDs
-  const url = socrataUrl('data.richmondgov.com', 'kqdf-hfbu', {
-    '$where':  `date_opened >= '${since}'`,
-    '$order':  'date_opened DESC',
-    '$limit':  '200',
+  // Properties 6+ months delinquent — strong distress signal
+  const url = socrataUrl('data.richmondgov.com', '83t5-hbac', {
+    '$order':  'total_due DESC',
+    '$limit':  '300',
   })
+  void days
 
   const data = await safeFetch(url)
   if (!data?.length) return []
 
   return data.map((r: any) => {
-    const desc     = r.description || r.violation_type || r.case_type || 'Code enforcement'
-    const severity = getSeverity(desc)
+    const years    = Number(r.total_years_del) || 0
+    const due      = Number(r.total_due) || 0
+    const desc     = `Delinquent ${years} year(s) — $${Math.round(due).toLocaleString()} owed. Owner: ${r.current_owner_name_1 || 'Unknown'}`
+    const severity: Severity = years >= 5 || due >= 10000 ? 'critical' : years >= 2 || due >= 3000 ? 'high' : 'medium'
     return {
-      id:           `richmond-${r.case_number || r.casenumber || Math.random().toString(36).slice(2)}`,
-      address:      r.address || r.location || 'Unknown',
+      id:           `richmond-tax-${r.property_code || Math.random().toString(36).slice(2)}`,
+      address:      r.physical_address && r.physical_address !== '0' ? r.physical_address : (r.property_code || 'Unknown'),
       city:         'Richmond',
       state:        'VA',
-      zip:          r.zip_code || '',
+      zip:          '',
       county:       'Richmond City',
-      lat:          r.latitude  ? parseFloat(r.latitude)  : null,
-      lng:          r.longitude ? parseFloat(r.longitude) : null,
-      signalType:   'code_violation' as SignalType,
-      signalLabel:  `Code Enforcement — ${r.case_type || 'Violation'}`,
+      lat:          null,
+      lng:          null,
+      signalType:   'tax_delinquent' as SignalType,
+      signalLabel:  `Tax Delinquent — ${years}yr / $${Math.round(due).toLocaleString()}`,
       description:  desc,
-      caseNumber:   r.case_number || r.casenumber || '',
-      status:       r.status || r.case_status || 'Unknown',
-      filedDate:    parseDate(r.date_opened || r.opened_date),
+      caseNumber:   r.property_code || '',
+      status:       'Delinquent',
+      filedDate:    '',
       severity,
-      source:       'City of Richmond Open Data',
-      sourceUrl:    'https://data.richmondgov.com',
+      source:       'City of Richmond Open Data — Delinquent Real Estate Taxes',
+      sourceUrl:    'https://data.richmondgov.com/resource/83t5-hbac',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.status || ''),
+      investorScore: getInvestorScore(severity, 'tax_delinquent', 'open'),
     }
   })
 }
