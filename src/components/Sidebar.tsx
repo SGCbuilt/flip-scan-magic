@@ -43,6 +43,23 @@ const PRESETS = {
 
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
+const Section = ({
+  id, title, def = true, children, isOpen, toggle,
+}: {
+  id: string; title: string; def?: boolean; children: React.ReactNode
+  isOpen: (id: string, def?: boolean) => boolean
+  toggle: (id: string) => void
+}) => (
+  <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+    <button type="button" onClick={() => toggle(id)}
+      className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
+      <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
+      <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
+    </button>
+    {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
+  </div>
+)
+
 export default function Sidebar({ params, onChange, onSearch, loading }: Props) {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({ deal: true })
   const toggle = (id: string) => setCollapsed(c => ({ ...c, [id]: !c[id] }))
@@ -59,17 +76,6 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
     onChange({ ...params, sources: { ...params.sources, [key]: val } })
   const toggleAll = (val: boolean) =>
     onChange({ ...params, sources: Object.fromEntries(SOURCES.map(s => [s.key, val])) as unknown as DataSources })
-
-  const Section = ({ id, title, def = true, children }: { id: string; title: string; def?: boolean; children: React.ReactNode }) => (
-    <div className="border-t pt-3 mt-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <button onClick={() => toggle(id)}
-        className="w-full flex items-center justify-between mb-2.5 cursor-pointer bg-transparent border-none text-left">
-        <span className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>{title}</span>
-        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{isOpen(id, def) ? '▾' : '▸'}</span>
-      </button>
-      {isOpen(id, def) && <div className="space-y-2.5">{children}</div>}
-    </div>
-  )
 
   const activeSources = Object.values(params.sources).filter(Boolean).length
   const radiusLabel = params.radius >= 100 ? '100 mi' : `${params.radius} mi`
