@@ -171,20 +171,40 @@ function getInvestorScore(severity: Severity, signalType: SignalType, status: st
 }
 
 // ─── Safe fetch wrapper ───────────────────────────────────────────────────────
+import { supabase } from '@/integrations/supabase/client'
+
+async function proxyFetch(url: string): Promise<any> {
+  try {
+    const { data, error } = await supabase.functions.invoke('market-proxy', {
+      body: { url },
+    })
+    if (error) {
+      console.warn(`[LeadRadar:proxy] ${error.message} → ${url.slice(0,80)}`)
+      return null
+    }
+    if (data?.error) {
+      console.warn(`[LeadRadar:proxy] ${data.error} → ${url.slice(0,80)}`)
+      return null
+    }
+    return data
+  } catch (e: any) {
+    console.warn(`[LeadRadar:proxy] invoke failed:`, e?.message)
+    return null
+  }
+}
+
 async function safeFetch(url: string): Promise<any> {
   try {
     const res = await fetch(url, {
       headers: { 'Accept': 'application/json' },
       signal: AbortSignal.timeout(15000),
     })
-    if (!res.ok) {
-      console.warn(`[LeadRadar] ${res.status} → ${url.slice(0, 100)}`)
-      return null
-    }
-    return await res.json()
+    if (res.ok) return await res.json()
+    console.warn(`[LeadRadar] direct ${res.status} → trying proxy`)
+    return await proxyFetch(url)
   } catch (e: any) {
-    console.warn(`[LeadRadar] fetch error for ${url.slice(0, 80)}:`, e?.message)
-    return null
+    console.warn(`[LeadRadar] direct fetch failed (${e?.message}) → trying proxy`)
+    return await proxyFetch(url)
   }
 }
 
