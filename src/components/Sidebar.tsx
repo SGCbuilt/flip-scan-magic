@@ -44,17 +44,9 @@ const PRESETS = {
 const RADIUS_MARKS = [1, 5, 10, 25, 50, 75, 100]
 
 const Section = ({
-  id,
-  title,
-  def = true,
-  children,
-  isOpen,
-  toggle,
+  id, title, def = true, children, isOpen, toggle,
 }: {
-  id: string
-  title: string
-  def?: boolean
-  children: React.ReactNode
+  id: string; title: string; def?: boolean; children: React.ReactNode
   isOpen: (id: string, def?: boolean) => boolean
   toggle: (id: string) => void
 }) => (
