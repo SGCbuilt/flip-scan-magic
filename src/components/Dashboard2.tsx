@@ -14,6 +14,7 @@ import { useState, useEffect } from 'react'
 import { getPipeline, getPipelineStats, PipelineLead } from '../lib/pipeline'
 import { getTaskStats, getTasks } from '../lib/followUpEngine'
 import { getWholesaleStats, getWholesaleDeals } from '../lib/wholesalePDF'
+import { getDealPLs, getAllPLStats, buildCostingIntelligence } from '../lib/dealPL'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const fmt$ = (n: number) =>
@@ -540,6 +541,52 @@ export default function KPIDashboard() {
             })}
           </div>
         </div>
+
+        {/* ── COSTING INTELLIGENCE ── */}
+        {(() => {
+          const intel = buildCostingIntelligence()
+          if (!intel.hasEnoughData) return null
+          return (
+            <div className="bg-white rounded-2xl border p-5" style={{ borderColor: 'var(--sgc-navy)30' }}>
+              <div className="flex items-center justify-between mb-4">
+                <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>
+                  🧠 Deal Costing Intelligence
+                </div>
+                <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  {intel.dealsAnalyzed} deal{intel.dealsAnalyzed !== 1 ? 's' : ''} analyzed
+                </div>
+              </div>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+                {[
+                  { l: 'Overall Accuracy',   v: `${intel.estimatedAccuracy}%`, c: intel.estimatedAccuracy >= 85 ? '#1A7A4A' : '#C45E1A', bg: intel.estimatedAccuracy >= 85 ? '#EDFAF3' : '#FEF7EA' },
+                  { l: 'Rehab Bias',         v: intel.rehabBias > 0 ? `+${intel.rehabBias}%` : `${intel.rehabBias}%`, c: Math.abs(intel.rehabBias) > 10 ? '#C0341D' : '#1A7A4A', bg: Math.abs(intel.rehabBias) > 10 ? '#FEF0ED' : '#EDFAF3' },
+                  { l: 'Suggested Buffer',   v: `+${intel.suggestedRehabBuffer}%`, c: '#1B3A8C', bg: '#EEF2FB' },
+                  { l: 'Smart Rules Learned', v: intel.smartAdjustments.filter(a => a.confidence !== 'low').length, c: '#534AB7', bg: '#EEEDFE' },
+                ].map(m => (
+                  <div key={m.l} className="text-center p-3 rounded-xl" style={{ background: m.bg }}>
+                    <div className="text-[9px] uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{m.l}</div>
+                    <div className="text-xl font-black" style={{ color: m.c }}>{m.v}</div>
+                  </div>
+                ))}
+              </div>
+              {intel.topBias && (
+                <div className="p-3 rounded-xl text-xs" style={{
+                  background: intel.topBias.trend === 'over' ? '#FEF0ED' : '#EDFAF3',
+                  color: intel.topBias.trend === 'over' ? '#C0341D' : '#1A7A4A',
+                }}>
+                  <strong>Biggest bias:</strong> {intel.topBias.insight}
+                </div>
+              )}
+              {intel.smartAdjustments.filter(a => a.confidence === 'high').slice(0, 2).map(a => (
+                <div key={a.lineItemLabel} className="mt-2 p-2.5 rounded-xl text-xs flex items-center gap-2"
+                  style={{ background: 'var(--sgc-gray-light)' }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: a.biasDirection === 'over' ? '#C0341D' : '#1A7A4A' }}/>
+                  <span style={{ color: 'var(--sgc-black)' }}>{a.rule}</span>
+                </div>
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Footer */}
         <div className="text-[10px] text-center pb-4" style={{ color: 'var(--sgc-gray-mid)' }}>

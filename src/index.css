@@ -41,10 +41,6 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--sgc-gray-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--sgc-gray-house); }
 
-/* Hide scrollbar on tab bar */
-.sgc-tabbar { scrollbar-width: none; -ms-overflow-style: none; }
-.sgc-tabbar::-webkit-scrollbar { height: 0; width: 0; display: none; }
-
 /* Range slider */
 input[type="range"] { accent-color: var(--sgc-navy); }
 input[type="checkbox"] { accent-color: var(--sgc-navy); }
@@ -69,3 +65,78 @@ input[type="checkbox"] { accent-color: var(--sgc-navy); }
 .fade-up { animation: fade-up 0.25s ease-out; }
 
 .backdrop-blur-sm { backdrop-filter: blur(4px); }
+
+/* ── Sidebar layout ── */
+/* Thin scrollbar for the sidebar */
+aside::-webkit-scrollbar { width: 3px; }
+aside::-webkit-scrollbar-track { background: transparent; }
+aside::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 2px; }
+
+/* Topbar shadow */
+header { z-index: 40; }
+
+/* Content areas inside tabs always fill the available space */
+main > div { height: 100%; }
+
+/* Smooth sidebar collapse transition */
+aside { will-change: width; }
+
+/* Nav button hover */
+aside button:not(:disabled):hover {
+  background: rgba(255,255,255,0.07) !important;
+}
+
+/* Active nav item glow */
+aside button[style*="rgba(255,255,255,0.12)"] {
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08);
+}
+
+/* ── Mobile optimizations ── */
+@media (max-width: 768px) {
+  /* Auto-collapse sidebar on mobile */
+  aside {
+    width: 56px !important;
+  }
+
+  /* Full-width content on mobile */
+  main > div {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+
+  /* Larger tap targets on mobile */
+  button, a[href] {
+    min-height: 36px;
+  }
+
+  /* Readable font sizes */
+  .text-xs { font-size: 12px !important; }
+}
+
+/* ── Safe area insets (notch devices) ── */
+@supports (padding: env(safe-area-inset-bottom)) {
+  body {
+    padding-bottom: env(safe-area-inset-bottom);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+}
+
+/* ── PWA standalone mode ── */
+@media (display-mode: standalone) {
+  header {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+}
+
+/* ── Touch improvements ── */
+* {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* ── Prevent text selection on UI elements ── */
+button, nav, aside {
+  user-select: none;
+  -webkit-user-select: none;
+}

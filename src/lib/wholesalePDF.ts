@@ -1,3 +1,4 @@
+import { syncWrite } from './cloudSync'
 /**
  * Wholesale Deal Machine
  *
@@ -62,7 +63,7 @@ function load(): WholesaleDeal[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 function save(deals: WholesaleDeal[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(deals)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(deals)); syncWrite('flipscan_wholesale_v1', deals) } catch {}
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────

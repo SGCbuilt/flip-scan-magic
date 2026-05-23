@@ -12,6 +12,7 @@ import {
   DealPL, PLLineItem, PLCategory, DealSummary,
 } from '../lib/dealPL'
 import { getPipeline } from '../lib/pipeline'
+import CostingIntelligencePanel from './CostingIntelligence'
 
 const fmt$ = (n: number, abs = false) => {
   const v = abs ? Math.abs(n) : n
@@ -232,6 +233,15 @@ function DealDetail({ deal: initial, onBack, onUpdate }: {
 
       {/* Category tabs + line items */}
       <div className="flex-1 overflow-hidden flex flex-col bg-white">
+        {/* Intelligence panel — collapsible, lives above tabs */}
+        <div className="flex-shrink-0 border-b px-5 py-4" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+          <CostingIntelligencePanel
+            dealId={deal.id}
+            items={deal.items}
+            onApply={refresh}
+          />
+        </div>
+
         {/* Category nav */}
         <div className="flex border-b flex-shrink-0 overflow-x-auto" style={{ borderColor: 'var(--sgc-gray-border)' }}>
           {categories.map(cat => {
@@ -373,7 +383,7 @@ function NewDealModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
     }
   }, [leadId, usePipeline])
 
-  const usePlugin = usePipeline
+  // usePipeline controls source toggle
 
   const handleCreate = () => {
     const deal = createDealPL({
@@ -414,18 +424,18 @@ function NewDealModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             <div className="grid grid-cols-2 gap-2">
               <button onClick={() => setUsePipeline(true)}
                 className="py-2 rounded-xl border text-xs font-semibold cursor-pointer"
-                style={usePlugin ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' } : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                style={usePipeline ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' } : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
                 From Pipeline
               </button>
               <button onClick={() => setUsePipeline(false)}
                 className="py-2 rounded-xl border text-xs font-semibold cursor-pointer"
-                style={!usePlugin ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' } : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                style={!usePipeline ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' } : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
                 New Deal
               </button>
             </div>
           )}
 
-          {usePlugin && pipeline.length > 0 ? (
+          {usePipeline && pipeline.length > 0 ? (
             <select className="w-full rounded-xl border text-sm px-3 py-2.5 outline-none"
               style={{ borderColor: 'var(--sgc-gray-border)' }}
               value={leadId} onChange={e => setLeadId(e.target.value)}>
@@ -547,6 +557,18 @@ export default function DealPLTracker() {
               {stats.topOverrunCategory} — avg ${Math.round(stats.topOverrunAvg).toLocaleString()} over estimate
             </span>
             <span style={{ color: '#8A5700' }}>· Adjust your estimates accordingly</span>
+          </div>
+        )}
+        {/* Portfolio-level intelligence nudge */}
+        {stats.closed >= 2 && (
+          <div className="px-5 py-2.5 text-xs flex items-center gap-3" style={{ background: '#EEF2FB', borderTop: '1px solid var(--sgc-gray-border)' }}>
+            <span className="text-base">🧠</span>
+            <span style={{ color: '#1B3A8C' }}>
+              <strong>Deal Costing Intelligence active</strong> — open any deal to see what your history says about that estimate and apply learned adjustments automatically.
+            </span>
+            <span className="font-bold flex-shrink-0" style={{ color: '#534AB7' }}>
+              {stats.avgRehabAccuracy < 100 ? `${Math.round(stats.avgRehabAccuracy)}% rehab accuracy` : 'Enter actuals to learn'}
+            </span>
           </div>
         )}
         <div className="flex justify-end px-5 py-3">

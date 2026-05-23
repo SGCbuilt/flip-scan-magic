@@ -1,6 +1,6 @@
 /**
  * Pipeline — Deal CRM with full intelligence suite
- * Kanban + List + Rehab Estimator + Comp Pull + Wholesale PDF + Follow-up Tasks
+ * Kanban + List + Rehab Estimator + Comp Pull + Wholesale PDF + Follow-up Tasks + Drip
  */
 import { useState, useEffect, useCallback } from 'react'
 import {
@@ -12,6 +12,8 @@ import { pullComps, CompResult } from '../lib/compPull'
 import { calculateRehab, DEFAULT_SYSTEMS, RehabSystem, Condition } from '../lib/rehabEstimator'
 import { generateFollowUpTask, addTask, getTasks, getDueTodayAndOverdue, completeTask, deleteTask, getTaskStats, FollowUpTask } from '../lib/followUpEngine'
 import { generateWholesaleSummary } from '../lib/wholesalePDF'
+import { createDripSequence, hasActiveSequence } from '../lib/drip'
+import DealGradePanel from './DealGrade'
 import RehabEstimator from './RehabEstimator'
 
 const STAGE_CONFIG: Record<PipelineStage, { label: string; color: string; bg: string; icon: string }> = {
@@ -425,6 +427,23 @@ function LeadDrawer({ lead: initial, onClose, onUpdate }: {
             style={{ background: '#EEF2FB', color: 'var(--sgc-navy)' }}>
             {compsLoading ? '⟳' : '🏠'} {compsLoading ? 'Pulling...' : comps ? 'Comps ✓' : 'Pull Comps'}
           </button>
+          <button
+            onClick={() => {
+              if (hasActiveSequence(lead.id)) { alert('This lead already has an active drip sequence.'); return }
+              createDripSequence({
+                leadId:    lead.id,
+                address:   lead.address,
+                ownerName: lead.ownerName || '',
+                phone:     lead.phones?.find(p => !p.dnc)?.number,
+                email:     lead.emails?.[0]?.address,
+                templateId: lead.priority === 'hot' ? 'hot_lead' : 'motivated_seller',
+              })
+              alert('✓ Drip sequence started! Go to Drip Sequences tab to track it.')
+            }}
+            className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none cursor-pointer"
+            style={{ background: hasActiveSequence(lead.id) ? '#EDFAF3' : '#EEEDFE', color: hasActiveSequence(lead.id) ? '#1A7A4A' : '#534AB7' }}>
+            {hasActiveSequence(lead.id) ? '✓ Drip Active' : '🔄 Start Drip'}
+          </button>
           <a href="#wholesale" onClick={onClose}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none cursor-pointer no-underline"
             style={{ background: '#FEF7EA', color: '#8A5700' }}>
@@ -548,6 +567,25 @@ function LeadDrawer({ lead: initial, onClose, onUpdate }: {
                 <div className="text-sm" style={{ color: 'var(--sgc-black)' }}>{lead.signalLabel}</div>
                 <div className="text-xs mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>Source: {lead.source}</div>
               </div>
+
+              {/* GC Deal Grade */}
+              <DealGradePanel
+                compact={false}
+                input={{
+                  address:       lead.address,
+                  city:          lead.city,
+                  state:         lead.state,
+                  estimatedValue:lead.estimatedARV || undefined,
+                  arvSuggestion: lead.estimatedARV || undefined,
+                  estimatedRehab:lead.estimatedRehab || undefined,
+                  signalType:    lead.signalType,
+                  signalLabel:   lead.signalLabel,
+                  severity:      lead.severity,
+                  compsCount:    comps?.comps?.length || undefined,
+                  arvPriceLow:   comps?.priceLow || undefined,
+                  arvPriceHigh:  comps?.priceHigh || undefined,
+                }}
+              />
             </div>
           )}
 
