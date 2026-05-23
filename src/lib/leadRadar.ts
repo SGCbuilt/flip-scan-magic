@@ -566,7 +566,7 @@ RADAR_SOURCES.push(
   {
     id: 'chatham_sales', name: 'Chatham County Property Sales',
     city: 'Pittsboro', state: 'NC', county: 'Chatham',
-    type: 'arcgis', enabled: true,
+    type: 'arcgis', enabled: false,
     signalTypes: ['building_permit'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
@@ -638,15 +638,12 @@ export async function fetchChathamSales(days: number): Promise<Lead[]> {
 }
 
 export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
-  // CAMA Parcels — query for properties with signals:
-  // - Zero or very low improvements value vs land value (vacant/teardown)
-  // - Property type = mobile home / manufactured
-  // - Owner mailing address differs from situs (absentee owner)
+  // CAMA Parcels — low building value vs land value = vacant/teardown
+  void days
   const url = `https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_CamaParcels/MapServer/0/query?` +
     new URLSearchParams({
-      // Low improvement value relative to land = vacant/distressed structure
-      where: `IMPVAL < LANDVAL * 0.3 AND LANDVAL > 10000 AND PROPTYPE <> 'AG' AND PROPTYPE <> 'EX'`,
-      outFields: 'PIN,SITEADDRESS,OWNER,OWNMAIL1,LANDVAL,IMPVAL,TAXVAL,ACRES,PROPTYPE,CITYNAME,ZIPCODE,DEEDEDACRE',
+      where: `jan1_bldg_FMV < jan1_land_FMV * 0.3 AND jan1_land_FMV > 10000`,
+      outFields: 'parcel_number,physical_street_address,current_owners,address1,csz,jan1_land_FMV,jan1_bldg_FMV,jan1_total_FMV,land_use',
       returnGeometry: 'true',
       resultRecordCount: '150',
       f: 'json',
@@ -657,31 +654,37 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r         = f.attributes || {}
-    const landVal   = r.LANDVAL  || 0
-    const impVal    = r.IMPVAL   || 0
+    const landVal   = r.jan1_land_FMV || 0
+    const impVal    = r.jan1_bldg_FMV || 0
     const isVacant  = impVal < 1000
-    const isAbsentee = r.OWNMAIL1 && r.SITEADDRESS &&
-      !r.OWNMAIL1.toLowerCase().includes(r.SITEADDRESS.toLowerCase().split(' ')[0])
+    const situs     = r.physical_street_address || ''
+    const mailing   = r.address1 || ''
+    const isAbsentee = !!(mailing && situs &&
+      !mailing.toLowerCase().includes(situs.toLowerCase().split(' ')[0] || '___'))
+    // csz = "City, ST ZIP"
+    const cszParts  = (r.csz || '').split(',')
+    const cityName  = cszParts[0]?.trim() || 'Chatham County'
+    const zip       = (cszParts[1] || '').trim().split(' ').pop() || ''
 
     const desc = isVacant
       ? `Vacant lot or minimal structure — land value $${Math.round(landVal).toLocaleString()}, improvement value $${Math.round(impVal).toLocaleString()}`
-      : `Low improvement ratio — structure value ${Math.round((impVal/landVal)*100)}% of land value. ${isAbsentee ? 'Absentee owner.' : ''}`
+      : `Low improvement ratio — structure value ${landVal ? Math.round((impVal/landVal)*100) : 0}% of land value. ${isAbsentee ? 'Absentee owner.' : ''}`
 
     const severity: Severity = isVacant ? 'high' : impVal < landVal * 0.1 ? 'high' : 'medium'
 
     return {
-      id:           `chatham-dist-${r.PIN || Math.random().toString(36).slice(2)}`,
-      address:      r.SITEADDRESS || 'Unknown',
-      city:         r.CITYNAME || 'Chatham County',
+      id:           `chatham-dist-${r.parcel_number || Math.random().toString(36).slice(2)}`,
+      address:      situs || 'Unknown',
+      city:         cityName,
       state:        'NC',
-      zip:          r.ZIPCODE || '',
+      zip:          zip,
       county:       'Chatham',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
       signalType:   isVacant ? 'vacant' as SignalType : 'code_violation' as SignalType,
       signalLabel:  isVacant ? 'Vacant / Minimal Structure' : `Low Improvement Value${isAbsentee ? ' + Absentee' : ''}`,
       description:  desc,
-      caseNumber:   r.PIN || '',
+      caseNumber:   r.parcel_number || '',
       status:       'Open',
       filedDate:    new Date().toISOString().split('T')[0],
       severity,
