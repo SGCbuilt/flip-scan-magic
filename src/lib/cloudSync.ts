@@ -51,13 +51,13 @@ async function pushToCloud(storageKey: string, data: any): Promise<void> {
   const userId = getUserId()
 
   try {
-    const res = await fetch(`${url}/rest/v1/flipscan_store`, {
+    const res = await fetch(`${url}/rest/v1/flipscan_store?on_conflict=user_id,key`, {
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
         'Authorization': `Bearer ${anon}`,
         'apikey':         anon,
-        'Prefer':         'resolution=merge-duplicates',
+        'Prefer':         'resolution=merge-duplicates,return=minimal',
       },
       body: JSON.stringify({
         user_id:    userId,

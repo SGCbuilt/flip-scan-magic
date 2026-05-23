@@ -89,21 +89,21 @@ export const RADAR_SOURCES: RadarSource[] = [
   {
     id: 'norfolk_permits', name: 'Norfolk Building Permits',
     city: 'Norfolk', state: 'VA', county: 'Norfolk City',
-    type: 'socrata', enabled: true,
+    type: 'socrata', enabled: false,
     signalTypes: ['building_permit'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
   {
     id: 'virginia_beach', name: 'Virginia Beach Code Enforcement',
     city: 'Virginia Beach', state: 'VA', county: 'Virginia Beach',
-    type: 'arcgis', enabled: true,
+    type: 'arcgis', enabled: false,
     signalTypes: ['code_violation'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
   {
     id: 'richmond', name: 'Richmond Code Enforcement',
     city: 'Richmond', state: 'VA', county: 'Richmond City',
-    type: 'socrata', enabled: true,
+    type: 'socrata', enabled: false,
     signalTypes: ['code_violation'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
@@ -174,7 +174,8 @@ function getInvestorScore(severity: Severity, signalType: SignalType, status: st
 async function safeFetch(url: string): Promise<any> {
   try {
     const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-proxy`
-    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!proxyUrl || !anon) return null
     const res = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
@@ -214,6 +215,7 @@ function arcgisUrl(baseUrl: string, where: string, fields = '*', orderBy = ''): 
     where,
     outFields: fields,
     returnGeometry: 'true',
+    outSR: '4326',
     f: 'json',
     resultRecordCount: '200',
     ...(orderBy ? { orderByFields: orderBy } : {}),
@@ -229,38 +231,38 @@ function arcgisUrl(baseUrl: string, where: string, fields = '*', orderBy = ''): 
 async function fetchNorfolkViolations(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = socrataUrl('data.norfolk.gov', 'mxtv-99gh', {
-    '$where':  `opened_date >= '${since}'`,
-    '$order':  'opened_date DESC',
+    '$where':  `violation_created_date >= '${since}'`,
+    '$order':  'violation_created_date DESC',
     '$limit':  '200',
-    '$select': 'case_number,address,violation_description,violation_type,status,opened_date,latitude,longitude',
   })
 
   const data = await safeFetch(url)
   if (!data?.length) return []
 
   return data.map((r: any) => {
-    const desc     = r.violation_description || r.violation_type || 'Code violation'
+    const coords   = r.geocoded_column_1?.coordinates || []
+    const desc     = r.violation_ordinance || r.inspection_type || 'Code violation'
     const severity = getSeverity(desc)
     return {
-      id:           `norfolk-viol-${r.case_number || Math.random().toString(36).slice(2)}`,
-      address:      r.address || 'Unknown',
+      id:           `norfolk-viol-${r.gpin || r.complaint_street || Math.random().toString(36).slice(2)}`,
+      address:      r.complaint_street || 'Unknown',
       city:         'Norfolk',
       state:        'VA',
       zip:          '',
       county:       'Norfolk City',
-      lat:          r.latitude  ? parseFloat(r.latitude)  : null,
-      lng:          r.longitude ? parseFloat(r.longitude) : null,
+      lat:          coords[1] ?? null,
+      lng:          coords[0] ?? null,
       signalType:   'code_violation' as SignalType,
-      signalLabel:  `Code Violation — ${r.violation_type || 'Unknown type'}`,
+      signalLabel:  `Code Violation — ${r.violation_ordinance || 'Unknown type'}`,
       description:  desc,
-      caseNumber:   r.case_number || '',
-      status:       r.status || 'Unknown',
-      filedDate:    parseDate(r.opened_date),
+      caseNumber:   r.gpin || '',
+      status:       r.violation_status || r.inspection_status || 'Unknown',
+      filedDate:    parseDate(r.violation_created_date || r.inspection_created_date),
       severity,
       source:       'Norfolk Open Data',
       sourceUrl:    'https://data.norfolk.gov/Government/Neighborhood-Quality-Code-Enforcement-Cases/mxtv-99gh',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.status || ''),
+      investorScore: getInvestorScore(severity, 'code_violation', r.violation_status || r.inspection_status || ''),
     }
   })
 }
@@ -395,9 +397,9 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = arcgisUrl(
     'https://gis.charlottenc.gov/arcgis/rest/services/HNS/CodeEnforcementCasesAll/MapServer/0',
-    `DateOpened >= date '${since}'`,
-    'CaseNumber,Address,CaseType,Description,Status,DateOpened,ZipCode',
-    'DateOpened DESC'
+    `DateCreated >= date '${since}'`,
+    'CaseNumber,FullAddress,CaseType,DetailedDescription,CaseStatus,DateCreated',
+    'DateCreated DESC'
   )
 
   const data = await safeFetch(url)
@@ -405,14 +407,14 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r        = f.attributes || {}
-    const desc     = r.Description || r.CaseType || 'Code enforcement'
+    const desc     = r.DetailedDescription || r.CaseType || 'Code enforcement'
     const severity = getSeverity(desc)
     return {
       id:           `charlotte-${r.CaseNumber || Math.random().toString(36).slice(2)}`,
-      address:      r.Address || 'Unknown',
+      address:      r.FullAddress || 'Unknown',
       city:         'Charlotte',
       state:        'NC',
-      zip:          r.ZipCode || '',
+      zip:          (r.FullAddress || '').match(/\b\d{5}\b/)?.[0] || '',
       county:       'Mecklenburg',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
@@ -420,13 +422,13 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
       signalLabel:  `Code Enforcement — ${r.CaseType || 'Violation'}`,
       description:  desc,
       caseNumber:   r.CaseNumber || '',
-      status:       r.Status || 'Unknown',
-      filedDate:    r.DateOpened ? new Date(r.DateOpened).toISOString().split('T')[0] : '',
+      status:       r.CaseStatus || 'Unknown',
+      filedDate:    r.DateCreated ? new Date(r.DateCreated).toISOString().split('T')[0] : '',
       severity,
       source:       'City of Charlotte Open Data (GIS)',
       sourceUrl:    'https://data.charlottenc.gov',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.Status || ''),
+      investorScore: getInvestorScore(severity, 'code_violation', r.CaseStatus || ''),
     }
   })
 }
@@ -436,9 +438,9 @@ async function fetchRaleigh(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = arcgisUrl(
     'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
-    `applied_date >= date '${since}'`,
-    'permit_number,site_address,work_description,permit_type,current_status,applied_date,zip',
-    'applied_date DESC'
+    `issueddate >= date '${since}'`,
+    'permitnum,originaladdress1,originalcity,originalstate,originalzip,description,permittype,statuscurrent,issueddate,latitude_perm,longitude_perm',
+    'issueddate DESC'
   )
 
   const data = await safeFetch(url)
@@ -446,28 +448,28 @@ async function fetchRaleigh(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r        = f.attributes || {}
-    const desc     = r.work_description || r.permit_type || 'Building permit'
+    const desc     = r.description || r.permittype || 'Building permit'
     const severity = getSeverity(desc)
     return {
-      id:           `raleigh-${r.permit_number || Math.random().toString(36).slice(2)}`,
-      address:      r.site_address || 'Unknown',
-      city:         'Raleigh',
-      state:        'NC',
-      zip:          r.zip || '',
+      id:           `raleigh-${r.permitnum || Math.random().toString(36).slice(2)}`,
+      address:      r.originaladdress1 || 'Unknown',
+      city:         r.originalcity || 'Raleigh',
+      state:        r.originalstate || 'NC',
+      zip:          r.originalzip || '',
       county:       'Wake',
-      lat:          f.geometry?.y || null,
-      lng:          f.geometry?.x || null,
+      lat:          r.latitude_perm || f.geometry?.y || null,
+      lng:          r.longitude_perm || f.geometry?.x || null,
       signalType:   'building_permit' as SignalType,
-      signalLabel:  `Building Permit — ${r.permit_type || 'Permit'}`,
+      signalLabel:  `Building Permit — ${r.permittype || 'Permit'}`,
       description:  desc,
-      caseNumber:   r.permit_number || '',
-      status:       r.current_status || 'Unknown',
-      filedDate:    r.applied_date ? new Date(r.applied_date).toISOString().split('T')[0] : '',
+      caseNumber:   r.permitnum || '',
+      status:       r.statuscurrent || 'Unknown',
+      filedDate:    r.issueddate ? new Date(r.issueddate).toISOString().split('T')[0] : '',
       severity,
       source:       'City of Raleigh Open Data',
       sourceUrl:    'https://data.raleighnc.gov',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'building_permit', r.current_status || ''),
+      investorScore: getInvestorScore(severity, 'building_permit', r.statuscurrent || ''),
     }
   })
 }
@@ -597,11 +599,12 @@ export async function fetchChathamSales(days: number): Promise<Lead[]> {
   // Property Sales — recent sales below assessed value signal distress
   const url = `https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_PropertySales/MapServer/0/query?` +
     new URLSearchParams({
-      where: `SALEDATE >= date '${sinceStr}'`,
-      outFields: 'PIN,SITEADDRESS,OWNER,SALEDATE,SALEPRICE,ASSESSED,TAXVAL,ACRES,PROPTYPE,CITYNAME,ZIPCODE',
+      where: `date_of_sale >= DATE '${sinceStr}'`,
+      outFields: 'parcel_Number,date_of_sale,net_selling_price,current_total_value,current_land_value,current_bldg_value,sale_year,grantee',
       returnGeometry: 'true',
-      orderByFields: 'SALEDATE DESC',
+      orderByFields: 'date_of_sale DESC',
       resultRecordCount: '200',
+      outSR: '4326',
       f: 'json',
     }).toString()
 
@@ -611,33 +614,33 @@ export async function fetchChathamSales(days: number): Promise<Lead[]> {
   return data.features
     .filter((f: any) => {
       const r = f.attributes || {}
-      const price    = r.SALEPRICE || 0
-      const assessed = r.ASSESSED  || 0
+      const price    = r.net_selling_price || 0
+      const assessed = r.current_total_value  || 0
       // Flag: sold well below assessed value = potential distress signal
       return price > 0 && assessed > 0 && price < assessed * 0.85
     })
     .map((f: any) => {
       const r        = f.attributes || {}
-      const price    = r.SALEPRICE  || 0
-      const assessed = r.ASSESSED   || 0
+      const price    = r.net_selling_price  || 0
+      const assessed = r.current_total_value   || 0
       const discount = assessed > 0 ? Math.round((1 - price / assessed) * 100) : 0
       const desc     = `Sold ${discount}% below assessed value — $${Math.round(price).toLocaleString()} vs assessed $${Math.round(assessed).toLocaleString()}`
       const severity: Severity = discount >= 30 ? 'critical' : discount >= 20 ? 'high' : 'medium'
       return {
-        id:           `chatham-sale-${r.PIN || Math.random().toString(36).slice(2)}`,
-        address:      r.SITEADDRESS || 'Unknown',
-        city:         r.CITYNAME || 'Chatham County',
+        id:           `chatham-sale-${r.parcel_Number || Math.random().toString(36).slice(2)}`,
+        address:      r.parcel_Number ? `Parcel ${r.parcel_Number}` : 'Unknown',
+        city:         'Chatham County',
         state:        'NC',
-        zip:          r.ZIPCODE || '',
+        zip:          '',
         county:       'Chatham',
         lat:          f.geometry?.y || null,
         lng:          f.geometry?.x || null,
         signalType:   'tax_delinquent' as SignalType,
         signalLabel:  `Below-Value Sale — ${discount}% under assessed`,
         description:  desc,
-        caseNumber:   r.PIN || '',
+        caseNumber:   r.parcel_Number || '',
         status:       'Sold',
-        filedDate:    r.SALEDATE ? new Date(r.SALEDATE).toISOString().split('T')[0] : '',
+        filedDate:    r.date_of_sale ? new Date(r.date_of_sale).toISOString().split('T')[0] : '',
         severity,
         source:       'Chatham County GIS — Property Sales (public record)',
         sourceUrl:    'https://gisservices.chathamcountync.gov',
@@ -655,10 +658,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
   const url = `https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_CamaParcels/MapServer/0/query?` +
     new URLSearchParams({
       // Low improvement value relative to land = vacant/distressed structure
-      where: `IMPVAL < LANDVAL * 0.3 AND LANDVAL > 10000 AND PROPTYPE <> 'AG' AND PROPTYPE <> 'EX'`,
-      outFields: 'PIN,SITEADDRESS,OWNER,OWNMAIL1,LANDVAL,IMPVAL,TAXVAL,ACRES,PROPTYPE,CITYNAME,ZIPCODE,DEEDEDACRE',
+      where: `jan1_bldg_FMV < jan1_land_FMV * 0.3 AND jan1_land_FMV > 10000 AND parcel_status = 'A'`,
+      outFields: 'parcel_number,physical_street_address,current_owners,address1,jan1_land_FMV,jan1_bldg_FMV,jan1_total_FMV,gross_current_acres,land_use,community_name,tax_status',
       returnGeometry: 'true',
       resultRecordCount: '150',
+      outSR: '4326',
       f: 'json',
     }).toString()
 
@@ -667,11 +671,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r         = f.attributes || {}
-    const landVal   = r.LANDVAL  || 0
-    const impVal    = r.IMPVAL   || 0
+    const landVal   = r.jan1_land_FMV  || 0
+    const impVal    = r.jan1_bldg_FMV   || 0
     const isVacant  = impVal < 1000
-    const isAbsentee = r.OWNMAIL1 && r.SITEADDRESS &&
-      !r.OWNMAIL1.toLowerCase().includes(r.SITEADDRESS.toLowerCase().split(' ')[0])
+    const isAbsentee = r.address1 && r.physical_street_address &&
+      !r.address1.toLowerCase().includes(r.physical_street_address.toLowerCase().split(' ')[0])
 
     const desc = isVacant
       ? `Vacant lot or minimal structure — land value $${Math.round(landVal).toLocaleString()}, improvement value $${Math.round(impVal).toLocaleString()}`
@@ -680,19 +684,19 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
     const severity: Severity = isVacant ? 'high' : impVal < landVal * 0.1 ? 'high' : 'medium'
 
     return {
-      id:           `chatham-dist-${r.PIN || Math.random().toString(36).slice(2)}`,
-      address:      r.SITEADDRESS || 'Unknown',
-      city:         r.CITYNAME || 'Chatham County',
+      id:           `chatham-dist-${r.parcel_number || Math.random().toString(36).slice(2)}`,
+      address:      r.physical_street_address || 'Unknown',
+      city:         r.community_name || 'Chatham County',
       state:        'NC',
-      zip:          r.ZIPCODE || '',
+      zip:          '',
       county:       'Chatham',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
       signalType:   isVacant ? 'vacant' as SignalType : 'code_violation' as SignalType,
       signalLabel:  isVacant ? 'Vacant / Minimal Structure' : `Low Improvement Value${isAbsentee ? ' + Absentee' : ''}`,
       description:  desc,
-      caseNumber:   r.PIN || '',
-      status:       'Open',
+      caseNumber:   r.parcel_number || '',
+      status:       r.tax_status || 'Open',
       filedDate:    new Date().toISOString().split('T')[0],
       severity,
       source:       'Chatham County GIS — CAMA Tax Parcels (public record)',
@@ -708,11 +712,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 RADAR_SOURCES.push(
-  { id: 'durham',       name: 'Durham Code Enforcement',     city: 'Durham',        state: 'NC', county: 'Durham',       type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'forsyth',      name: 'Forsyth/Winston-Salem Code',  city: 'Winston-Salem', state: 'NC', county: 'Forsyth',      type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'wake_county',  name: 'Wake County Permits',         city: 'Cary',          state: 'NC', county: 'Wake',         type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'henrico',      name: 'Henrico County Code',         city: 'Henrico',       state: 'VA', county: 'Henrico',      type: 'socrata', enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'chesterfield', name: 'Chesterfield County Permits', city: 'Chesterfield',  state: 'VA', county: 'Chesterfield', type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'durham',       name: 'Durham Code Enforcement',     city: 'Durham',        state: 'NC', county: 'Durham',       type: 'arcgis',  enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'forsyth',      name: 'Forsyth/Winston-Salem Code',  city: 'Winston-Salem', state: 'NC', county: 'Forsyth',      type: 'arcgis',  enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'wake_county',  name: 'Wake County Permits',         city: 'Cary',          state: 'NC', county: 'Wake',         type: 'arcgis',  enabled: false, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'henrico',      name: 'Henrico County Code',         city: 'Henrico',       state: 'VA', county: 'Henrico',      type: 'socrata', enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'chesterfield', name: 'Chesterfield County Permits', city: 'Chesterfield',  state: 'VA', county: 'Chesterfield', type: 'arcgis',  enabled: false, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
 )
 
 async function fetchDurham(days: number): Promise<Lead[]> {
