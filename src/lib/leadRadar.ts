@@ -658,10 +658,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
   const url = `https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_CamaParcels/MapServer/0/query?` +
     new URLSearchParams({
       // Low improvement value relative to land = vacant/distressed structure
-      where: `IMPVAL < LANDVAL * 0.3 AND LANDVAL > 10000 AND PROPTYPE <> 'AG' AND PROPTYPE <> 'EX'`,
-      outFields: 'PIN,SITEADDRESS,OWNER,OWNMAIL1,LANDVAL,IMPVAL,TAXVAL,ACRES,PROPTYPE,CITYNAME,ZIPCODE,DEEDEDACRE',
+      where: `jan1_bldg_FMV < jan1_land_FMV * 0.3 AND jan1_land_FMV > 10000 AND parcel_status = 'A'`,
+      outFields: 'parcel_number,physical_street_address,current_owners,address1,jan1_land_FMV,jan1_bldg_FMV,jan1_total_FMV,gross_current_acres,land_use,community_name,tax_status',
       returnGeometry: 'true',
       resultRecordCount: '150',
+      outSR: '4326',
       f: 'json',
     }).toString()
 
@@ -670,11 +671,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r         = f.attributes || {}
-    const landVal   = r.LANDVAL  || 0
-    const impVal    = r.IMPVAL   || 0
+    const landVal   = r.jan1_land_FMV  || 0
+    const impVal    = r.jan1_bldg_FMV   || 0
     const isVacant  = impVal < 1000
-    const isAbsentee = r.OWNMAIL1 && r.SITEADDRESS &&
-      !r.OWNMAIL1.toLowerCase().includes(r.SITEADDRESS.toLowerCase().split(' ')[0])
+    const isAbsentee = r.address1 && r.physical_street_address &&
+      !r.address1.toLowerCase().includes(r.physical_street_address.toLowerCase().split(' ')[0])
 
     const desc = isVacant
       ? `Vacant lot or minimal structure — land value $${Math.round(landVal).toLocaleString()}, improvement value $${Math.round(impVal).toLocaleString()}`
@@ -683,19 +684,19 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
     const severity: Severity = isVacant ? 'high' : impVal < landVal * 0.1 ? 'high' : 'medium'
 
     return {
-      id:           `chatham-dist-${r.PIN || Math.random().toString(36).slice(2)}`,
-      address:      r.SITEADDRESS || 'Unknown',
-      city:         r.CITYNAME || 'Chatham County',
+      id:           `chatham-dist-${r.parcel_number || Math.random().toString(36).slice(2)}`,
+      address:      r.physical_street_address || 'Unknown',
+      city:         r.community_name || 'Chatham County',
       state:        'NC',
-      zip:          r.ZIPCODE || '',
+      zip:          '',
       county:       'Chatham',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
       signalType:   isVacant ? 'vacant' as SignalType : 'code_violation' as SignalType,
       signalLabel:  isVacant ? 'Vacant / Minimal Structure' : `Low Improvement Value${isAbsentee ? ' + Absentee' : ''}`,
       description:  desc,
-      caseNumber:   r.PIN || '',
-      status:       'Open',
+      caseNumber:   r.parcel_number || '',
+      status:       r.tax_status || 'Open',
       filedDate:    new Date().toISOString().split('T')[0],
       severity,
       source:       'Chatham County GIS — CAMA Tax Parcels (public record)',
