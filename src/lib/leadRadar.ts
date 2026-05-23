@@ -385,9 +385,9 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = arcgisUrl(
     'https://gis.charlottenc.gov/arcgis/rest/services/HNS/CodeEnforcementCasesAll/MapServer/0',
-    `DateOpened >= date '${since}'`,
-    'CaseNumber,Address,CaseType,Description,Status,DateOpened,ZipCode',
-    'DateOpened DESC'
+    `DateCreated >= date '${since}'`,
+    'CaseNumber,FullAddress,CaseType,DetailedDescription,CaseStatus,DateCreated',
+    'DateCreated DESC'
   )
 
   const data = await safeFetch(url)
@@ -395,14 +395,14 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r        = f.attributes || {}
-    const desc     = r.Description || r.CaseType || 'Code enforcement'
+    const desc     = r.DetailedDescription || r.CaseType || 'Code enforcement'
     const severity = getSeverity(desc)
     return {
       id:           `charlotte-${r.CaseNumber || Math.random().toString(36).slice(2)}`,
-      address:      r.Address || 'Unknown',
+      address:      r.FullAddress || 'Unknown',
       city:         'Charlotte',
       state:        'NC',
-      zip:          r.ZipCode || '',
+      zip:          '',
       county:       'Mecklenburg',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
@@ -410,13 +410,13 @@ async function fetchCharlotte(days: number): Promise<Lead[]> {
       signalLabel:  `Code Enforcement — ${r.CaseType || 'Violation'}`,
       description:  desc,
       caseNumber:   r.CaseNumber || '',
-      status:       r.Status || 'Unknown',
-      filedDate:    r.DateOpened ? new Date(r.DateOpened).toISOString().split('T')[0] : '',
+      status:       r.CaseStatus || 'Unknown',
+      filedDate:    r.DateCreated ? new Date(r.DateCreated).toISOString().split('T')[0] : '',
       severity,
       source:       'City of Charlotte Open Data (GIS)',
       sourceUrl:    'https://data.charlottenc.gov',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.Status || ''),
+      investorScore: getInvestorScore(severity, 'code_violation', r.CaseStatus || ''),
     }
   })
 }
