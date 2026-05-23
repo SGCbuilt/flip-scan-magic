@@ -81,7 +81,15 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    const upstream = await fetch(url, { headers })
+    let upstream: Response
+    try {
+      upstream = await fetch(url, { headers })
+    } catch (fetchErr: any) {
+      return new Response(
+        JSON.stringify({ ok: false, error: fetchErr?.message || 'Upstream network error' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
     const contentType = upstream.headers.get('content-type') || 'application/json'
     const data = contentType.includes('json') ? await upstream.json() : { text: await upstream.text() }
 
@@ -92,7 +100,7 @@ Deno.serve(async (req: Request) => {
   } catch (err: any) {
     return new Response(
       JSON.stringify({ error: err.message }),
-      { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
 })
