@@ -312,6 +312,17 @@ const PAID_SOURCES = [
 export default function ReferenceHub() {
   const [section, setSection] = useState<'free' | 'paid'>('free')
   const [expanded, setExpanded] = useState<string | null>(null)
+  const [query, setQuery] = useState('')
+
+  const q = query.trim().toLowerCase()
+  const matches = (hay: string[]) => !q || hay.some(s => s && s.toLowerCase().includes(q))
+
+  const freeFiltered = FREE_PORTALS.filter(p => matches([
+    p.name, p.tagline, p.description, p.howTo, p.discount, p.coverage, p.badge, ...(p.tips || []),
+  ]))
+  const paidFiltered = PAID_SOURCES.filter(p => matches([
+    p.name, p.badge, p.verdict, p.bestFor, p.proTip, p.price, p.roi, ...(p.keyFeatures || []),
+  ]))
 
   return (
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
@@ -319,8 +330,8 @@ export default function ReferenceHub() {
       {/* Tab switcher */}
       <div className="flex-shrink-0 px-6 pt-5 flex gap-2">
         {[
-          { id: 'free', label: '🏛️ Free Sources', sub: `${FREE_PORTALS.length} portals` },
-          { id: 'paid', label: '💎 Paid Lead Providers', sub: 'ranked by ROI' },
+          { id: 'free', label: '🏛️ Free Sources', sub: `${freeFiltered.length}/${FREE_PORTALS.length}` },
+          { id: 'paid', label: '💎 Paid Lead Providers', sub: `${paidFiltered.length}/${PAID_SOURCES.length}` },
         ].map(t => (
           <button key={t.id} onClick={() => setSection(t.id as any)}
             className="flex items-center gap-2 px-5 py-2.5 rounded-t-xl text-sm font-semibold border border-b-0 cursor-pointer transition-all"
@@ -339,6 +350,24 @@ export default function ReferenceHub() {
       <div className="flex-1 overflow-y-auto" style={{ background: 'white', borderTop: `1px solid var(--sgc-gray-border)` }}>
         <div className="p-6 max-w-5xl">
 
+          {/* Search bar */}
+          <div className="mb-5 flex items-center gap-2 rounded-xl border px-3 py-2"
+            style={{ borderColor: 'var(--sgc-gray-border)', background: 'var(--sgc-gray-light)' }}>
+            <span style={{ color: 'var(--sgc-gray-mid)' }}>🔎</span>
+            <input
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder="Search lead sources — e.g. foreclosure, skip trace, VA, AI calling, free…"
+              className="flex-1 bg-transparent outline-none text-sm"
+              style={{ color: 'var(--sgc-black)' }}
+            />
+            {query && (
+              <button onClick={() => setQuery('')}
+                className="text-xs px-2 py-0.5 rounded cursor-pointer bg-transparent border-none"
+                style={{ color: 'var(--sgc-gray-mid)' }}>clear</button>
+            )}
+          </div>
+
           {/* ── FREE PORTALS ── */}
           {section === 'free' && (
             <div className="space-y-4">
@@ -349,7 +378,12 @@ export default function ReferenceHub() {
                 </p>
               </div>
 
-              {FREE_PORTALS.map(p => (
+              {freeFiltered.length === 0 && (
+                <div className="text-sm py-8 text-center" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  No free sources match "{query}".
+                </div>
+              )}
+              {freeFiltered.map(p => (
                 <div key={p.name} className="rounded-2xl border overflow-hidden"
                   style={{ borderColor: expanded === p.name ? p.color + '40' : 'var(--sgc-gray-border)', background: 'white' }}>
 
@@ -432,7 +466,12 @@ export default function ReferenceHub() {
                 </p>
               </div>
 
-              {PAID_SOURCES.map(s => (
+              {paidFiltered.length === 0 && (
+                <div className="text-sm py-8 text-center" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  No paid providers match "{query}".
+                </div>
+              )}
+              {paidFiltered.map(s => (
                 <div key={s.name} className="rounded-2xl border overflow-hidden"
                   style={{
                     borderColor: s.highlight ? s.color + '60' : expanded === s.name ? s.color + '40' : 'var(--sgc-gray-border)',
