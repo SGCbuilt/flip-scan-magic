@@ -27,39 +27,63 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { source, endpoint, queryParams } = await req.json()
+    const body = await req.json()
+    const { source, endpoint, queryParams, url: rawUrl } = body
 
     let url: string
     let headers: Record<string, string> = {}
 
-    switch (source) {
-      case 'census': {
-        const key = Deno.env.get('CENSUS_API_KEY') || ''
-        const qs  = new URLSearchParams({ ...queryParams, key }).toString()
-        url = `https://api.census.gov/data${endpoint}?${qs}`
-        break
-      }
-      case 'fbi': {
-        const key = Deno.env.get('FBI_API_KEY') || ''
-        const qs  = new URLSearchParams(queryParams).toString()
-        url = `https://api.usa.gov/crime/fbi/api${endpoint}?${qs}`
-        headers = { 'api-key': key }
-        break
-      }
-      case 'bls': {
-        const qs = new URLSearchParams(queryParams).toString()
-        url = `https://api.bls.gov/publicAPI/v2${endpoint}?${qs}`
-        break
-      }
-      default:
+    if (rawUrl) {
+      const parsed = new URL(String(rawUrl))
+      const allowedHosts = new Set([
+        'api.census.gov', 'api.usa.gov', 'api.bls.gov',
+        'data.norfolk.gov', 'data.richmondgov.com', 'data.henrico.us',
+        'services1.arcgis.com', 'services.arcgis.com', 'gis.charlottenc.gov',
+        'gisservices.chathamcountync.gov', 'gisweb.durhamnc.gov', 'maps.wakegov.com',
+        'gis.forsyth.cc', 'gis.chesterfield.gov',
+      ])
+
+      if (parsed.protocol !== 'https:' || !allowedHosts.has(parsed.hostname)) {
         return new Response(
-          JSON.stringify({ error: `Unknown source: ${source}` }),
+          JSON.stringify({ error: 'URL is not allowed' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         )
+      }
+
+      url = parsed.toString()
+      headers = { 'Accept': 'application/json' }
+    } else {
+
+      switch (source) {
+        case 'census': {
+          const key = Deno.env.get('CENSUS_API_KEY') || ''
+          const qs  = new URLSearchParams({ ...queryParams, key }).toString()
+          url = `https://api.census.gov/data${endpoint}?${qs}`
+          break
+        }
+        case 'fbi': {
+          const key = Deno.env.get('FBI_API_KEY') || ''
+          const qs  = new URLSearchParams(queryParams).toString()
+          url = `https://api.usa.gov/crime/fbi/api${endpoint}?${qs}`
+          headers = { 'api-key': key }
+          break
+        }
+        case 'bls': {
+          const qs = new URLSearchParams(queryParams).toString()
+          url = `https://api.bls.gov/publicAPI/v2${endpoint}?${qs}`
+          break
+        }
+        default:
+          return new Response(
+            JSON.stringify({ error: `Unknown source: ${source}` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          )
+      }
     }
 
     const upstream = await fetch(url, { headers })
-    const data = await upstream.json()
+    const contentType = upstream.headers.get('content-type') || 'application/json'
+    const data = contentType.includes('json') ? await upstream.json() : { text: await upstream.text() }
 
     return new Response(JSON.stringify(data), {
       status: upstream.status,
