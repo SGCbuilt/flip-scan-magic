@@ -231,38 +231,38 @@ function arcgisUrl(baseUrl: string, where: string, fields = '*', orderBy = ''): 
 async function fetchNorfolkViolations(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = socrataUrl('data.norfolk.gov', 'mxtv-99gh', {
-    '$where':  `opened_date >= '${since}'`,
-    '$order':  'opened_date DESC',
+    '$where':  `violation_created_date >= '${since}'`,
+    '$order':  'violation_created_date DESC',
     '$limit':  '200',
-    '$select': 'case_number,address,violation_description,violation_type,status,opened_date,latitude,longitude',
   })
 
   const data = await safeFetch(url)
   if (!data?.length) return []
 
   return data.map((r: any) => {
-    const desc     = r.violation_description || r.violation_type || 'Code violation'
+    const coords   = r.geocoded_column_1?.coordinates || []
+    const desc     = r.violation_ordinance || r.inspection_type || 'Code violation'
     const severity = getSeverity(desc)
     return {
-      id:           `norfolk-viol-${r.case_number || Math.random().toString(36).slice(2)}`,
-      address:      r.address || 'Unknown',
+      id:           `norfolk-viol-${r.gpin || r.complaint_street || Math.random().toString(36).slice(2)}`,
+      address:      r.complaint_street || 'Unknown',
       city:         'Norfolk',
       state:        'VA',
       zip:          '',
       county:       'Norfolk City',
-      lat:          r.latitude  ? parseFloat(r.latitude)  : null,
-      lng:          r.longitude ? parseFloat(r.longitude) : null,
+      lat:          coords[1] ?? null,
+      lng:          coords[0] ?? null,
       signalType:   'code_violation' as SignalType,
-      signalLabel:  `Code Violation — ${r.violation_type || 'Unknown type'}`,
+      signalLabel:  `Code Violation — ${r.violation_ordinance || 'Unknown type'}`,
       description:  desc,
-      caseNumber:   r.case_number || '',
-      status:       r.status || 'Unknown',
-      filedDate:    parseDate(r.opened_date),
+      caseNumber:   r.gpin || '',
+      status:       r.violation_status || r.inspection_status || 'Unknown',
+      filedDate:    parseDate(r.violation_created_date || r.inspection_created_date),
       severity,
       source:       'Norfolk Open Data',
       sourceUrl:    'https://data.norfolk.gov/Government/Neighborhood-Quality-Code-Enforcement-Cases/mxtv-99gh',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.status || ''),
+      investorScore: getInvestorScore(severity, 'code_violation', r.violation_status || r.inspection_status || ''),
     }
   })
 }
