@@ -599,11 +599,12 @@ export async function fetchChathamSales(days: number): Promise<Lead[]> {
   // Property Sales — recent sales below assessed value signal distress
   const url = `https://gisservices.chathamcountync.gov/opendataagol/rest/services/Cadastral/Chatham_PropertySales/MapServer/0/query?` +
     new URLSearchParams({
-      where: `SALEDATE >= date '${sinceStr}'`,
-      outFields: 'PIN,SITEADDRESS,OWNER,SALEDATE,SALEPRICE,ASSESSED,TAXVAL,ACRES,PROPTYPE,CITYNAME,ZIPCODE',
+      where: `date_of_sale >= DATE '${sinceStr}'`,
+      outFields: 'parcel_Number,date_of_sale,net_selling_price,current_total_value,current_land_value,current_bldg_value,sale_year,grantee',
       returnGeometry: 'true',
-      orderByFields: 'SALEDATE DESC',
+      orderByFields: 'date_of_sale DESC',
       resultRecordCount: '200',
+      outSR: '4326',
       f: 'json',
     }).toString()
 
@@ -613,33 +614,33 @@ export async function fetchChathamSales(days: number): Promise<Lead[]> {
   return data.features
     .filter((f: any) => {
       const r = f.attributes || {}
-      const price    = r.SALEPRICE || 0
-      const assessed = r.ASSESSED  || 0
+      const price    = r.net_selling_price || 0
+      const assessed = r.current_total_value  || 0
       // Flag: sold well below assessed value = potential distress signal
       return price > 0 && assessed > 0 && price < assessed * 0.85
     })
     .map((f: any) => {
       const r        = f.attributes || {}
-      const price    = r.SALEPRICE  || 0
-      const assessed = r.ASSESSED   || 0
+      const price    = r.net_selling_price  || 0
+      const assessed = r.current_total_value   || 0
       const discount = assessed > 0 ? Math.round((1 - price / assessed) * 100) : 0
       const desc     = `Sold ${discount}% below assessed value — $${Math.round(price).toLocaleString()} vs assessed $${Math.round(assessed).toLocaleString()}`
       const severity: Severity = discount >= 30 ? 'critical' : discount >= 20 ? 'high' : 'medium'
       return {
-        id:           `chatham-sale-${r.PIN || Math.random().toString(36).slice(2)}`,
-        address:      r.SITEADDRESS || 'Unknown',
-        city:         r.CITYNAME || 'Chatham County',
+        id:           `chatham-sale-${r.parcel_Number || Math.random().toString(36).slice(2)}`,
+        address:      r.parcel_Number ? `Parcel ${r.parcel_Number}` : 'Unknown',
+        city:         'Chatham County',
         state:        'NC',
-        zip:          r.ZIPCODE || '',
+        zip:          '',
         county:       'Chatham',
         lat:          f.geometry?.y || null,
         lng:          f.geometry?.x || null,
         signalType:   'tax_delinquent' as SignalType,
         signalLabel:  `Below-Value Sale — ${discount}% under assessed`,
         description:  desc,
-        caseNumber:   r.PIN || '',
+        caseNumber:   r.parcel_Number || '',
         status:       'Sold',
-        filedDate:    r.SALEDATE ? new Date(r.SALEDATE).toISOString().split('T')[0] : '',
+        filedDate:    r.date_of_sale ? new Date(r.date_of_sale).toISOString().split('T')[0] : '',
         severity,
         source:       'Chatham County GIS — Property Sales (public record)',
         sourceUrl:    'https://gisservices.chathamcountync.gov',
