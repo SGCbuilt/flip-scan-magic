@@ -1,3 +1,4 @@
+import { syncWrite } from './cloudSync'
 /**
  * Follow-Up Task Engine
  * 
@@ -44,7 +45,7 @@ function load(): FollowUpTask[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 function save(tasks: FollowUpTask[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks)); syncWrite('flipscan_tasks_v1', tasks) } catch {}
 }
 
 function addDays(d: Date, days: number): Date {

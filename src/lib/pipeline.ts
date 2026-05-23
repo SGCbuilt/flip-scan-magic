@@ -1,3 +1,4 @@
+import { syncWrite } from './cloudSync'
 /**
  * Deal Pipeline — CRM layer for FlipScan Pro
  * 
@@ -98,7 +99,7 @@ function load(): PipelineLead[] {
 }
 
 function save(leads: PipelineLead[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(leads)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(leads)); syncWrite('flipscan_pipeline_v2', leads) } catch {}
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────

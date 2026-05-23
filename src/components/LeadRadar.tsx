@@ -13,6 +13,7 @@ import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline, getPipeline } from '../lib/pipeline'
 import { pullComps, CompResult } from '../lib/compPull'
 
+import DealGradePanel from './DealGrade'
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const SEVERITY_CONFIG: Record<Severity, { label: string; color: string; bg: string; dot: string }> = {
   critical: { label: 'Critical',  color: '#C0341D', bg: '#FEF0ED', dot: '#C0341D' },
@@ -349,6 +350,27 @@ function LeadCard({ lead, onExpand, expanded, tracerKey }: {
                 style={{ background: motivation ? '#EEEDFE' : motivLoading ? 'var(--sgc-gray-mid)' : '#534AB7', color: motivation ? '#534AB7' : 'white' }}>
                 {motivLoading ? '⟳ Scoring...' : motivation ? `🧠 ${motivation.score}` : '🧠 AI Score'}
               </button>
+              <DealGradePanel
+                compact={true}
+                input={{
+                  address:       lead.address,
+                  city:          lead.city,
+                  state:         lead.state,
+                  yearBuilt:     traceResult?.property?.yearBuilt || undefined,
+                  sqft:          traceResult?.property?.sqft || undefined,
+                  beds:          traceResult?.property?.beds || undefined,
+                  baths:         traceResult?.property?.baths || undefined,
+                  estimatedValue:traceResult?.property?.estimatedValue || undefined,
+                  arvSuggestion: comps?.arvSuggestion || undefined,
+                  arvPriceLow:   comps?.priceLow || undefined,
+                  arvPriceHigh:  comps?.priceHigh || undefined,
+                  compsCount:    comps?.comps?.length || undefined,
+                  signalType:    lead.signalType,
+                  signalLabel:   lead.signalLabel,
+                  severity:      lead.severity,
+                  description:   lead.description,
+                }}
+              />
               <button onClick={handleAddToPipeline} disabled={inPipeline}
                 className="text-xs font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer"
                 style={{ background: inPipeline ? '#EDFAF3' : '#1A7A4A', color: inPipeline ? '#1A7A4A' : 'white' }}>

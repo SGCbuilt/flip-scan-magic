@@ -1,3 +1,4 @@
+import { syncWrite } from './cloudSync'
 /**
  * Buyer List Manager
  *
@@ -43,7 +44,7 @@ function load(): Buyer[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 function save(buyers: Buyer[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(buyers)) } catch {}
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(buyers)); syncWrite('flipscan_buyers_v1', buyers) } catch {}
 }
 
 // ── CRUD ──────────────────────────────────────────────────────────────────────
