@@ -93,8 +93,17 @@ Deno.serve(async (req: Request) => {
     const contentType = upstream.headers.get('content-type') || 'application/json'
     const data = contentType.includes('json') ? await upstream.json() : { text: await upstream.text() }
 
+    // Always return 200 so the client can handle upstream failures gracefully
+    // (avoids "Edge function returned 4xx" thrown errors in the browser).
+    if (!upstream.ok) {
+      return new Response(
+        JSON.stringify({ ok: false, upstreamStatus: upstream.status, error: 'UPSTREAM_ERROR', data }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     return new Response(JSON.stringify(data), {
-      status: upstream.status,
+      status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     })
   } catch (err: any) {
