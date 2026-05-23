@@ -101,6 +101,30 @@ export type Database = {
         }
         Relationships: []
       }
+      flipscan_store: {
+        Row: {
+          data: Json
+          id: string
+          key: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          data?: Json
+          id?: string
+          key: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          data?: Json
+          id?: string
+          key?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           avatar_url: string | null
