@@ -239,12 +239,15 @@ async function fetchNorfolkViolations(days: number): Promise<Lead[]> {
   const data = await safeFetch(url)
   if (!data?.length) return []
 
-  return data.map((r: any) => {
+  return data.map((r: any, i: number) => {
     const coords   = r.geocoded_column_1?.coordinates || []
     const desc     = r.violation_ordinance || r.inspection_type || 'Code violation'
     const severity = getSeverity(desc)
+    const filedDate = parseDate(r.violation_created_date || r.inspection_created_date)
+    const stableKey = [r.gpin, r.complaint_street, r.violation_ordinance, r.violation_created_date, i]
+      .filter(Boolean).join('-').replace(/[^a-z0-9-]/gi, '').toLowerCase()
     return {
-      id:           `norfolk-viol-${r.gpin || r.complaint_street || Math.random().toString(36).slice(2)}`,
+      id:           `norfolk-viol-${stableKey || Math.random().toString(36).slice(2)}`,
       address:      r.complaint_street || 'Unknown',
       city:         'Norfolk',
       state:        'VA',
@@ -257,7 +260,7 @@ async function fetchNorfolkViolations(days: number): Promise<Lead[]> {
       description:  desc,
       caseNumber:   r.gpin || '',
       status:       r.violation_status || r.inspection_status || 'Unknown',
-      filedDate:    parseDate(r.violation_created_date || r.inspection_created_date),
+      filedDate,
       severity,
       source:       'Norfolk Open Data',
       sourceUrl:    'https://data.norfolk.gov/Government/Neighborhood-Quality-Code-Enforcement-Cases/mxtv-99gh',
