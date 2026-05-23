@@ -96,7 +96,7 @@ export const RADAR_SOURCES: RadarSource[] = [
   {
     id: 'virginia_beach', name: 'Virginia Beach Code Enforcement',
     city: 'Virginia Beach', state: 'VA', county: 'Virginia Beach',
-    type: 'arcgis', enabled: false,
+    type: 'arcgis', enabled: true,
     signalTypes: ['code_violation'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
@@ -298,14 +298,12 @@ async function fetchNorfolkPermits(days: number): Promise<Lead[]> {
 async function fetchVirginiaBeach(days: number): Promise<Lead[]> {
   const since = new Date()
   since.setDate(since.getDate() - days)
-  const sinceMs = since.getTime()
-
-  // ArcGIS date filter uses Unix timestamp in milliseconds
+  // Verified working endpoint
   const url = arcgisUrl(
-    'https://services1.arcgis.com/0MSEUqKaxRlEPj5g/arcgis/rest/services/Code_Enforcement_Cases/FeatureServer/0',
-    `OpenedDate >= date '${since.toISOString().split('T')[0]}'`,
-    'CaseNumber,Address,ViolationType,Description,Status,OpenedDate,Shape__Lat,Shape__Lon,ZipCode',
-    'OpenedDate DESC'
+    'https://services2.arcgis.com/CyVvlIiUfRBmMQuu/arcgis/rest/services/Code_Enforcement_Cases_/FeatureServer/0',
+    `Open_Date >= date '${since.toISOString().split('T')[0]}'`,
+    'OBJECTID,Address,CITY,STATE,Zip_Code,Inspection_Type,Case_Type,Violation,Open_Date,Closing_Date',
+    'Open_Date DESC'
   )
 
   const data = await safeFetch(url)
@@ -313,28 +311,29 @@ async function fetchVirginiaBeach(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r        = f.attributes || {}
-    const desc     = r.Description || r.ViolationType || 'Code enforcement case'
+    const desc     = r.Violation || r.Case_Type || 'Code enforcement case'
     const severity = getSeverity(desc)
+    const isOpen   = !r.Closing_Date
     return {
-      id:           `vb-${r.CaseNumber || Math.random().toString(36).slice(2)}`,
+      id:           `vb-${r.OBJECTID || Math.random().toString(36).slice(2)}`,
       address:      r.Address || 'Unknown',
       city:         'Virginia Beach',
       state:        'VA',
-      zip:          r.ZipCode || '',
+      zip:          r.Zip_Code || '',
       county:       'Virginia Beach City',
       lat:          f.geometry?.y || null,
       lng:          f.geometry?.x || null,
       signalType:   'code_violation' as SignalType,
-      signalLabel:  `Code Enforcement — ${r.ViolationType || 'Violation'}`,
+      signalLabel:  `Code Enforcement — ${r.Case_Type || 'Violation'}`,
       description:  desc,
-      caseNumber:   r.CaseNumber || '',
-      status:       r.Status || 'Unknown',
-      filedDate:    r.OpenedDate ? new Date(r.OpenedDate).toISOString().split('T')[0] : '',
+      caseNumber:   String(r.OBJECTID || ''),
+      status:       isOpen ? 'Open' : 'Closed',
+      filedDate:    r.Open_Date ? new Date(r.Open_Date).toISOString().split('T')[0] : '',
       severity,
       source:       'Virginia Beach Open Data',
-      sourceUrl:    'https://data.virginiabeach.gov',
+      sourceUrl:    'https://gis.data.vbgov.com',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'code_violation', r.Status || ''),
+      investorScore: getInvestorScore(severity, 'code_violation', isOpen ? 'open' : 'closed'),
     }
   })
 }
