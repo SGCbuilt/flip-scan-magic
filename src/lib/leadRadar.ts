@@ -82,7 +82,7 @@ export const RADAR_SOURCES: RadarSource[] = [
   {
     id: 'norfolk_violations', name: 'Norfolk Code Violations',
     city: 'Norfolk', state: 'VA', county: 'Norfolk City',
-    type: 'socrata', enabled: true,
+    type: 'socrata', enabled: false,
     signalTypes: ['code_violation'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
