@@ -41,6 +41,10 @@ body {
 ::-webkit-scrollbar-thumb { background: var(--sgc-gray-border); border-radius: 3px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--sgc-gray-house); }
 
+/* Hide scrollbar on tab bar */
+.sgc-tabbar { scrollbar-width: none; -ms-overflow-style: none; }
+.sgc-tabbar::-webkit-scrollbar { height: 0; width: 0; display: none; }
+
 /* Range slider */
 input[type="range"] { accent-color: var(--sgc-navy); }
 input[type="checkbox"] { accent-color: var(--sgc-navy); }
