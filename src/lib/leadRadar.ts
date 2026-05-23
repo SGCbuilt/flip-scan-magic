@@ -173,15 +173,29 @@ function getInvestorScore(severity: Severity, signalType: SignalType, status: st
 // ─── Safe fetch wrapper ───────────────────────────────────────────────────────
 async function safeFetch(url: string): Promise<any> {
   try {
-    const res = await fetch(url, {
-      headers: { 'Accept': 'application/json' },
-      signal: AbortSignal.timeout(15000),
+    const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-proxy`
+    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+    const res = await fetch(proxyUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${anon}`,
+        'apikey': anon,
+      },
+      body: JSON.stringify({ url }),
+      signal: AbortSignal.timeout(20000),
     })
     if (!res.ok) {
-      console.warn(`[LeadRadar] ${res.status} → ${url.slice(0, 100)}`)
+      console.warn(`[LeadRadar] proxy ${res.status} → ${url.slice(0, 100)}`)
       return null
     }
-    return await res.json()
+    const data = await res.json()
+    if (data?.error) {
+      console.warn(`[LeadRadar] upstream error → ${url.slice(0, 100)}: ${data.error}`)
+      return null
+    }
+    return data
   } catch (e: any) {
     console.warn(`[LeadRadar] fetch error for ${url.slice(0, 80)}:`, e?.message)
     return null
