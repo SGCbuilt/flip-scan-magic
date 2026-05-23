@@ -491,6 +491,7 @@ export async function fetchLeadRadar(
     raleigh_permits:    fetchRaleigh,
     chatham_sales:      fetchChathamSales,
     chatham_vacant:     fetchChathamDistressed,
+    ...EXTRA_FETCHERS,
   }
 
   const enabled = enabledSourceIds.filter(id => id in fetchers)
@@ -686,4 +687,161 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
       investorScore: getInvestorScore(severity, isVacant ? 'vacant' : 'code_violation', 'open'),
     }
   })
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ADDITIONAL COUNTIES — Durham, Wake, Forsyth NC + Henrico, Chesterfield VA
+// ─────────────────────────────────────────────────────────────────────────────
+
+RADAR_SOURCES.push(
+  { id: 'durham',       name: 'Durham Code Enforcement',     city: 'Durham',        state: 'NC', county: 'Durham',       type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'forsyth',      name: 'Forsyth/Winston-Salem Code',  city: 'Winston-Salem', state: 'NC', county: 'Forsyth',      type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'wake_county',  name: 'Wake County Permits',         city: 'Cary',          state: 'NC', county: 'Wake',         type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'henrico',      name: 'Henrico County Code',         city: 'Henrico',       state: 'VA', county: 'Henrico',      type: 'socrata', enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'chesterfield', name: 'Chesterfield County Permits', city: 'Chesterfield',  state: 'VA', county: 'Chesterfield', type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+)
+
+async function fetchDurham(days: number): Promise<Lead[]> {
+  const since = daysAgoISO(days)
+  const url = arcgisUrl(
+    'https://gisweb.durhamnc.gov/arcgis/rest/services/PublicWS/Code_Enforcement/MapServer/0',
+    `OPENEDDATE >= date '${since}'`,
+    'CASENUMBER,FULLADDRESS,CASETYPE,DESCRIPTION,STATUSDESC,OPENEDDATE,ZIPCODE',
+    'OPENEDDATE DESC'
+  )
+  const data = await safeFetch(url)
+  if (!data?.features?.length) return []
+  return data.features.map((f: any) => {
+    const r = f.attributes || {}
+    const desc = r.DESCRIPTION || r.CASETYPE || 'Code enforcement'
+    const severity = getSeverity(desc)
+    return {
+      id: `durham-${r.CASENUMBER || Math.random().toString(36).slice(2)}`,
+      address: r.FULLADDRESS || 'Unknown', city: 'Durham', state: 'NC', zip: r.ZIPCODE || '', county: 'Durham',
+      lat: f.geometry?.y || null, lng: f.geometry?.x || null,
+      signalType: 'code_violation' as SignalType, signalLabel: `Code Enforcement — ${r.CASETYPE || 'Violation'}`,
+      description: desc, caseNumber: r.CASENUMBER || '', status: r.STATUSDESC || 'Unknown',
+      filedDate: r.OPENEDDATE ? new Date(r.OPENEDDATE).toISOString().split('T')[0] : '',
+      severity, source: 'City of Durham Open Data', sourceUrl: 'https://gisweb.durhamnc.gov',
+      rawData: r, investorScore: getInvestorScore(severity, 'code_violation', r.STATUSDESC || ''),
+    }
+  })
+}
+
+async function fetchForsyth(days: number): Promise<Lead[]> {
+  const since = daysAgoISO(days)
+  const url = arcgisUrl(
+    'https://gis.forsyth.cc/arcgis/rest/services/PublicAccess/CodeEnforcement/MapServer/0',
+    `DateOpened >= date '${since}'`,
+    'CaseNumber,Address,CaseType,Description,Status,DateOpened,ZipCode',
+    'DateOpened DESC'
+  )
+  const data = await safeFetch(url)
+  if (!data?.features?.length) return []
+  return data.features.map((f: any) => {
+    const r = f.attributes || {}
+    const desc = r.Description || r.CaseType || 'Code enforcement'
+    const severity = getSeverity(desc)
+    return {
+      id: `forsyth-${r.CaseNumber || Math.random().toString(36).slice(2)}`,
+      address: r.Address || 'Unknown', city: 'Winston-Salem', state: 'NC', zip: r.ZipCode || '', county: 'Forsyth',
+      lat: f.geometry?.y || null, lng: f.geometry?.x || null,
+      signalType: 'code_violation' as SignalType, signalLabel: `Code Enforcement — ${r.CaseType || 'Violation'}`,
+      description: desc, caseNumber: r.CaseNumber || '', status: r.Status || 'Unknown',
+      filedDate: r.DateOpened ? new Date(r.DateOpened).toISOString().split('T')[0] : '',
+      severity, source: 'Forsyth County Open Data', sourceUrl: 'https://gis.forsyth.cc',
+      rawData: r, investorScore: getInvestorScore(severity, 'code_violation', r.Status || ''),
+    }
+  })
+}
+
+async function fetchWakeCounty(days: number): Promise<Lead[]> {
+  const since = daysAgoISO(days)
+  const url = arcgisUrl(
+    'https://maps.wakegov.com/arcgis/rest/services/Inspections/BuildingPermits/MapServer/0',
+    `IssueDate >= date '${since}'`,
+    'PermitNumber,SiteAddress,Description,PermitType,Status,IssueDate,Zipcode',
+    'IssueDate DESC'
+  )
+  const data = await safeFetch(url)
+  if (!data?.features?.length) return []
+  return data.features.map((f: any) => {
+    const r = f.attributes || {}
+    const desc = r.Description || r.PermitType || 'Building permit'
+    const severity = getSeverity(desc)
+    return {
+      id: `wake-${r.PermitNumber || Math.random().toString(36).slice(2)}`,
+      address: r.SiteAddress || 'Unknown', city: 'Wake County', state: 'NC', zip: r.Zipcode || '', county: 'Wake',
+      lat: f.geometry?.y || null, lng: f.geometry?.x || null,
+      signalType: 'building_permit' as SignalType, signalLabel: `Building Permit — ${r.PermitType || 'Permit'}`,
+      description: desc, caseNumber: r.PermitNumber || '', status: r.Status || 'Unknown',
+      filedDate: r.IssueDate ? new Date(r.IssueDate).toISOString().split('T')[0] : '',
+      severity, source: 'Wake County GIS', sourceUrl: 'https://maps.wakegov.com',
+      rawData: r, investorScore: getInvestorScore(severity, 'building_permit', r.Status || ''),
+    }
+  })
+}
+
+async function fetchHenrico(days: number): Promise<Lead[]> {
+  const since = daysAgoISO(days)
+  const url = socrataUrl('data.henrico.us', 'code-violations', {
+    '$where': `date_filed >= '${since}'`,
+    '$order': 'date_filed DESC',
+    '$limit': '200',
+  })
+  const data = await safeFetch(url)
+  if (!data?.length) return []
+  return data.map((r: any) => {
+    const desc = r.violation_description || r.violation_type || 'Code violation'
+    const severity = getSeverity(desc)
+    return {
+      id: `henrico-${r.case_number || Math.random().toString(36).slice(2)}`,
+      address: r.address || 'Unknown', city: 'Henrico', state: 'VA', zip: r.zip || '', county: 'Henrico',
+      lat: r.latitude ? parseFloat(r.latitude) : null, lng: r.longitude ? parseFloat(r.longitude) : null,
+      signalType: 'code_violation' as SignalType, signalLabel: `Code Violation — ${r.violation_type || 'Violation'}`,
+      description: desc, caseNumber: r.case_number || '', status: r.status || 'Unknown',
+      filedDate: parseDate(r.date_filed),
+      severity, source: 'Henrico County Open Data', sourceUrl: 'https://data.henrico.us',
+      rawData: r, investorScore: getInvestorScore(severity, 'code_violation', r.status || ''),
+    }
+  })
+}
+
+async function fetchChesterfield(days: number): Promise<Lead[]> {
+  const since = daysAgoISO(days)
+  const url = arcgisUrl(
+    'https://gis.chesterfield.gov/arcgis/rest/services/PublicAccess/Permits/MapServer/0',
+    `ISSUED_DATE >= date '${since}'`,
+    'PERMIT_NUMBER,SITE_ADDRESS,DESCRIPTION,PERMIT_TYPE,STATUS,ISSUED_DATE,ZIPCODE',
+    'ISSUED_DATE DESC'
+  )
+  const data = await safeFetch(url)
+  if (!data?.features?.length) return []
+  return data.features.map((f: any) => {
+    const r = f.attributes || {}
+    const desc = r.DESCRIPTION || r.PERMIT_TYPE || 'Building permit'
+    const severity = getSeverity(desc)
+    return {
+      id: `chester-${r.PERMIT_NUMBER || Math.random().toString(36).slice(2)}`,
+      address: r.SITE_ADDRESS || 'Unknown', city: 'Chesterfield', state: 'VA', zip: r.ZIPCODE || '', county: 'Chesterfield',
+      lat: f.geometry?.y || null, lng: f.geometry?.x || null,
+      signalType: 'building_permit' as SignalType, signalLabel: `Building Permit — ${r.PERMIT_TYPE || 'Permit'}`,
+      description: desc, caseNumber: r.PERMIT_NUMBER || '', status: r.STATUS || 'Unknown',
+      filedDate: r.ISSUED_DATE ? new Date(r.ISSUED_DATE).toISOString().split('T')[0] : '',
+      severity, source: 'Chesterfield County GIS', sourceUrl: 'https://gis.chesterfield.gov',
+      rawData: r, investorScore: getInvestorScore(severity, 'building_permit', r.STATUS || ''),
+    }
+  })
+}
+
+// Register new fetchers — add to existing fetchLeadRadar function map
+// These are exported so fetchLeadRadar can pick them up
+export const EXTRA_FETCHERS: Record<string, (days: number) => Promise<Lead[]>> = {
+  durham:       fetchDurham,
+  forsyth:      fetchForsyth,
+  wake_county:  fetchWakeCounty,
+  henrico:      fetchHenrico,
+  chesterfield: fetchChesterfield,
+  chatham_sales:   fetchChathamSales,
+  chatham_vacant:  fetchChathamDistressed,
 }

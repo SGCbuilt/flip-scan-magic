@@ -6,13 +6,21 @@ import MarketPanel from './components/MarketPanel'
 import DealHunter from './components/DealHunter'
 import ReferenceHub from './components/ReferenceHub'
 import MarketAnalyzer from './components/MarketAnalyzer'
-import FinancialTools, { FinancialSeed } from './components/FinancialTools'
+import FinancialTools from './components/FinancialTools'
 import LeadRadar from './components/LeadRadar'
+import Pipeline from './components/Pipeline'
+import Wholesale from './components/Wholesale'
+import DriveForDollars from './components/DriveForDollars'
+import Tasks from './components/Tasks'
+import KPIDashboard from './components/Dashboard2'
+import BuyerList from './components/BuyerList'
+import ListStacking from './components/ListStacking'
+import DealPLTracker from './components/DealPL'
+import { getTaskStats } from './lib/followUpEngine'
 import { SearchParams, AnalyzedProperty, MarketStats, SortKey, ViewMode } from './types'
 import { masterSearch, fetchMarketStats, buildLocationParams } from './lib/rentcast'
 import { analyzeProperty, sortResults } from './lib/scoring'
 import { fmt$ } from './lib/utils'
-import sgcLogo from '@/assets/sgc-logo.png'
 
 const DEFAULT_PARAMS: SearchParams = {
   searchMode: 'city', locationQuery: 'Norfolk, VA', radius: 25,
@@ -51,20 +59,9 @@ export default function App() {
   const [sortKey, setSortKey]           = useState<SortKey>('score')
   const [viewMode, setViewMode]         = useState<ViewMode>('cards')
   const [activeStrategy, setActiveStrategy] = useState('all')
-  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'radar' | 'reference'>('deals')
+  const [activeTab, setActiveTab] = useState<'deals' | 'market' | 'analyzer' | 'financial' | 'hunt' | 'radar' | 'stack' | 'pipeline' | 'wholesale' | 'buyers' | 'drive' | 'tasks' | 'kpi' | 'pl' | 'reference'>('deals')
   const [toast, setToast]               = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta, setSearchMeta]     = useState<{ time: number; raw: number } | null>(null)
-  const [financialSeed, setFinancialSeed] = useState<FinancialSeed | undefined>(undefined)
-
-  const runFinancials = (p: AnalyzedProperty) => {
-    setFinancialSeed({
-      price: p.price,
-      arv: p.arv,
-      rehab: p.rehabCost,
-      addr: `${p.addr}, ${p.city}, ${p.state}`,
-    })
-    setActiveTab('financial')
-  }
 
   const showToast = (msg: string, err = false) => {
     setToast({ msg, err })
@@ -154,10 +151,16 @@ export default function App() {
         {/* Logo */}
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2.5">
-            {/* SGC logo */}
-            <div className="w-9 h-9 flex-shrink-0 rounded bg-white flex items-center justify-center p-1">
-              <img src={sgcLogo} alt="SGC Built" className="w-full h-full object-contain" />
-            </div>
+            {/* SGC house mark */}
+            <svg viewBox="0 0 38 38" className="w-8 h-8 flex-shrink-0">
+              <rect width="38" height="38" rx="5" fill="white" fillOpacity="0.12"/>
+              {/* house outline — gray like logo */}
+              <polyline points="19,6 32,16 32,33 6,33 6,16" fill="none" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinejoin="round"/>
+              <line x1="19" y1="6" x2="6" y2="16" stroke="rgba(255,255,255,0.45)" strokeWidth="1.5" strokeLinecap="round"/>
+              <rect x="14.5" y="24" width="9" height="9" rx="0.5" fill="none" stroke="rgba(255,255,255,0.35)" strokeWidth="1.2"/>
+              {/* SGC text */}
+              <text x="19" y="22" textAnchor="middle" fill="white" fontSize="9.5" fontWeight="700" fontFamily="Inter,sans-serif" letterSpacing="0.5">SGC</text>
+            </svg>
             <div>
               <div style={{ fontFamily: 'Inter,sans-serif', letterSpacing: '0.12em' }}
                 className="text-white font-bold text-sm uppercase leading-none tracking-widest">
@@ -228,8 +231,17 @@ export default function App() {
               { id: 'market',   label: 'Market Trends',       icon: '📊', badge: undefined },
               { id: 'analyzer',  label: 'Area Intelligence',   icon: '🔬', badge: undefined },
               { id: 'financial', label: 'Financial Tools',      icon: '💹', badge: undefined },
-              { id: 'radar',    label: 'Lead Radar',            icon: '📡', badge: undefined },
-              { id: 'hunt',      label: 'Deal Hunter',          icon: '🎯', badge: undefined },
+              { id: 'radar',    label: 'Lead Radar',  icon: '📡', badge: undefined },
+              { id: 'stack',    label: 'List Stack',  icon: '⚡', badge: undefined },
+              { id: 'kpi',      label: 'KPI',        icon: '📊', badge: undefined },
+              { id: 'kpi',      label: 'KPI',         icon: '📊', badge: undefined },
+              { id: 'pl',       label: 'Deal P&amp;L',     icon: '📒', badge: undefined },
+              { id: 'tasks',    label: 'Tasks',       icon: '✅', badge: (() => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined })() },
+              { id: 'pipeline', label: 'Pipeline CRM', icon: '🎯', badge: undefined },
+              { id: 'wholesale', label: 'Wholesale', icon: '🏷️', badge: undefined },
+              { id: 'buyers',    label: 'Buyers',     icon: '👥', badge: undefined },
+              { id: 'drive',     label: 'Drive $',   icon: '🚗', badge: undefined },
+              { id: 'hunt',     label: 'Deal Hunter',           icon: '🎯', badge: undefined },
               { id: 'reference',label: 'Lead Sources',        icon: '📚', badge: undefined },
             ].map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id as any)}
@@ -241,9 +253,11 @@ export default function App() {
                 {t.label}
                 {t.badge != null && t.badge > 0 && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
-                    style={activeTab === t.id
-                      ? { background: 'var(--sgc-navy)', color: 'white' }
-                      : { background: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
+                    style={t.id === 'tasks'
+                      ? { background: '#C0341D', color: 'white' }
+                      : activeTab === t.id
+                        ? { background: 'var(--sgc-navy)', color: 'white' }
+                        : { background: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
                     {t.badge}
                   </span>
                 )}
@@ -259,7 +273,6 @@ export default function App() {
                 marketStats={marketStats} apiErrors={apiErrors} loadingMsg={loadingMsg}
                 sortKey={sortKey} viewMode={viewMode} onSort={handleSort}
                 onViewMode={setViewMode} onSelect={setSelected} searchMeta={searchMeta} params={params}
-                onRunFinancials={runFinancials}
               />
             )}
             {activeTab === 'market' && (
@@ -267,8 +280,16 @@ export default function App() {
                 results={results} visible={activeTab === 'market'} />
             )}
             {activeTab === 'analyzer'  && <MarketAnalyzer />}
-            {activeTab === 'financial' && <FinancialTools seed={financialSeed} />}
+            {activeTab === 'financial' && <FinancialTools />}
             {activeTab === 'radar'     && <LeadRadar />}
+            {activeTab === 'stack'     && <ListStacking />}
+            {activeTab === 'kpi'       && <KPIDashboard />}
+            {activeTab === 'pl'        && <DealPLTracker />}
+            {activeTab === 'tasks'     && <Tasks />}
+            {activeTab === 'pipeline'  && <Pipeline />}
+            {activeTab === 'wholesale' && <Wholesale />}
+            {activeTab === 'buyers'    && <BuyerList />}
+            {activeTab === 'drive'     && <DriveForDollars />}
             {activeTab === 'hunt'      && <DealHunter />}
             {activeTab === 'reference' && <ReferenceHub />}
           </div>

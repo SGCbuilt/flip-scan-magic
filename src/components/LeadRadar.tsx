@@ -1,12 +1,17 @@
 /**
  * Lead Radar — Motivated Seller Early Warning System
  * Pulls real public records from VA + NC government APIs
+ * Integrated: Skip Tracing (Tracerfy) + CRM Pipeline
  */
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import {
   fetchLeadRadar, RADAR_SOURCES,
   Lead, RadarResult, RadarSource, Severity, SignalType
 } from '../lib/leadRadar'
+import { skipTrace, fetchTracerBalance, SkipTraceResult } from '../lib/skipTrace'
+import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
+import { addToPipeline, isInPipeline, getPipeline } from '../lib/pipeline'
+import { pullComps, CompResult } from '../lib/compPull'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const SEVERITY_CONFIG: Record<Severity, { label: string; color: string; bg: string; dot: string }> = {
@@ -49,10 +54,79 @@ function SeverityPill({ severity }: { severity: Severity }) {
 }
 
 // ─── Lead Card ────────────────────────────────────────────────────────────────
-function LeadCard({ lead, onExpand, expanded }: { lead: Lead; onExpand: () => void; expanded: boolean }) {
+function LeadCard({ lead, onExpand, expanded, tracerKey }: {
+  lead: Lead; onExpand: () => void; expanded: boolean; tracerKey: string
+}) {
   const sc  = SEVERITY_CONFIG[lead.severity]
   const sig = SIGNAL_CONFIG[lead.signalType]
   const mapsUrl = `https://maps.google.com/?q=${encodeURIComponent(lead.address + ', ' + lead.city + ', ' + lead.state)}`
+  const [tracing,  setTracing]  = useState(false)
+  const [traceResult, setTrace] = useState<SkipTraceResult | null>(null)
+  const [inPipeline, setInPipeline] = useState(() => isInPipeline(lead.id))
+  const [motivation,    setMotivation]    = useState<MotivationScore | null>(null)
+  const [motivLoading,  setMotivLoading]  = useState(false)
+  const [comps,         setComps]         = useState<CompResult | null>(null)
+  const [compsLoading,  setCompsLoading]  = useState(false)
+
+  // Auto-pull comps when card is expanded for the first time
+  useEffect(() => {
+    if (expanded && !comps && !compsLoading) {
+      setCompsLoading(true)
+      pullComps(lead.address, lead.city, lead.state, lead.zip)
+        .then(r => { if (r) setComps(r) })
+        .finally(() => setCompsLoading(false))
+    }
+  }, [expanded])
+
+  const handleSkipTrace = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!tracerKey) { alert('Add your Tracerfy API key in the settings panel to enable skip tracing.'); return }
+    setTracing(true)
+    const r = await skipTrace(lead.address, lead.city, lead.state, lead.zip, tracerKey)
+    setTrace(r)
+    setTracing(false)
+    // Auto-compute motivation score after trace completes
+    if (r?.hit) {
+      setMotivLoading(true)
+      const m = await computeMotivationScore(lead, r)
+      if (m) setMotivation(m)
+      setMotivLoading(false)
+    }
+  }
+
+  const handleMotivationScore = async (e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (motivation) return
+    setMotivLoading(true)
+    const m = await computeMotivationScore(lead, traceResult)
+    if (m) setMotivation(m)
+    setMotivLoading(false)
+  }
+
+  const handleAddToPipeline = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    addToPipeline({
+      id: lead.id,
+      stage: 'new',
+      priority: lead.investorScore >= 80 ? 'hot' : lead.investorScore >= 60 ? 'warm' : 'cold',
+      address: lead.address, city: lead.city, state: lead.state,
+      zip: lead.zip, county: lead.county,
+      signalType: lead.signalType, signalLabel: lead.signalLabel,
+      investorScore: lead.investorScore, severity: lead.severity, source: lead.source,
+      ownerName:   traceResult?.owner?.name   || '',
+      phones:      traceResult?.phones        || [],
+      emails:      traceResult?.emails        || [],
+      mailingAddr: traceResult?.owner?.mailingAddr || '',
+      estimatedARV:    traceResult?.property?.estimatedValue || 0,
+      estimatedRehab:  0,
+      estimatedProfit: 0,
+      maxOffer:        0,
+      notes: '',
+      tags: [lead.signalType, lead.severity],
+      assignedTo: 'Albert',
+    })
+    setInPipeline(true)
+  }
 
   return (
     <div onClick={onExpand} className="bg-white rounded-xl border cursor-pointer hover:shadow-md transition-all overflow-hidden"
@@ -109,6 +183,126 @@ function LeadCard({ lead, onExpand, expanded }: { lead: Lead; onExpand: () => vo
         {/* Expanded */}
         {expanded && (
           <div className="mt-3 pt-3 border-t space-y-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+
+            {/* ── COMP AUTO-PULL PANEL ── */}
+            <div className="rounded-xl overflow-hidden border" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              {/* Header */}
+              <div className="px-3 py-2 flex items-center justify-between"
+                style={{ background: comps ? 'var(--sgc-navy)' : 'var(--sgc-gray-light)' }}>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🏠</span>
+                  <span className="text-xs font-bold" style={{ color: comps ? 'white' : 'var(--sgc-gray-mid)' }}>
+                    Comps & ARV — RentCast Live
+                  </span>
+                </div>
+                {compsLoading && (
+                  <div className="w-3.5 h-3.5 border-2 rounded-full spin"
+                    style={{ borderColor: 'var(--sgc-gray-border)', borderTopColor: 'var(--sgc-navy)' }}/>
+                )}
+                {comps && !compsLoading && (
+                  <span className="text-[10px] text-white font-semibold">{comps.confidence} confidence</span>
+                )}
+              </div>
+
+              {compsLoading && (
+                <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  Pulling comps from RentCast...
+                </div>
+              )}
+
+              {!compsLoading && !comps && (
+                <div className="px-3 py-3 text-xs text-center" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  No comp data available for this address
+                </div>
+              )}
+
+              {comps && !compsLoading && (
+                <div className="p-3 space-y-3">
+                  {/* AVM Summary */}
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-2.5 rounded-xl" style={{ background: '#EEF2FB' }}>
+                      <div className="text-[9px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Est. Value</div>
+                      <div className="text-base font-black" style={{ color: 'var(--sgc-navy)' }}>
+                        ${Math.round(comps.estimatedValue / 1000)}k
+                      </div>
+                    </div>
+                    <div className="text-center p-2.5 rounded-xl" style={{ background: '#EDFAF3' }}>
+                      <div className="text-[9px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Suggested ARV</div>
+                      <div className="text-base font-black" style={{ color: '#1A7A4A' }}>
+                        ${Math.round(comps.arvSuggestion / 1000)}k
+                      </div>
+                    </div>
+                    <div className="text-center p-2.5 rounded-xl" style={{ background: '#FEF7EA' }}>
+                      <div className="text-[9px] font-semibold uppercase tracking-wider mb-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Range</div>
+                      <div className="text-[11px] font-bold" style={{ color: '#8A5700' }}>
+                        ${Math.round(comps.priceLow/1000)}k–${Math.round(comps.priceHigh/1000)}k
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* MAO quick calc */}
+                  {comps.arvSuggestion > 0 && (
+                    <div className="p-2.5 rounded-xl text-xs flex items-center justify-between"
+                      style={{ background: 'var(--sgc-navy-pale)' }}>
+                      <span style={{ color: 'var(--sgc-navy)' }}>70% Rule Max Offer (no rehab)</span>
+                      <span className="font-black text-sm" style={{ color: 'var(--sgc-navy)' }}>
+                        ${Math.round(comps.arvSuggestion * 0.70 / 1000)}k
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Comps table */}
+                  {comps.comps.length > 0 && (
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        Sold Comps ({comps.comps.length})
+                      </div>
+                      <div className="space-y-1.5">
+                        {comps.comps.slice(0, 5).map((c, i) => (
+                          <div key={i} className="flex items-center gap-2 p-2 rounded-lg text-xs"
+                            style={{ background: i === 0 ? '#EEF2FB' : 'var(--sgc-gray-light)' }}>
+                            {/* Rank */}
+                            <span className="w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black flex-shrink-0"
+                              style={{ background: i === 0 ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)', color: i === 0 ? 'white' : 'var(--sgc-gray-mid)' }}>
+                              {i + 1}
+                            </span>
+                            {/* Address */}
+                            <div className="flex-1 min-w-0">
+                              <div className="truncate font-medium" style={{ color: 'var(--sgc-black)' }}>{c.address}</div>
+                              <div style={{ color: 'var(--sgc-gray-mid)' }}>
+                                {c.beds}bd · {c.baths}ba
+                                {c.sqft > 0 && ` · ${c.sqft.toLocaleString()}sf`}
+                                {c.soldDate && ` · ${new Date(c.soldDate).toLocaleDateString('en-US', { month: 'short', year: '2-digit' })}`}
+                              </div>
+                            </div>
+                            {/* Price */}
+                            <div className="text-right flex-shrink-0">
+                              <div className="font-black" style={{ color: 'var(--sgc-navy)' }}>
+                                ${Math.round(c.price / 1000)}k
+                              </div>
+                              {c.pricePerSqft > 0 && (
+                                <div style={{ color: 'var(--sgc-gray-mid)' }}>${c.pricePerSqft}/sf</div>
+                              )}
+                            </div>
+                            {/* Distance */}
+                            {c.distance > 0 && (
+                              <div className="text-[9px] flex-shrink-0" style={{ color: 'var(--sgc-gray-mid)' }}>
+                                {c.distance.toFixed(2)}mi
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="text-[9px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                    Source: RentCast AVM · {new Date(comps.fetchedAt).toLocaleTimeString()} · Conservative ARV = median of comps − 3%
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Map */}
             {lead.lat && lead.lng && (
               <div className="rounded-xl overflow-hidden" style={{ height: 140 }}>
@@ -143,8 +337,23 @@ function LeadCard({ lead, onExpand, expanded }: { lead: Lead; onExpand: () => vo
               </div>
             </div>
 
-            {/* Action buttons */}
-            <div className="flex gap-2 flex-wrap">
+            {/* Skip trace + pipeline actions */}
+            <div className="flex gap-2 flex-wrap" onClick={e => e.stopPropagation()}>
+              <button onClick={handleSkipTrace} disabled={tracing || !!traceResult}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer"
+                style={{ background: traceResult ? '#EDFAF3' : tracing ? 'var(--sgc-gray-mid)' : 'var(--sgc-navy)', color: traceResult ? '#1A7A4A' : 'white' }}>
+                {tracing ? '⟳ Tracing...' : traceResult ? '✓ Traced' : '🔍 Skip Trace'}
+              </button>
+              <button onClick={handleMotivationScore} disabled={motivLoading || !!motivation}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer"
+                style={{ background: motivation ? '#EEEDFE' : motivLoading ? 'var(--sgc-gray-mid)' : '#534AB7', color: motivation ? '#534AB7' : 'white' }}>
+                {motivLoading ? '⟳ Scoring...' : motivation ? `🧠 ${motivation.score}` : '🧠 AI Score'}
+              </button>
+              <button onClick={handleAddToPipeline} disabled={inPipeline}
+                className="text-xs font-bold px-3 py-1.5 rounded-lg border-none cursor-pointer"
+                style={{ background: inPipeline ? '#EDFAF3' : '#1A7A4A', color: inPipeline ? '#1A7A4A' : 'white' }}>
+                {inPipeline ? '✓ In Pipeline' : '+ Pipeline'}
+              </button>
               <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
                 onClick={e => e.stopPropagation()}
                 className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
@@ -157,13 +366,148 @@ function LeadCard({ lead, onExpand, expanded }: { lead: Lead; onExpand: () => vo
                 style={{ color: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)30', background: 'var(--sgc-navy-pale)' }}>
                 🏠 Zillow
               </a>
-              <a href={lead.sourceUrl} target="_blank" rel="noopener noreferrer"
-                onClick={e => e.stopPropagation()}
-                className="text-xs font-semibold px-3 py-1.5 rounded-lg border"
-                style={{ color: 'var(--sgc-gray-mid)', borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
-                📋 Source
-              </a>
             </div>
+
+            {/* Skip trace result */}
+            {traceResult && (
+              <div className="rounded-xl border p-3" onClick={e => e.stopPropagation()}
+                style={{ borderColor: traceResult.hit ? '#1A7A4A40' : 'var(--sgc-gray-border)', background: traceResult.hit ? '#EDFAF3' : 'var(--sgc-gray-light)' }}>
+                {traceResult.error ? (
+                  <div className="text-xs" style={{ color: '#C0341D' }}>⚠ {traceResult.error}</div>
+                ) : !traceResult.hit ? (
+                  <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>No contact found in Tracerfy database for this address</div>
+                ) : (
+                  <>
+                    <div className="text-xs font-bold mb-2" style={{ color: '#1A7A4A' }}>✓ Owner Found</div>
+                    {traceResult.owner?.name && <div className="font-bold text-sm mb-1" style={{ color: 'var(--sgc-black)' }}>👤 {traceResult.owner.name}</div>}
+                    {traceResult.phones.filter(p => !p.litigator).slice(0, 3).map((p, i) => (
+                      <div key={i} className="flex items-center gap-2 mb-1">
+                        <a href={`tel:${p.number}`} className="text-sm font-mono font-semibold"
+                          style={{ color: p.dnc ? '#C0341D' : 'var(--sgc-navy)' }}
+                          onClick={e => { e.stopPropagation(); if (p.dnc) { e.preventDefault(); alert('DNC — Do Not Call. TCPA violation risk.') } }}>
+                          📞 {p.number}
+                        </a>
+                        <span className="text-[10px] capitalize" style={{ color: 'var(--sgc-gray-mid)' }}>{p.type}</span>
+                        {p.dnc && <span className="text-[10px] font-bold" style={{ color: '#C0341D' }}>⛔ DNC</span>}
+                      </div>
+                    ))}
+                    {traceResult.emails.slice(0, 2).map((em, i) => (
+                      <a key={i} href={`mailto:${em.address}`} className="block text-sm mb-1"
+                        style={{ color: 'var(--sgc-navy)' }} onClick={e => e.stopPropagation()}>
+                        ✉️ {em.address}
+                      </a>
+                    ))}
+                    {traceResult.property && (traceResult.property.estimatedValue || 0) > 0 && (
+                      <div className="mt-2 pt-2 border-t grid grid-cols-3 gap-2 text-xs" style={{ borderColor: '#1A7A4A30' }}>
+                        <div className="text-center"><div className="text-[9px]" style={{ color: '#1A7A4A' }}>Est Value</div><div className="font-bold">${Math.round((traceResult.property.estimatedValue||0)/1000)}k</div></div>
+                        <div className="text-center"><div className="text-[9px]" style={{ color: '#1A7A4A' }}>Equity</div><div className="font-bold">{traceResult.property.equityPct?.toFixed(0)||'—'}%</div></div>
+                        <div className="text-center"><div className="text-[9px]" style={{ color: '#1A7A4A' }}>Tax</div><div className="font-bold capitalize">{traceResult.property.taxStatus||'—'}</div></div>
+                      </div>
+                    )}
+                    <div className="text-[9px] mt-1.5" style={{ color: '#8A5700' }}>⚠ TCPA: Never call DNC numbers. One-to-one consent required (FTC Jan 2025).</div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* ── AI Motivation Score Panel ── */}
+            {(motivation || motivLoading) && (
+              <div className="rounded-xl border overflow-hidden" onClick={e => e.stopPropagation()}
+                style={{ borderColor: motivation ? '#534AB740' : 'var(--sgc-gray-border)' }}>
+
+                {/* Header bar */}
+                <div className="px-4 py-2.5 flex items-center justify-between"
+                  style={{ background: motivation ? '#534AB7' : 'var(--sgc-gray-light)' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🧠</span>
+                    <span className="text-xs font-bold text-white">AI Motivation Score</span>
+                  </div>
+                  {motivation && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl font-black text-white">{motivation.score}</span>
+                      <span className="text-xs font-bold px-2 py-0.5 rounded-full"
+                        style={{
+                          background: motivation.tier === 'critical' ? '#C0341D' : motivation.tier === 'hot' ? '#C45E1A' : motivation.tier === 'warm' ? '#8A5700' : '#666',
+                          color: 'white',
+                        }}>
+                        {motivation.tier.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  {motivLoading && <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full spin"/>}
+                </div>
+
+                {motivation && (
+                  <div className="p-4 space-y-3">
+                    {/* Primary driver */}
+                    <div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#534AB7' }}>Primary Motivation Signal</div>
+                      <div className="text-sm font-semibold" style={{ color: 'var(--sgc-black)' }}>{motivation.primaryDriver}</div>
+                    </div>
+
+                    {/* Explanation */}
+                    <div className="text-xs leading-relaxed p-3 rounded-xl" style={{ background: '#EEEDFE', color: '#374151' }}>
+                      {motivation.explanation}
+                    </div>
+
+                    {/* Urgency + action */}
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="p-2.5 rounded-xl" style={{ background: motivation.urgency === 'immediate' ? '#FEF0ED' : motivation.urgency === 'this_week' ? '#FEF7EA' : 'var(--sgc-gray-light)' }}>
+                        <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5"
+                          style={{ color: motivation.urgency === 'immediate' ? '#C0341D' : motivation.urgency === 'this_week' ? '#8A5700' : 'var(--sgc-gray-mid)' }}>
+                          Urgency
+                        </div>
+                        <div className="text-xs font-bold capitalize" style={{ color: motivation.urgency === 'immediate' ? '#C0341D' : 'var(--sgc-black)' }}>
+                          {motivation.urgency === 'immediate' ? '🔥 Call Today' : motivation.urgency === 'this_week' ? '📅 This Week' : motivation.urgency === 'this_month' ? '📆 This Month' : '🧊 Low'}
+                        </div>
+                      </div>
+                      <div className="p-2.5 rounded-xl" style={{ background: 'var(--sgc-gray-light)' }}>
+                        <div className="text-[9px] font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Best Call Time</div>
+                        <div className="text-xs font-bold" style={{ color: 'var(--sgc-black)' }}>📞 {motivation.bestCallTime}</div>
+                      </div>
+                    </div>
+
+                    {/* Recommended action */}
+                    <div className="p-3 rounded-xl border-l-4" style={{ background: '#EDFAF3', borderLeftColor: '#1A7A4A' }}>
+                      <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: '#1A7A4A' }}>Recommended Action</div>
+                      <div className="text-xs" style={{ color: 'var(--sgc-black)' }}>{motivation.recommendedAction}</div>
+                    </div>
+
+                    {/* Suggested offer */}
+                    {motivation.suggestedOffer && (
+                      <div className="p-3 rounded-xl" style={{ background: 'var(--sgc-navy-pale)' }}>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-0.5" style={{ color: 'var(--sgc-navy)' }}>Suggested Opening Offer</div>
+                        <div className="text-xs font-semibold" style={{ color: 'var(--sgc-navy)' }}>{motivation.suggestedOffer}</div>
+                      </div>
+                    )}
+
+                    {/* Green flags */}
+                    {motivation.greenFlags?.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#1A7A4A' }}>✓ Green Flags</div>
+                        {motivation.greenFlags.map((f, i) => (
+                          <div key={i} className="text-xs mb-0.5" style={{ color: 'var(--sgc-black)' }}>• {f}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Red flags */}
+                    {motivation.redFlags?.length > 0 && (
+                      <div>
+                        <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#C0341D' }}>⚠ Red Flags</div>
+                        {motivation.redFlags.map((f, i) => (
+                          <div key={i} className="text-xs mb-0.5" style={{ color: 'var(--sgc-black)' }}>• {f}</div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="text-[9px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                      AI analysis · Claude Sonnet · temperature 0 · {new Date(motivation.computedAt).toLocaleTimeString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -228,6 +572,20 @@ export default function LeadRadar() {
   const [expandedId, setExpanded]   = useState<string | null>(null)
   const [sources,    setSources]    = useState(RADAR_SOURCES.map(s => ({ ...s })))
   const [progress,   setProgress]   = useState<Record<string, string>>({})
+  const [tracerKey,  setTracerKey]  = useState(() => { try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' } })
+  const [showTracerSetup, setShowTracerSetup] = useState(false)
+  const [draftTracerKey, setDraftTracerKey] = useState('')
+  const [tracerBalance, setTracerBalance] = useState<{ credits: number } | null>(null)
+
+  const saveTracerKey = async (key: string) => {
+    try { localStorage.setItem('fscan_tracer', key.trim()) } catch {}
+    setTracerKey(key.trim())
+    setShowTracerSetup(false)
+    if (key.trim()) {
+      const bal = await fetchTracerBalance(key.trim())
+      if (bal) setTracerBalance(bal)
+    }
+  }
 
   // Filters
   const [filterState,    setFilterState]    = useState<'all' | 'VA' | 'NC'>('all')
@@ -368,7 +726,46 @@ export default function LeadRadar() {
             </div>
           </div>
 
-          {/* Legal notice */}
+          {/* Tracerfy skip trace setup */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Skip Tracing</div>
+              <button onClick={() => setShowTracerSetup(s => !s)}
+                className="text-[10px] cursor-pointer bg-transparent border-none font-semibold"
+                style={{ color: 'var(--sgc-navy)' }}>{tracerKey ? 'Change' : 'Setup'}</button>
+            </div>
+            <div className="rounded-xl border p-3" style={{
+              borderColor: tracerKey ? '#1A7A4A40' : 'var(--sgc-gray-border)',
+              background: tracerKey ? '#EDFAF3' : 'var(--sgc-gray-light)',
+            }}>
+              <div className="text-[10px] font-semibold" style={{ color: tracerKey ? '#1A7A4A' : 'var(--sgc-gray-mid)' }}>
+                {tracerKey ? `✓ Tracerfy Active${tracerBalance ? ` · ${tracerBalance.credits} credits` : ''}` : '⚠ No skip trace key'}
+              </div>
+              <div className="text-[10px] mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                {tracerKey ? '$0.20/trace · owner name, phone, email, equity' : 'Get key at tracerfy.com · $0.02/credit'}
+              </div>
+            </div>
+            {showTracerSetup && (
+              <div className="mt-2 space-y-2">
+                <input className="w-full rounded-lg border text-xs px-3 py-2 outline-none bg-white"
+                  style={{ borderColor: 'var(--sgc-gray-border)' }}
+                  type="password" value={draftTracerKey}
+                  onChange={e => setDraftTracerKey(e.target.value)}
+                  placeholder="Your Tracerfy API key" />
+                <div className="flex gap-2">
+                  <button onClick={() => saveTracerKey(draftTracerKey)}
+                    className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white border-none cursor-pointer"
+                    style={{ background: 'var(--sgc-navy)' }}>Save</button>
+                  <button onClick={() => setShowTracerSetup(false)}
+                    className="px-3 py-1.5 rounded-lg text-xs border-none cursor-pointer"
+                    style={{ background: 'var(--sgc-gray-border)' }}>Cancel</button>
+                </div>
+                <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  TCPA: Skip trace data for personal use only. Always DNC-scrub before calling. Key stored in your browser only.
+                </div>
+              </div>
+            )}
+          </div>
           <div className="rounded-xl p-3 text-[10px]" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
             <div className="font-semibold mb-1" style={{ color: 'var(--sgc-navy)' }}>Legal Data Sources</div>
             All data is public record under Virginia Public Records Act (Va. Code §42.1-76) and NC Public Records Law (NCGS Ch. 132). Direct government API access — no scraping.
@@ -487,7 +884,7 @@ export default function LeadRadar() {
                     style={sortBy === s
                       ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
                       : { background: 'transparent', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
-                    {s}
+                    {s === 'score' ? '🎯 Score' : s === 'date' ? '📅 Date' : '⚠ Severity'}
                   </button>
                 ))}
                 <span className="text-[10px] ml-2" style={{ color: 'var(--sgc-gray-mid)' }}>
@@ -515,6 +912,8 @@ export default function LeadRadar() {
                   { icon: '🏗️', t: 'Building Permits',  d: 'Distressed rehab signals — owners starting work they may not finish' },
                   { icon: '🔥', t: 'Fire Damage',        d: 'Immediate distressed seller signal — insurance complications' },
                   { icon: '💸', t: 'Tax Delinquent',    d: 'Owners behind on taxes — highest motivation to sell quickly' },
+                  { icon: '🧠', t: 'AI Motivation Score', d: 'Claude AI analyzes every signal + skip trace data to score 0-100 seller motivation probability. Same deal, completely different owners = different scores.' },
+                  { icon: '🔍', t: 'Skip Trace Built-In', d: 'One click → owner name, phone, email, equity, tax status. DNC flags shown automatically. TCPA-safe workflow.' },
                 ].map(s => (
                   <div key={s.t} className="rounded-xl border p-3 bg-white flex gap-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                     <span className="text-2xl flex-shrink-0">{s.icon}</span>
@@ -566,6 +965,7 @@ export default function LeadRadar() {
                       lead={lead}
                       expanded={expandedId === lead.id}
                       onExpand={() => setExpanded(expandedId === lead.id ? null : lead.id)}
+                      tracerKey={tracerKey}
                     />
                   ))}
                 </div>

@@ -14,6 +14,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
+import RehabEstimator from './RehabEstimator'
 
 // ─────────────────────────────────────────────────────────────────────────────
 // FRED CSV FETCH — confirmed CORS-allowed, no key required
@@ -197,19 +198,12 @@ function LiveRatesBar({ rates }: { rates: LiveRates }) {
 // ─────────────────────────────────────────────────────────────────────────────
 // TAB 1: FLIP ANALYZER — complete deal analysis
 // ─────────────────────────────────────────────────────────────────────────────
-export interface FinancialSeed {
-  price?: number
-  arv?: number
-  rehab?: number
-  addr?: string
-}
-
-function FlipAnalyzer({ rates, seed }: { rates: LiveRates; seed?: FinancialSeed }) {
+function FlipAnalyzer({ rates }: { rates: LiveRates }) {
   const liveRate = rates.rate30yr?.value || 7.0
 
-  const [arv,          setArv]          = useState(seed?.arv   ?? 350000)
-  const [purchasePrice,setPurchase]      = useState(seed?.price ?? 200000)
-  const [rehabCost,    setRehab]         = useState(seed?.rehab ?? 45000)
+  const [arv,          setArv]          = useState(350000)
+  const [purchasePrice,setPurchase]      = useState(200000)
+  const [rehabCost,    setRehab]         = useState(45000)
   const [holdMonths,   setHold]          = useState(6)
   const [downPct,      setDownPct]       = useState(20)
   const [interestRate, setRate]          = useState(liveRate)
@@ -222,14 +216,6 @@ function FlipAnalyzer({ rates, seed }: { rates: LiveRates; seed?: FinancialSeed 
   const [miscMo,         setMisc]        = useState(100)
 
   useEffect(() => { setRate(liveRate) }, [liveRate])
-
-  // Re-seed whenever a new property is sent in from Deal Scanner
-  useEffect(() => {
-    if (!seed) return
-    if (seed.price != null) setPurchase(seed.price)
-    if (seed.arv   != null) setArv(seed.arv)
-    if (seed.rehab != null) setRehab(seed.rehab)
-  }, [seed])
 
   // Core math
   const downPayment      = purchasePrice * (downPct / 100)
@@ -938,14 +924,12 @@ const TABS = [
   { id: 'brrrr',    label: 'BRRRR Analyzer',   icon: '🔄' },
   { id: 'mortgage', label: 'Mortgage Calc',     icon: '🏦' },
   { id: 'mao',      label: 'MAO / Max Offer',  icon: '🎯' },
+  { id: 'rehab',    label: 'Rehab Estimator',  icon: '🔧' },
   { id: 'market',   label: 'Market Conditions', icon: '📡' },
 ]
 
-export default function FinancialTools({ seed }: { seed?: FinancialSeed } = {}) {
+export default function FinancialTools() {
   const [tab, setTab] = useState('flip')
-
-  // When a new property is seeded from the Deal Scanner, auto-switch to Flip tab
-  useEffect(() => { if (seed) setTab('flip') }, [seed])
   const [rates, setRates] = useState<LiveRates>({
     rate30yr: null, rate15yr: null, rate10yr: null,
     cpi: null, hpi: null, loading: true, fetchedAt: '',
@@ -1005,22 +989,21 @@ export default function FinancialTools({ seed }: { seed?: FinancialSeed } = {}) 
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5">
-        {seed && (
-          <div className="mb-4 rounded-xl border px-4 py-3 flex items-center justify-between"
-            style={{ background: 'var(--sgc-navy-pale)', borderColor: 'var(--sgc-navy)40' }}>
-            <div>
-              <div className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: 'var(--sgc-navy)' }}>Analyzing Property</div>
-              <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>{seed.addr || 'Selected deal'}</div>
-            </div>
-            <div className="text-xs" style={{ color: 'var(--sgc-navy)' }}>
-              Price {seed.price ? fmt$(seed.price) : '—'} · ARV {seed.arv ? fmt$(seed.arv) : '—'} · Rehab {seed.rehab ? fmt$(seed.rehab) : '—'}
-            </div>
-          </div>
-        )}
-        {tab === 'flip'     && <FlipAnalyzer     rates={rates} seed={seed} />}
+        {tab === 'flip'     && <FlipAnalyzer     rates={rates} />}
         {tab === 'brrrr'    && <BRRRRAnalyzer     rates={rates} />}
         {tab === 'mortgage' && <MortgageCalc      rates={rates} />}
         {tab === 'mao'      && <MAOCalculator     rates={rates} />}
+        {tab === 'rehab'    && (
+          <div>
+            <div className="mb-4">
+              <div className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>🔧 Renovation Cost Estimator</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                VA/NC market rates · May 2026 · RSMeans + HomeAdvisor regional data · Shows your GC advantage vs retail
+              </div>
+            </div>
+            <RehabEstimator compact={false} />
+          </div>
+        )}
         {tab === 'market'   && <MarketConditions  rates={rates} />}
       </div>
     </div>
