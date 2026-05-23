@@ -224,8 +224,8 @@ export default function App() {
 
         <div className="flex-1 flex flex-col overflow-hidden">
           {/* Main tab bar */}
-          <div className="flex items-center flex-shrink-0 px-5 pt-4 gap-1"
-            style={{ background: 'var(--sgc-gray-light)' }}>
+          <div className="flex items-center flex-shrink-0 px-5 pt-3 gap-1 overflow-x-auto sgc-tabbar"
+            style={{ background: 'var(--sgc-gray-light)', scrollbarWidth: 'thin' }}>
             {[
               { id: 'deals',    label: 'Deal Scanner',       icon: '⊞', badge: strategyFiltered.length > 0 ? strategyFiltered.length : undefined },
               { id: 'market',   label: 'Market Trends',       icon: '📊', badge: undefined },
@@ -244,11 +244,11 @@ export default function App() {
               { id: 'reference',label: 'Lead Sources',        icon: '📚', badge: undefined },
             ].map(t => (
               <button key={t.id} onClick={() => setActiveTab(t.id as any)}
-                className="flex items-center gap-2 px-4 py-2.5 rounded-t-lg text-sm font-medium transition-all cursor-pointer border border-b-0"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-t-md text-[13px] font-medium transition-all cursor-pointer border border-b-0 whitespace-nowrap flex-shrink-0"
                 style={activeTab === t.id
-                  ? { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)', fontWeight: 600 }
+                  ? { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)', fontWeight: 600, boxShadow: '0 -1px 0 var(--sgc-navy) inset' }
                   : { background: 'transparent', borderColor: 'transparent', color: 'var(--sgc-gray-mid)' }}>
-                <span className="text-base leading-none">{t.icon}</span>
+                <span className="text-sm leading-none">{t.icon}</span>
                 {t.label}
                 {t.badge != null && t.badge > 0 && (
                   <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold"
