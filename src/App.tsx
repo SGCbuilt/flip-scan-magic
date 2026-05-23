@@ -234,7 +234,6 @@ export default function App() {
               { id: 'radar',    label: 'Lead Radar',  icon: '📡', badge: undefined },
               { id: 'stack',    label: 'List Stack',  icon: '⚡', badge: undefined },
               { id: 'kpi',      label: 'KPI',        icon: '📊', badge: undefined },
-              { id: 'kpi',      label: 'KPI',         icon: '📊', badge: undefined },
               { id: 'pl',       label: 'Deal P&amp;L',     icon: '📒', badge: undefined },
               { id: 'tasks',    label: 'Tasks',       icon: '✅', badge: (() => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined })() },
               { id: 'pipeline', label: 'Pipeline CRM', icon: '🎯', badge: undefined },
