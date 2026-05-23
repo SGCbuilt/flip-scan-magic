@@ -107,7 +107,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </div>
 
         {/* Data Sources */}
-        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true}>
+        <Section id="src" title={`Data Sources  ${activeSources}/6`} def={true} isOpen={isOpen} toggle={toggle}>
           <div className="flex gap-2 mb-1">
             <button onClick={() => toggleAll(true)}
               className="text-xs cursor-pointer bg-transparent border-none font-semibold"
@@ -139,7 +139,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Location */}
-        <Section id="loc" title="Location" def={true}>
+        <Section id="loc" title="Location" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Search Mode</FL>
             <div className="grid grid-cols-4 gap-1 mb-2">
@@ -184,7 +184,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Property Filters */}
-        <Section id="prop" title="Property" def={true}>
+        <Section id="prop" title="Property" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Type</FL>
             <select className={sc} value={params.propertyType} onChange={set('propertyType')}>
@@ -222,7 +222,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Market Signals */}
-        <Section id="mkt" title="Market Signals" def={true}>
+        <Section id="mkt" title="Market Signals" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Max DOM</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
@@ -242,7 +242,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Flip Criteria */}
-        <Section id="flip" title="Flip Criteria" def={true}>
+        <Section id="flip" title="Flip Criteria" def={true} isOpen={isOpen} toggle={toggle}>
           <div>
             <div className="flex justify-between mb-1"><FL>Min Flip Score</FL>
               <span className="text-xs font-bold" style={{ color: 'var(--sgc-navy)' }}>{params.minFlipScore}</span>
@@ -272,7 +272,7 @@ export default function Sidebar({ params, onChange, onSearch, loading }: Props) 
         </Section>
 
         {/* Deal Math */}
-        <Section id="deal" title="Deal Math" def={false}>
+        <Section id="deal" title="Deal Math" def={false} isOpen={isOpen} toggle={toggle}>
           <div>
             <FL>Rehab Level</FL>
             <select className={sc} value={params.rehabLevel} onChange={set('rehabLevel')}>
