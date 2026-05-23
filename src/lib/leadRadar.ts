@@ -438,9 +438,9 @@ async function fetchRaleigh(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
   const url = arcgisUrl(
     'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
-    `applied_date >= date '${since}'`,
-    'permit_number,site_address,work_description,permit_type,current_status,applied_date,zip',
-    'applied_date DESC'
+    `issueddate >= date '${since}'`,
+    'permitnum,originaladdress1,originalcity,originalstate,originalzip,description,permittype,statuscurrent,issueddate,latitude_perm,longitude_perm',
+    'issueddate DESC'
   )
 
   const data = await safeFetch(url)
@@ -448,28 +448,28 @@ async function fetchRaleigh(days: number): Promise<Lead[]> {
 
   return data.features.map((f: any) => {
     const r        = f.attributes || {}
-    const desc     = r.work_description || r.permit_type || 'Building permit'
+    const desc     = r.description || r.permittype || 'Building permit'
     const severity = getSeverity(desc)
     return {
-      id:           `raleigh-${r.permit_number || Math.random().toString(36).slice(2)}`,
-      address:      r.site_address || 'Unknown',
-      city:         'Raleigh',
-      state:        'NC',
-      zip:          r.zip || '',
+      id:           `raleigh-${r.permitnum || Math.random().toString(36).slice(2)}`,
+      address:      r.originaladdress1 || 'Unknown',
+      city:         r.originalcity || 'Raleigh',
+      state:        r.originalstate || 'NC',
+      zip:          r.originalzip || '',
       county:       'Wake',
-      lat:          f.geometry?.y || null,
-      lng:          f.geometry?.x || null,
+      lat:          r.latitude_perm || f.geometry?.y || null,
+      lng:          r.longitude_perm || f.geometry?.x || null,
       signalType:   'building_permit' as SignalType,
-      signalLabel:  `Building Permit — ${r.permit_type || 'Permit'}`,
+      signalLabel:  `Building Permit — ${r.permittype || 'Permit'}`,
       description:  desc,
-      caseNumber:   r.permit_number || '',
-      status:       r.current_status || 'Unknown',
-      filedDate:    r.applied_date ? new Date(r.applied_date).toISOString().split('T')[0] : '',
+      caseNumber:   r.permitnum || '',
+      status:       r.statuscurrent || 'Unknown',
+      filedDate:    r.issueddate ? new Date(r.issueddate).toISOString().split('T')[0] : '',
       severity,
       source:       'City of Raleigh Open Data',
       sourceUrl:    'https://data.raleighnc.gov',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'building_permit', r.current_status || ''),
+      investorScore: getInvestorScore(severity, 'building_permit', r.statuscurrent || ''),
     }
   })
 }
