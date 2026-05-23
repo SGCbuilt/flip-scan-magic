@@ -11,6 +11,32 @@ const ALLOWED = [
   "api.usa.gov", 
   "api.bls.gov",
   "geocoding.geo.census.gov",
+  // Socrata open-data portals
+  "data.norfolk.gov",
+  "data.richmondgov.com",
+  "data.virginia.gov",
+  "data.henrico.us",
+  // ArcGIS FeatureServers / MapServers
+  "gis.charlottenc.gov",
+  "services.arcgis.com",
+  "services1.arcgis.com",
+  "services2.arcgis.com",
+  "services3.arcgis.com",
+  "services5.arcgis.com",
+  "services6.arcgis.com",
+  "services7.arcgis.com",
+  "services8.arcgis.com",
+  "services9.arcgis.com",
+  "gisservices.chathamcountync.gov",
+  "webgis2.durhamnc.gov",
+  "gisweb.durhamnc.gov",
+  "gis.forsyth.cc",
+  "geo.forsythco.com",
+  "maps.wakegov.com",
+  "maps.wake.gov",
+  "services.wake.gov",
+  "gis.chesterfield.gov",
+  "gis.data.vbgov.com",
 ]
 
 serve(async (req: Request) => {
