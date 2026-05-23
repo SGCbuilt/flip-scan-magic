@@ -708,9 +708,9 @@ export default function LeadRadar() {
                 Data Sources
               </div>
               <div className="flex gap-2">
-                <button onClick={() => setEnabledSources(new Set(RADAR_SOURCES.map(s => s.id)))}
+                <button onClick={() => setEnabledSources(new Set(RADAR_SOURCES.filter(s => s.enabled).map(s => s.id)))}
                   className="text-[10px] cursor-pointer bg-transparent border-none font-semibold"
-                  style={{ color: 'var(--sgc-navy)' }}>All</button>
+                  style={{ color: 'var(--sgc-navy)' }}>Verified</button>
                 <button onClick={() => setEnabledSources(new Set())}
                   className="text-[10px] cursor-pointer bg-transparent border-none font-semibold"
                   style={{ color: 'var(--sgc-gray-mid)' }}>None</button>
