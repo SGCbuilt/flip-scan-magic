@@ -174,7 +174,8 @@ function getInvestorScore(severity: Severity, signalType: SignalType, status: st
 async function safeFetch(url: string): Promise<any> {
   try {
     const proxyUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/market-proxy`
-    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY
+    const anon = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY
+    if (!proxyUrl || !anon) return null
     const res = await fetch(proxyUrl, {
       method: 'POST',
       headers: {
@@ -214,6 +215,7 @@ function arcgisUrl(baseUrl: string, where: string, fields = '*', orderBy = ''): 
     where,
     outFields: fields,
     returnGeometry: 'true',
+    outSR: '4326',
     f: 'json',
     resultRecordCount: '200',
     ...(orderBy ? { orderByFields: orderBy } : {}),
