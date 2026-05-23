@@ -256,39 +256,40 @@ async function fetchNorfolkViolations(days: number): Promise<Lead[]> {
 // ── Norfolk Permits (Socrata) ─────────────────────────────────────────────────
 async function fetchNorfolkPermits(days: number): Promise<Lead[]> {
   const since = daysAgoISO(days)
-  const url = socrataUrl('data.norfolk.gov', 'erm3-ukpd', {
-    '$where':  `issue_date >= '${since}'`,
-    '$order':  'issue_date DESC',
+  // Real Norfolk Permits & Inspections dataset
+  const url = socrataUrl('data.norfolk.gov', 'bnrb-u445', {
+    '$where':  `permit_application_date >= '${since}T00:00:00.000'`,
+    '$order':  'permit_application_date DESC',
     '$limit':  '200',
-    '$select': 'permit_number,address,description,permit_type,status,issue_date,latitude,longitude',
   })
 
   const data = await safeFetch(url)
   if (!data?.length) return []
 
   return data.map((r: any) => {
-    const desc     = r.description || r.permit_type || 'Building permit'
+    const desc     = r.permit_description || r.permit_work_type || r.permit_type || 'Building permit'
     const severity = getSeverity(desc)
+    const coords   = r.geocoded_column?.coordinates || []
     return {
-      id:           `norfolk-permit-${r.permit_number || Math.random().toString(36).slice(2)}`,
-      address:      r.address || 'Unknown',
+      id:           `norfolk-permit-${r.ftpuser || Math.random().toString(36).slice(2)}`,
+      address:      r.permit_address || 'Unknown',
       city:         'Norfolk',
       state:        'VA',
-      zip:          '',
+      zip:          r.permit_zip_code || '',
       county:       'Norfolk City',
-      lat:          r.latitude  ? parseFloat(r.latitude)  : null,
-      lng:          r.longitude ? parseFloat(r.longitude) : null,
+      lat:          coords[1] ?? null,
+      lng:          coords[0] ?? null,
       signalType:   'building_permit' as SignalType,
       signalLabel:  `Building Permit — ${r.permit_type || 'Unknown'}`,
       description:  desc,
-      caseNumber:   r.permit_number || '',
-      status:       r.status || 'Issued',
-      filedDate:    parseDate(r.issue_date),
+      caseNumber:   r.ftpuser || '',
+      status:       r.permit_status || 'Issued',
+      filedDate:    parseDate(r.permit_application_date),
       severity,
       source:       'Norfolk Open Data',
-      sourceUrl:    'https://data.norfolk.gov',
+      sourceUrl:    'https://data.norfolk.gov/resource/bnrb-u445',
       rawData:      r,
-      investorScore: getInvestorScore(severity, 'building_permit', r.status || ''),
+      investorScore: getInvestorScore(severity, 'building_permit', r.permit_status || ''),
     }
   })
 }
