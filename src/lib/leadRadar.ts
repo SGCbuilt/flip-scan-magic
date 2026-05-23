@@ -565,7 +565,7 @@ RADAR_SOURCES.push(
   {
     id: 'chatham_sales', name: 'Chatham County Property Sales',
     city: 'Pittsboro', state: 'NC', county: 'Chatham',
-    type: 'arcgis', enabled: false,
+    type: 'arcgis', enabled: true,
     signalTypes: ['building_permit'],
     status: 'idle', count: 0, lastFetch: null, error: null,
   },
@@ -700,11 +700,11 @@ export async function fetchChathamDistressed(days: number): Promise<Lead[]> {
 // ─────────────────────────────────────────────────────────────────────────────
 
 RADAR_SOURCES.push(
-  { id: 'durham',       name: 'Durham Code Enforcement',     city: 'Durham',        state: 'NC', county: 'Durham',       type: 'arcgis',  enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'forsyth',      name: 'Forsyth/Winston-Salem Code',  city: 'Winston-Salem', state: 'NC', county: 'Forsyth',      type: 'arcgis',  enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'wake_county',  name: 'Wake County Permits',         city: 'Cary',          state: 'NC', county: 'Wake',         type: 'arcgis',  enabled: false, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'henrico',      name: 'Henrico County Code',         city: 'Henrico',       state: 'VA', county: 'Henrico',      type: 'socrata', enabled: false, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
-  { id: 'chesterfield', name: 'Chesterfield County Permits', city: 'Chesterfield',  state: 'VA', county: 'Chesterfield', type: 'arcgis',  enabled: false, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'durham',       name: 'Durham Code Violations',      city: 'Durham',        state: 'NC', county: 'Durham',       type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'forsyth',      name: 'Forsyth Building Permits',    city: 'Winston-Salem', state: 'NC', county: 'Forsyth',      type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'wake_county',  name: 'Wake County Permits',         city: 'Cary',          state: 'NC', county: 'Wake',         type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'henrico',      name: 'Henrico County Code',         city: 'Henrico',       state: 'VA', county: 'Henrico',      type: 'arcgis',  enabled: true, signalTypes: ['code_violation'],  status: 'idle', count: 0, lastFetch: null, error: null },
+  { id: 'chesterfield', name: 'Chesterfield County Permits', city: 'Chesterfield',  state: 'VA', county: 'Chesterfield', type: 'arcgis',  enabled: true, signalTypes: ['building_permit'], status: 'idle', count: 0, lastFetch: null, error: null },
 )
 
 async function fetchDurham(days: number): Promise<Lead[]> {
