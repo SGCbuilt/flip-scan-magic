@@ -100,7 +100,7 @@ export async function apiCall<T = any>(
 const DEV_CONFIGS: Record<string, { base: string; getHeaders: (customKey?: string) => Record<string, string> }> = {
   rentcast: {
     base: 'https://api.rentcast.io/v1',
-    getHeaders: () => ({ 'X-Api-Key': 'a03153e34276e4d75b0548add458816de' }),
+    getHeaders: () => ({ 'X-Api-Key': (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast') || '' }),
   },
   attom: {
     base: 'https://api.gateway.attomdata.com/propertyapi/v1.0.0',

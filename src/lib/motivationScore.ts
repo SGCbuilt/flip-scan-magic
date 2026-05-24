@@ -138,8 +138,12 @@ Return ONLY valid JSON, no markdown:
 
     if (!res.ok) return null
     const d = await res.json()
-    const text = (d?.content?.[0]?.text || '').trim()
+    const raw = (d?.content?.[0]?.text || '').trim()
+    // Strip markdown code fences if Claude wraps JSON in ```
+    const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+    if (!text || !text.startsWith('{')) return null
     const parsed = JSON.parse(text)
+    if (typeof parsed.score !== 'number') return null
     return { ...parsed, computedAt: new Date().toISOString() }
   } catch (e: any) {
     console.error('[MotivationScore]', e?.message)

@@ -1,3 +1,4 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
 import { useState, useEffect } from 'react'
 import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
@@ -357,7 +358,9 @@ function RentEstimateBlock({ p }: { p: AnalyzedProperty }) {
 
 // ── MAIN MODAL ────────────────────────────────────────────────────────────
 export default function PropertyModal({ property: p, params, onClose }: Props) {
+  useEscapeKey(onClose)
   const [tab, setTab] = useState<ModalTab>('overview')
+  useEscapeKey(onClose)
 
   const TABS: { id: ModalTab; label: string }[] = [
     { id: 'overview',    label: '📋 Overview'     },
@@ -399,7 +402,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
             loading="lazy"
             title="Property location"
           />
-          <button onClick={onClose}
+          <button onClick={onClose} aria-label="Close"
             className="absolute top-3 right-3 z-10 w-8 h-8 bg-white/80 hover:bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-lg flex items-center justify-center text-[var(--sgc-gray-mid)] hover:text-[var(--sgc-black)] transition-colors cursor-pointer text-sm">
             ✕
           </button>

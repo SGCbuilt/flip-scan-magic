@@ -1,3 +1,4 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
 /**
  * Buyer List Manager — Full UI
  *
@@ -42,6 +43,7 @@ function BuyerModal({ buyer, onClose, onSave }: {
   const isEdit = !!buyer
   const [name,        setName]       = useState(buyer?.name        || '')
   const [company,     setCompany]    = useState(buyer?.company     || '')
+  useEscapeKey(onClose)
   const [email,       setEmail]      = useState(buyer?.email       || '')
   const [phone,       setPhone]      = useState(buyer?.phone       || '')
   const [states,      setStates]     = useState<string[]>(buyer?.states || ['VA'])
@@ -95,7 +97,7 @@ function BuyerModal({ buyer, onClose, onSave }: {
           <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>
             {isEdit ? '✏️ Edit Buyer' : '+ Add Buyer'}
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -244,6 +246,7 @@ function BuyerModal({ buyer, onClose, onSave }: {
 // ── Deal Blast Modal ──────────────────────────────────────────────────────────
 function DealBlastModal({ onClose }: { onClose: () => void }) {
   const deals   = getWholesaleDeals().filter(d => d.status === 'listed' || d.status === 'pending')
+  useEscapeKey(onClose)
   const [selectedDeal, setSelectedDeal] = useState(deals[0]?.id || '')
   const [selectedBuyers, setSelectedBuyers] = useState<Set<string>>(new Set())
   const [sent, setSent] = useState(false)
@@ -317,7 +320,7 @@ function DealBlastModal({ onClose }: { onClose: () => void }) {
         <div className="p-5 border-b flex justify-between sticky top-0 bg-white rounded-t-2xl"
           style={{ borderColor: 'var(--sgc-gray-border)' }}>
           <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>📢 Blast Deal to Buyers</div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
         <div className="p-5 space-y-4">
 

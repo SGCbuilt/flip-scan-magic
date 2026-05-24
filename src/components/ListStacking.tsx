@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast'
 /**
  * List Stacking — Cross-Source Signal Intelligence
  *
@@ -45,7 +46,7 @@ function StackedCard({ lead, tracerKey, onAdded }: {
 
   const handleTrace = async (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (!tracerKey) { alert('Add Tracerfy key in Lead Radar settings.'); return }
+    if (!tracerKey) { toast.error('Tracerfy API key missing — add it in Settings → API Keys'); return }
     setTracing(true)
     const r = await skipTrace(lead.address, lead.city, lead.state, lead.zip, tracerKey)
     setTrace(r)
@@ -223,7 +224,7 @@ function StackedCard({ lead, tracerKey, onAdded }: {
               )}
               {trace.phones.filter(p => !p.litigator).map((p, i) => (
                 <a key={i} href={`tel:${p.number}`}
-                  onClick={e => { if (p.dnc) { e.preventDefault(); alert('⛔ DNC — Do Not Call') } }}
+                  onClick={e => { if (p.dnc) { e.preventDefault(); toast.warning('⛔ DNC — Do Not Call. TCPA violation risk.') } }}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1 no-underline"
                   style={{ background: p.dnc ? '#FEF0ED' : '#EDFAF3', color: p.dnc ? '#C0341D' : '#1A7A4A' }}>
                   <span>{p.dnc ? '⛔' : '📞'}</span>

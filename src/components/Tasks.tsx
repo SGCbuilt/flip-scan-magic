@@ -1,3 +1,4 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
 /**
  * Tasks — Daily Follow-Up Command Center
  *
@@ -64,6 +65,7 @@ function isToday(dueDate: string): boolean {
 // ── New Task Modal ─────────────────────────────────────────────────────────────
 function NewTaskModal({ onClose, onSave }: { onClose: () => void; onSave: () => void }) {
   const pipeline = getPipeline().filter(l => !['closed_won','closed_lost','pass'].includes(l.stage))
+  useEscapeKey(onClose)
 
   const [leadId,    setLeadId]   = useState(pipeline[0]?.id || '')
   const [address,   setAddress]  = useState('')
@@ -111,7 +113,7 @@ function NewTaskModal({ onClose, onSave }: { onClose: () => void; onSave: () => 
             <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>+ New Task</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Schedule a follow-up action</div>
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
 
         <div className="p-5 space-y-4">

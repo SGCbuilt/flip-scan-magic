@@ -252,8 +252,8 @@ export function stackLeads(radarLeads: Lead[]): StackedLead[] {
       county:          primary.county,
       distressSummary: buildDistressSummary(signals),
       investorNotes:   buildInvestorNotes(signals),
-      firstSeen:       signals.reduce((min, s) => s.filedDate < min ? s.filedDate : min, signals[0].filedDate),
-      lastSeen:        signals.reduce((max, s) => s.filedDate > max ? s.filedDate : max, signals[0].filedDate),
+      firstSeen:       signals.length > 0 ? signals.reduce((min, s) => s.filedDate < min ? s.filedDate : min, signals[0].filedDate) : '',
+      lastSeen:        signals.length > 0 ? signals.reduce((max, s) => s.filedDate > max ? s.filedDate : max, signals[0].filedDate) : '',
     })
   })
 

@@ -1,3 +1,4 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
 /**
  * Drip Sequences — Automated Multi-Touch Follow-Up
  *
@@ -55,6 +56,7 @@ function ScriptModal({ touch, sequence, onClose, onComplete }: {
   const [outcome, setOutcome] = useState('')
   const [notes,   setNotes]   = useState('')
   const [script,  setScript]  = useState(touch.script)
+  useEscapeKey(onClose)
 
   const handleComplete = () => {
     completeTouch(sequence.id, touch.id, outcome || 'completed', notes)
@@ -82,7 +84,7 @@ function ScriptModal({ touch, sequence, onClose, onComplete }: {
               {sequence.address} · {sequence.ownerName || 'Unknown owner'}
             </div>
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
 
         <div className="p-5 space-y-4">
@@ -378,6 +380,7 @@ function SequenceCard({ seq, onUpdate }: { seq: DripSequence; onUpdate: () => vo
 // ── New Sequence Modal ────────────────────────────────────────────────────────
 function NewSequenceModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const pipeline = getPipeline().filter(l => !['closed_won','closed_lost','pass'].includes(l.stage))
+  useEscapeKey(onClose)
   const [leadId,      setLeadId]      = useState(pipeline[0]?.id || '')
   const [useManual,   setUseManual]   = useState(pipeline.length === 0)
   const [address,     setAddress]     = useState('')
@@ -407,7 +410,7 @@ function NewSequenceModal({ onClose, onCreated }: { onClose: () => void; onCreat
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
         <div className="p-5 border-b flex justify-between" style={{ borderColor: 'var(--sgc-gray-border)' }}>
           <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>+ Start Drip Sequence</div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
         <div className="p-5 space-y-4">
           {/* Source */}

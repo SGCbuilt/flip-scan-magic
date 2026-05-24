@@ -1,3 +1,4 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
 /**
  * Project Phase Tracker — Construction Timeline Intelligence
  *
@@ -352,6 +353,7 @@ function ProjectDetail({ project, onBack, onUpdate }: {
 // ── New Project Modal ─────────────────────────────────────────────────────────
 function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const pipeline = getPipeline().filter(l => l.stage === 'under_contract' || l.stage === 'closed_won')
+  useEscapeKey(onClose)
   const [usePipeline, setUsePipeline] = useState(pipeline.length > 0)
   const [leadId,     setLeadId]     = useState(pipeline[0]?.id || '')
   const [address,    setAddress]    = useState('')
@@ -404,7 +406,7 @@ function NewProjectModal({ onClose, onCreated }: { onClose: () => void; onCreate
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg my-4">
         <div className="p-5 border-b flex justify-between" style={{ borderColor: 'var(--sgc-gray-border)' }}>
           <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>⏱ New Project Timeline</div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
         <div className="p-5 space-y-4">
           {pipeline.length > 0 && (

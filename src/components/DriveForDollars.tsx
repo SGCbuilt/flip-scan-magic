@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast'
 /**
  * Drive for Dollars — Mobile-Optimized Quick Capture
  *
@@ -47,7 +48,10 @@ function loadCaptures(): Capture[] {
   try { return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]') } catch { return [] }
 }
 function saveCaptures(c: Capture[]) {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(c)) } catch {}
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(c))
+    import('../lib/cloudSync').then(({ syncWrite }) => syncWrite('flipscan_d4d_v1', c)).catch(() => {})
+  } catch {}
 }
 
 function getTracerKey() {
@@ -68,7 +72,7 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-    if (!SpeechRecognition) { alert('Speech recognition not supported in this browser.'); return }
+    if (!SpeechRecognition) { toast.warning('Speech recognition not supported in this browser. Try Chrome on Android.'); return }
     const rec = new SpeechRecognition()
     rec.continuous = false
     rec.interimResults = false
@@ -260,7 +264,7 @@ function ResultCard({ capture, onAddPipeline }: {
             {trace.phones.filter(p => !p.litigator).map((p, i) => (
               <div key={i} className="flex items-center gap-2 mb-1.5">
                 <a href={`tel:${p.number}`}
-                  onClick={e => { if (p.dnc) { e.preventDefault(); alert('⛔ DNC — Do Not Call. TCPA violation risk.') } }}
+                  onClick={e => { if (p.dnc) { e.preventDefault(); toast.warning('⛔ DNC — Do Not Call. TCPA violation risk.') } }}
                   className="flex items-center gap-2 px-3 py-2 rounded-xl flex-1 no-underline"
                   style={{ background: p.dnc ? '#FEF0ED' : '#EDFAF3', color: p.dnc ? '#C0341D' : '#1A7A4A' }}>
                   <span className="text-base">{p.dnc ? '⛔' : '📞'}</span>
