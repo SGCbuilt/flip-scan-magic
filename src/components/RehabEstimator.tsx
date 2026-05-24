@@ -1,3 +1,4 @@
+import { toast } from '../lib/toast'
 /**
  * Renovation Cost Estimator — Embedded Component
  * 
@@ -94,7 +95,7 @@ export default function RehabEstimator({
   const [sowProjNum,   setSOWProjNum]   = useState('')
 
   const handleExportSOW = () => {
-    if (activeItems.length === 0) { alert('Add at least one system that needs work before exporting.'); return }
+    if (activeItems.length === 0) { toast.warning('Add at least one system that needs work before exporting.'); return }
     generateScopeOfWorkPDF({
       address:       sowAddress || address || 'Address TBD',
       city:          sowCity    || city    || '',

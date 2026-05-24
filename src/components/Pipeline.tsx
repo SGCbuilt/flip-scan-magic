@@ -1,3 +1,5 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
+import { toast } from '../lib/toast'
 /**
  * Pipeline — Deal CRM with full intelligence suite
  * Kanban + List + Rehab Estimator + Comp Pull + Wholesale PDF + Follow-up Tasks + Drip
@@ -11,7 +13,6 @@ import {
 import { pullComps, CompResult } from '../lib/compPull'
 import { calculateRehab, DEFAULT_SYSTEMS, RehabSystem, Condition } from '../lib/rehabEstimator'
 import { generateFollowUpTask, addTask, getTasks, getDueTodayAndOverdue, completeTask, deleteTask, getTaskStats, FollowUpTask } from '../lib/followUpEngine'
-import { generateWholesaleSummary } from '../lib/wholesalePDF'
 import { createDripSequence, hasActiveSequence } from '../lib/drip'
 import DealGradePanel from './DealGrade'
 import RehabEstimator from './RehabEstimator'
@@ -40,6 +41,7 @@ function ContactModal({ lead, onClose, onSave }: {
 }) {
   const [method, setMethod] = useState<ContactAttempt['method']>('phone')
   const [phone,  setPhone]  = useState(lead.phones.find(p => !p.dnc && !p.litigator)?.number || '')
+  useEscapeKey(onClose)
   const [email,  setEmail]  = useState(lead.emails[0]?.address || '')
   const [outcome, setOutcome] = useState<ContactAttempt['outcome']>('no_answer')
   const [notes,  setNotes]  = useState('')
@@ -63,7 +65,7 @@ function ContactModal({ lead, onClose, onSave }: {
             <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>Log Contact Attempt</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{lead.address}</div>
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
         <div className="p-5 space-y-4">
           {/* DNC warning */}
@@ -153,6 +155,7 @@ function OfferModal({ lead, onClose, onSave }: {
 }) {
   const [amount,  setAmount]  = useState(lead.maxOffer || 0)
   const [arv,     setArv]     = useState(lead.estimatedARV || 0)
+  useEscapeKey(onClose)
   const [rehab,   setRehab]   = useState(lead.estimatedRehab || 0)
   const [status,  setStatus]  = useState<Offer['status']>('pending')
   const [notes,   setNotes]   = useState('')
@@ -173,7 +176,7 @@ function OfferModal({ lead, onClose, onSave }: {
             <div className="font-bold" style={{ color: 'var(--sgc-navy)' }}>Log Offer</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{lead.address}</div>
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
         <div className="p-5 space-y-4">
           {[
@@ -429,7 +432,7 @@ function LeadDrawer({ lead: initial, onClose, onUpdate }: {
           </button>
           <button
             onClick={() => {
-              if (hasActiveSequence(lead.id)) { alert('This lead already has an active drip sequence.'); return }
+              if (hasActiveSequence(lead.id)) { toast.info('This lead already has an active drip sequence'); return }
               createDripSequence({
                 leadId:    lead.id,
                 address:   lead.address,
@@ -438,7 +441,7 @@ function LeadDrawer({ lead: initial, onClose, onUpdate }: {
                 email:     lead.emails?.[0]?.address,
                 templateId: lead.priority === 'hot' ? 'hot_lead' : 'motivated_seller',
               })
-              alert('✓ Drip sequence started! Go to Drip Sequences tab to track it.')
+              toast.success('Drip sequence started — go to Drip Sequences tab to track it')
             }}
             className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold border-none cursor-pointer"
             style={{ background: hasActiveSequence(lead.id) ? '#EDFAF3' : '#EEEDFE', color: hasActiveSequence(lead.id) ? '#1A7A4A' : '#534AB7' }}>
@@ -951,6 +954,7 @@ export default function Pipeline() {
 
       {selectedLead && (
         <LeadDrawer
+          key={selectedLead.id}
           lead={selectedLead}
           onClose={() => setSelected(null)}
           onUpdate={refresh}

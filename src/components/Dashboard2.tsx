@@ -544,6 +544,7 @@ export default function KPIDashboard() {
 
         {/* ── COSTING INTELLIGENCE ── */}
         {(() => {
+          try {
           const intel = buildCostingIntelligence()
           if (!intel.hasEnoughData) return null
           return (
@@ -586,6 +587,7 @@ export default function KPIDashboard() {
               ))}
             </div>
           )
+          } catch { return null }
         })()}
 
         {/* Footer */}

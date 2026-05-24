@@ -12,6 +12,7 @@ import {
   VelocityMap, ZipSignal,
 } from '../lib/neighborhoodVelocity'
 import { fetchLeadRadar, RADAR_SOURCES } from '../lib/leadRadar'
+import { fetchMarketStats, buildLocationParams } from '../lib/rentcast'
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n / 1000) + 'k' : '—'
 
@@ -291,7 +292,6 @@ export default function NeighborhoodVelocity() {
         const results = await Promise.allSettled(
           batch.map(async zip => {
             try {
-              const { fetchMarketStats, buildLocationParams } = await import('../lib/rentcast')
               const locParams = buildLocationParams('zip', zip, 0)
               const mkt = await fetchMarketStats(locParams)
               if (!mkt) return null

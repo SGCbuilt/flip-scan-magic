@@ -365,6 +365,13 @@ export default function Settings() {
         {tab === 'keys' && (
           <div className="space-y-3">
             <KeyField
+              label="RentCast (Comps + AVM)"
+              storageKey="fscan_rentcast"
+              placeholder="Your RentCast API key"
+              docs="https://app.rentcast.io/app/api-keys"
+              description="Powers Deal Scanner, comp auto-pull, ARV estimates, and market data everywhere. Required for core functionality."
+            />
+            <KeyField
               label="Anthropic Claude"
               storageKey="fscan_anthropic"
               placeholder="sk-ant-api03-..."

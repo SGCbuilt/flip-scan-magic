@@ -1,3 +1,5 @@
+import { useEscapeKey } from '../lib/useEscapeKey'
+import { toast } from '../lib/toast'
 /**
  * Wholesale Deal Machine — Full UI
  * 
@@ -27,6 +29,7 @@ const STATUS_CONFIG: Record<WholesaleStatus, { label: string; color: string; bg:
 
 // ── New Deal Modal ────────────────────────────────────────────────────────────
 function NewDealModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  useEscapeKey(onClose)
   const pipelineLeads = getPipeline().filter(l =>
     ['researching','contacted','negotiating','under_contract'].includes(l.stage)
   )
@@ -92,7 +95,7 @@ function NewDealModal({ onClose, onCreated }: { onClose: () => void; onCreated: 
             <div className="font-bold text-base" style={{ color: 'var(--sgc-navy)' }}>🏷️ Create Wholesale Deal</div>
             <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>Turn this lead into a wholesale listing</div>
           </div>
-          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
+          <button onClick={onClose} className="text-xl cursor-pointer bg-transparent border-none" aria-label="Close" style={{ color: 'var(--sgc-gray-mid)' }}>✕</button>
         </div>
 
         <div className="p-5 space-y-5">
@@ -226,6 +229,10 @@ function DealCard({ deal, onUpdate }: { deal: WholesaleDeal; onUpdate: () => voi
   const [feePaid,     setFeePaid]     = useState(deal.assignmentFee)
   const emailText = generateWholesaleEmail(deal)
 
+  // Compute buyer matches once per deal render — not twice per render
+  const buyerMatches = matchBuyers({ state: deal.state, county: deal.county, arv: deal.arv, askingPrice: deal.askingPrice, rehab: deal.rehab })
+  const qualifiedBuyers = buyerMatches.filter(m => m.score >= 60)
+
   return (
     <div className="bg-white rounded-2xl border overflow-hidden"
       style={{ borderColor: deal.status === 'closed' ? '#1A7A4A30' : deal.status === 'listed' ? 'var(--sgc-navy)20' : 'var(--sgc-gray-border)' }}>
@@ -295,22 +302,20 @@ function DealCard({ deal, onUpdate }: { deal: WholesaleDeal; onUpdate: () => voi
               📄 PDF
             </button>
             <button onClick={() => {
-              const matches = matchBuyers({ state: deal.state, county: deal.county, arv: deal.arv, askingPrice: deal.askingPrice, rehab: deal.rehab })
-              const topBuyers = matches.filter(m => m.score >= 60).slice(0, 10)
-              if (topBuyers.length === 0) { alert('No matching buyers. Add buyers in the Buyers tab first.'); return }
-              topBuyers.forEach((m, i) => {
+              if (qualifiedBuyers.length === 0) { toast.warning('No matching buyers — add buyers in the Buyers tab first'); return }
+              qualifiedBuyers.slice(0, 10).forEach((m, i) => {
                 setTimeout(() => {
                   const subject = `🏠 DEAL: ${deal.address}, ${deal.city} ${deal.state}`
                   const body = generateWholesaleEmail(deal).replace(/^Subject:.*\n\n/, '')
                   window.open(`mailto:${m.buyer.email}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`, '_blank')
                 }, i * 400)
               })
-              recordDealShared(topBuyers.map(m => m.buyer.id))
-              alert(`📢 Blast sent to ${topBuyers.length} matching buyer${topBuyers.length > 1 ? 's' : ''}! Check your email client.`)
+              recordDealShared(qualifiedBuyers.slice(0, 10).map(m => m.buyer.id))
+              toast.success(`📢 Blast sent to ${Math.min(qualifiedBuyers.length, 10)} buyer${qualifiedBuyers.length > 1 ? 's' : ''} — check your email client`)
             }}
               className="text-xs font-bold px-3 py-2 rounded-lg border-none cursor-pointer"
               style={{ background: '#EDFAF3', color: '#1A7A4A' }}>
-              📢 Blast ({matchBuyers({ state: deal.state, county: deal.county, arv: deal.arv, askingPrice: deal.askingPrice, rehab: deal.rehab }).filter(m => m.score >= 60).length})
+              📢 Blast ({qualifiedBuyers.length})
             </button>
             <button onClick={() => setShowEmail(e => !e)}
               className="text-xs font-bold px-3 py-2 rounded-lg border-none cursor-pointer"

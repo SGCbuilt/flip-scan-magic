@@ -90,6 +90,34 @@ export default function DealGradePanel({ input, compact = true, className = '' }
     )
   }
 
+  // ── Non-compact mode: show full trigger panel if not yet computed ──────────
+  if (!result && !loading && !compact) {
+    return (
+      <div className={`rounded-2xl border overflow-hidden ${className}`}
+        style={{ borderColor: '#1B3A8C30' }}>
+        <button
+          onClick={handleCompute}
+          className="w-full flex items-center gap-4 px-5 py-4 border-none cursor-pointer text-left"
+          style={{ background: '#EEF2FB' }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+            style={{ background: '#1B3A8C', color: 'white', fontSize: 20 }}>
+            🏗️
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-bold" style={{ color: '#1B3A8C' }}>GC Deal Grade</div>
+            <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+              Building age risks · Permit signals · Comp confidence · AI analysis — click to compute
+            </div>
+          </div>
+          <span className="text-xs font-bold px-3 py-1.5 rounded-xl text-white flex-shrink-0"
+            style={{ background: '#1B3A8C' }}>
+            Compute Grade →
+          </span>
+        </button>
+      </div>
+    )
+  }
+
   // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (

@@ -21,7 +21,10 @@ interface Props {
 }
 
 export default function CostingIntelligencePanel({ dealId, items, onApply }: Props) {
-  const [intel] = useState<CI>(() => buildCostingIntelligence())
+  const [intel] = useState<CI>(() => {
+    try { return buildCostingIntelligence() }
+    catch { return { dealsAnalyzed: 0, hasEnoughData: false, patterns: [], topBias: null, topAccurate: null, rehabBias: 0, suggestedRehabBuffer: 10, estimatedAccuracy: 0, smartAdjustments: [], generatedAt: new Date().toISOString() } as CI }
+  })
   const [expanded, setExpanded] = useState(false)
   const [applied, setApplied]   = useState(false)
   const [preview, setPreview]   = useState(false)

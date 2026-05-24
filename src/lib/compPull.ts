@@ -8,7 +8,7 @@
  * Returns: estimated value + 5 nearby comps with price/sqft
  */
 
-const RENTCAST_KEY = 'a03153e34276e4d75b0548add458816de'
+const RENTCAST_KEY = (import.meta.env.VITE_RENTCAST_KEY as string) || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_rentcast') || '' : '')
 
 export interface Comp {
   address:       string

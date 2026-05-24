@@ -16,7 +16,7 @@
  * dataType param: "Sale" | "Rental" | "All"
  */
 
-const KEY = 'a03153e34276e4d75b0548add458816de'
+const KEY = (import.meta.env.VITE_RENTCAST_KEY as string) || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_rentcast') || '' : '')
 const BASE = 'https://api.rentcast.io/v1'
 const H = { 'X-Api-Key': KEY }
 

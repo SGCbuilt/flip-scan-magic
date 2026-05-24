@@ -486,12 +486,15 @@ Write exactly this JSON (no markdown):
 
       if (res.ok) {
         const d = await res.json()
-        const text = (d?.content?.[0]?.text || '').trim()
-        const parsed = JSON.parse(text)
-        headline          = parsed.headline          || ''
-        summary           = parsed.summary           || ''
-        gcNote            = parsed.gcNote            || ''
-        recommendedAction = parsed.recommendedAction || ''
+        const raw  = (d?.content?.[0]?.text || '').trim()
+        const text = raw.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '').trim()
+        if (text && text.startsWith('{')) {
+          const parsed = JSON.parse(text)
+          headline          = parsed.headline          || ''
+          summary           = parsed.summary           || ''
+          gcNote            = parsed.gcNote            || ''
+          recommendedAction = parsed.recommendedAction || ''
+        }
       }
     } catch (e) {
       console.warn('[DealGrade] AI summary failed, using fallback', e)

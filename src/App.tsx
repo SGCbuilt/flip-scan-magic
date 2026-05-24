@@ -1,3 +1,4 @@
+import React from 'react'
 /**
  * FlipScan Pro — SGC General Contractors
  * Rebuilt shell: vertical sidebar nav + command dashboard
@@ -6,7 +7,7 @@
  * Every screen reachable in one click. No horizontal scrolling.
  * Live status indicators on every nav item that has pending work.
  */
-import { useState, useCallback, useEffect, useRef } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import Dashboard         from './components/Dashboard'
 import PropertyModal     from './components/PropertyModal'
 import MarketPanel       from './components/MarketPanel'
@@ -28,6 +29,10 @@ import DripSequences     from './components/DripSequences'
 import ProjectTracker    from './components/ProjectTracker'
 import NeighborhoodVelocity from './components/NeighborhoodVelocity'
 import Settings from './components/Settings'
+import ErrorBoundary from './components/ErrorBoundary'
+import ToastContainer from './components/ToastContainer'
+import Onboarding from './components/Onboarding'
+import { toast } from './lib/toast'
 import { getTaskStats }  from './lib/followUpEngine'
 import { getDripStats }  from './lib/drip'
 import { hydratFromCloud } from './lib/cloudSync'
@@ -210,7 +215,7 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
                   onMouseEnter={() => setHoveredTip(collapsed ? item.label + ' — ' + item.tip : null)}
                   onMouseLeave={() => setHoveredTip(null)}
                   title={collapsed ? item.label : undefined}
-                  className="w-full flex items-center gap-2.5 cursor-pointer border-none transition-all relative group"
+                  className="w-full flex items-center gap-2.5 cursor-pointer border-none transition-all relative group" aria-label={item.label}
                   style={{
                     padding:    collapsed ? '8px 0' : '7px 10px 7px 12px',
                     margin:     '1px 4px',
@@ -292,8 +297,26 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
 }
 
 // ── Topbar ────────────────────────────────────────────────────────────────────
-function Topbar({ activeTab, appState, results, params, setParams, searchMeta, handleSearch,
-  activeStrategy, setActiveStrategy, strategyPills }: any) {
+interface TopbarProps {
+  activeTab:        TabId
+  appState:         AppState
+  results:          AnalyzedProperty[]
+  params:           SearchParams
+  setParams:        React.Dispatch<React.SetStateAction<SearchParams>>
+  searchMeta:       { time: number; raw: number } | null
+  handleSearch:     () => void
+  activeStrategy:   string
+  setActiveStrategy:(s: string) => void
+  strategyPills:    { key: string; label: string; count: number }[]
+  showFilters:      boolean
+  setShowFilters:   React.Dispatch<React.SetStateAction<boolean>>
+}
+
+function Topbar({
+  activeTab, appState, results, params, setParams, searchMeta,
+  handleSearch, activeStrategy, setActiveStrategy, strategyPills,
+  showFilters, setShowFilters,
+}: TopbarProps) {
 
   const [showSearch, setShowSearch] = useState(false)
 
@@ -321,25 +344,90 @@ function Topbar({ activeTab, appState, results, params, setParams, searchMeta, h
       {/* Page title */}
       <div className="font-bold text-sm" style={{ color: '#0F2460', minWidth: 120 }}>{title}</div>
 
-      {/* Deal Scanner search bar */}
+      {/* Deal Scanner search bar + filter toggle */}
       {activeTab === 'deals' && (
-        <div className="flex items-center gap-2 flex-1 max-w-xl">
+        <div className="flex items-center gap-2 flex-1 max-w-2xl">
+          {/* Mode pills */}
+          <div className="hidden sm:flex gap-0.5 flex-shrink-0">
+            {(['city','zip','address','state'] as const).map(mode => (
+              <button key={mode}
+                onClick={() => setParams((p: SearchParams) => ({ ...p, searchMode: mode, locationQuery: '' }))}
+                className="px-2.5 py-1.5 text-[10px] font-bold rounded border cursor-pointer capitalize transition-all"
+                style={params.searchMode === mode
+                  ? { background: '#0F2460', borderColor: '#0F2460', color: 'white' }
+                  : { background: 'white', borderColor: '#D1D9E6', color: '#94A3B8' }}>
+                {mode}
+              </button>
+            ))}
+          </div>
+          {/* Search input */}
           <div className="flex-1 flex items-center gap-2 rounded-lg border px-3 py-1.5"
             style={{ borderColor: '#D1D9E6', background: '#F8FAFC' }}>
             <span className="text-sm">🔍</span>
             <input
               className="flex-1 text-sm outline-none bg-transparent"
               style={{ color: '#0F2460' }}
-              placeholder="City, zip, or address…"
+              placeholder={
+                params.searchMode === 'city'    ? 'Norfolk, VA  ·  Charlotte, NC' :
+                params.searchMode === 'zip'     ? '23501  ·  27601' :
+                params.searchMode === 'address' ? '123 Main St, Norfolk, VA' :
+                'Virginia  ·  North Carolina'
+              }
               value={params.locationQuery}
               onChange={e => setParams((p: SearchParams) => ({ ...p, locationQuery: e.target.value }))}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
             />
+            {/* Radius — hidden on state mode */}
+            {params.searchMode !== 'state' && (
+              <div className="hidden md:flex items-center gap-1 flex-shrink-0">
+                <span className="text-[10px]" style={{ color: '#94A3B8' }}>within</span>
+                <select
+                  className="text-[11px] border-none outline-none bg-transparent font-semibold cursor-pointer"
+                  style={{ color: '#0F2460' }}
+                  value={params.radius}
+                  onChange={e => setParams((p: SearchParams) => ({ ...p, radius: Number(e.target.value) }))}>
+                  {[1,5,10,25,50,75,100].map(r => <option key={r} value={r}>{r}mi</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+          {/* Source pills */}
+          <div className="hidden lg:flex items-center gap-1 flex-shrink-0">
+            {[
+              { key: 'activeMLS',         label: 'MLS',    color: '#1B3A8C' },
+              { key: 'foreclosures',      label: 'FC',     color: '#C0341D' },
+              { key: 'shortSales',        label: 'SS',     color: '#C45E1A' },
+              { key: 'recentlyOffMarket', label: 'Off-Mkt',color: '#6B3FAD' },
+              { key: 'propertyRecords',   label: 'PR',     color: '#1A7A4A' },
+            ].map((s) => {
+              const active = params.sources[s.key as keyof typeof params.sources]
+              return (
+                <button key={s.key}
+                  onClick={() => setParams((p: SearchParams) => ({
+                    ...p, sources: { ...p.sources, [s.key]: !active }
+                  }))}
+                  className="px-2 py-1 text-[10px] font-bold rounded border cursor-pointer transition-all"
+                  style={active
+                    ? { background: s.color + '15', borderColor: s.color + '60', color: s.color }
+                    : { background: 'white', borderColor: '#E2E8F0', color: '#CBD5E1' }}>
+                  {s.label}
+                </button>
+              )
+            })}
           </div>
           <button onClick={handleSearch} disabled={appState === 'loading'}
             className="px-4 py-1.5 rounded-lg text-xs font-bold text-white border-none cursor-pointer flex-shrink-0"
             style={{ background: appState === 'loading' ? '#94A3B8' : '#0F2460' }}>
-            {appState === 'loading' ? '⟳' : 'Search'}
+            {appState === 'loading' ? '⟳' : 'Scan'}
+          </button>
+          <button onClick={() => setShowFilters((f: boolean) => !f)}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer flex-shrink-0"
+            style={{
+              borderColor: showFilters ? '#0F2460' : '#D1D9E6',
+              color:        showFilters ? '#0F2460' : '#94A3B8',
+              background:   showFilters ? '#EEF2FB' : 'white',
+            }}>
+            ⚙ Filters
           </button>
         </div>
       )}
@@ -384,7 +472,15 @@ function Topbar({ activeTab, appState, results, params, setParams, searchMeta, h
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 export default function App() {
-  const [activeTab,       setActiveTab]       = useState<TabId>('home')
+  const [activeTab,       setActiveTab]       = useState<TabId>(() => {
+    // Support PWA shortcuts via ?tab= URL parameter
+    try {
+      const param = new URLSearchParams(window.location.search).get('tab')
+      const valid: TabId[] = ['home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','wholesale','buyers','financial','market','analyzer','reference','settings']
+      if (param && valid.includes(param as TabId)) return param as TabId
+    } catch {}
+    return 'home'
+  })
   const [collapsed,       setCollapsed]       = useState(false)
   const [params,          setParams]          = useState<SearchParams>(DEFAULT_PARAMS)
   const [results,         setResults]         = useState<AnalyzedProperty[]>([])
@@ -397,9 +493,13 @@ export default function App() {
   const [sortKey,         setSortKey]         = useState<SortKey>('score')
   const [viewMode,        setViewMode]        = useState<ViewMode>('cards')
   const [activeStrategy,  setActiveStrategy]  = useState('all')
-  const [toast,           setToast]           = useState<{ msg: string; err?: boolean } | null>(null)
   const [searchMeta,      setSearchMeta]      = useState<{ time: number; raw: number } | null>(null)
   const [taskBadge,       setTaskBadge]       = useState(0)
+  const [showFilters,     setShowFilters]     = useState(false)
+  const [showOnboarding,  setShowOnboarding]  = useState(() => {
+    const hasKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast')
+    return !hasKey
+  })
 
   // Refresh badge every 60s
   useEffect(() => {
@@ -416,9 +516,14 @@ export default function App() {
     })
   }, [])
 
+  // Close filter drawer whenever user switches away from Deal Scanner
+  useEffect(() => {
+    if (activeTab !== 'deals') setShowFilters(false)
+  }, [activeTab])
+
   const showToast = (msg: string, err = false) => {
-    setToast({ msg, err })
-    setTimeout(() => setToast(null), 5000)
+    if (err) toast.error(msg)
+    else toast.success(msg)
   }
 
   const applySort = useCallback((key: SortKey, data: AnalyzedProperty[]) => sortResults(data, key), [])
@@ -426,6 +531,13 @@ export default function App() {
   const handleSearch = async () => {
     const q = params.locationQuery.trim()
     if (!q) { showToast('Enter a location to search', true); return }
+    // Guard: RentCast key required for all search operations
+    const rentcastKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast') || ''
+    if (!rentcastKey) {
+      toast.error('RentCast API key required — add it in Settings → API Keys → RentCast')
+      return
+    }
+    setShowFilters(false)
     setAppState('loading'); setApiErrors([]); setResults([]); setAllAnalyzed([])
     const t0 = Date.now()
     try {
@@ -491,54 +603,231 @@ export default function App() {
           params={params} setParams={setParams} searchMeta={searchMeta}
           handleSearch={handleSearch} activeStrategy={activeStrategy}
           setActiveStrategy={setActiveStrategy} strategyPills={strategyPills}
+          showFilters={showFilters} setShowFilters={setShowFilters}
         />
+
+        {/* Filter drawer — Deal Scanner only */}
+        {activeTab === 'deals' && showFilters && (
+          <div className="flex-shrink-0 border-b overflow-y-auto"
+            style={{ background: 'white', borderColor: '#E5E9F0', maxHeight: 320 }}>
+            <div className="p-4 grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+
+              {/* Strategy presets */}
+              <div className="col-span-2 md:col-span-1 lg:col-span-1">
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Strategy Preset</div>
+                <div className="flex flex-col gap-1">
+                  {[
+                    { k: 'quickflip',  l: '⚡ Quick Flip',  p: { maxPrice: 350000, rehabLevel: 'light'  as const, holdMonths: 4,  minROI: 18, strategy: 'flip'      as const } },
+                    { k: 'wholesale',  l: '🏷️ Wholesale',   p: { maxPrice: 180000, rehabLevel: 'heavy'  as const, daysOnMarketMin: 45, minProfit: 15000, strategy: 'wholesale' as const } },
+                    { k: 'brrrr',      l: '♻️ BRRRR',        p: { maxPrice: 320000, rehabLevel: 'medium' as const, holdMonths: 12, minROI: 10, strategy: 'brrrr'     as const } },
+                    { k: 'distressed', l: '🏚️ Distressed',   p: { rehabLevel: 'gut' as const, daysOnMarketMin: 60, maxYearBuilt: 1985 } },
+                  ].map(({ k, l, p }) => (
+                    <button key={k} onClick={() => setParams((prev: SearchParams) => ({ ...prev, ...p }))}
+                      className="text-[11px] px-2 py-1.5 rounded border cursor-pointer text-left font-medium"
+                      style={{ borderColor: '#D1D9E6', color: '#0F2460', background: '#EEF2FB' }}>
+                      {l}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Price + property */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Price Range</div>
+                <div className="space-y-1.5">
+                  <input type="number" placeholder="Min $" value={params.minPrice || ''}
+                    onChange={e => setParams((p: SearchParams) => ({ ...p, minPrice: Number(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                    style={{ borderColor: '#D1D9E6' }} />
+                  <input type="number" placeholder="Max $" value={params.maxPrice || ''}
+                    onChange={e => setParams((p: SearchParams) => ({ ...p, maxPrice: Number(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                    style={{ borderColor: '#D1D9E6' }} />
+                  <select value={params.propertyType} onChange={e => setParams((p: SearchParams) => ({ ...p, propertyType: e.target.value }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none cursor-pointer"
+                    style={{ borderColor: '#D1D9E6' }}>
+                    <option value="">All Types</option>
+                    <option value="Single Family">Single Family</option>
+                    <option value="Condo">Condo</option>
+                    <option value="Townhouse">Townhouse</option>
+                    <option value="Multi-Family">Multi-Family</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Beds / Baths / Year */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Property</div>
+                <div className="space-y-1.5">
+                  <select value={params.bedrooms || ''} onChange={e => setParams((p: SearchParams) => ({ ...p, bedrooms: Number(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none cursor-pointer"
+                    style={{ borderColor: '#D1D9E6' }}>
+                    <option value="">Any Beds</option>
+                    {[1,2,3,4,5].map(n => <option key={n} value={n}>{n}+ beds</option>)}
+                  </select>
+                  <select value={params.bathrooms || ''} onChange={e => setParams((p: SearchParams) => ({ ...p, bathrooms: Number(e.target.value) || 0 }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none cursor-pointer"
+                    style={{ borderColor: '#D1D9E6' }}>
+                    <option value="">Any Baths</option>
+                    {[1,2,3].map(n => <option key={n} value={n}>{n}+ baths</option>)}
+                  </select>
+                  <div className="grid grid-cols-2 gap-1">
+                    <input type="number" placeholder="Built after" value={params.minYearBuilt || ''}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, minYearBuilt: Number(e.target.value) || 0 }))}
+                      className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                      style={{ borderColor: '#D1D9E6' }} />
+                    <input type="number" placeholder="Built before" value={params.maxYearBuilt || ''}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, maxYearBuilt: Number(e.target.value) || 0 }))}
+                      className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                      style={{ borderColor: '#D1D9E6' }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* Flip criteria */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Flip Criteria</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span style={{ color: '#64748B' }}>Min Score</span>
+                      <span className="font-bold" style={{ color: '#0F2460' }}>{params.minFlipScore}</span>
+                    </div>
+                    <input type="range" min="0" max="100" value={params.minFlipScore}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, minFlipScore: Number(e.target.value) }))}
+                      className="w-full" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span style={{ color: '#64748B' }}>Min Profit</span>
+                      <span className="font-bold" style={{ color: '#0F2460' }}>${(params.minProfit/1000).toFixed(0)}k</span>
+                    </div>
+                    <input type="range" min="0" max="150000" step="2500" value={params.minProfit}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, minProfit: Number(e.target.value) }))}
+                      className="w-full" />
+                  </div>
+                  <select value={params.arvMethod} onChange={e => setParams((p: SearchParams) => ({ ...p, arvMethod: e.target.value as any }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none cursor-pointer"
+                    style={{ borderColor: '#D1D9E6' }}>
+                    <option value="conservative">ARV: Conservative</option>
+                    <option value="auto">ARV: Market Rate</option>
+                    <option value="aggressive">ARV: Aggressive</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Deal math */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Deal Math</div>
+                <div className="space-y-1.5">
+                  <select value={params.rehabLevel} onChange={e => setParams((p: SearchParams) => ({ ...p, rehabLevel: e.target.value as any }))}
+                    className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none cursor-pointer"
+                    style={{ borderColor: '#D1D9E6' }}>
+                    <option value="light">Light: $5-25k</option>
+                    <option value="medium">Medium: $25-75k</option>
+                    <option value="heavy">Heavy: $75-150k</option>
+                    <option value="gut">Gut: $150k+</option>
+                    <option value="custom">Custom</option>
+                  </select>
+                  {params.rehabLevel === 'custom' && (
+                    <input type="number" placeholder="Rehab $" value={params.customRehabCost || ''}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, customRehabCost: Number(e.target.value) }))}
+                      className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                      style={{ borderColor: '#D1D9E6' }} />
+                  )}
+                  <div className="grid grid-cols-2 gap-1">
+                    <div>
+                      <div className="text-[9px] mb-0.5" style={{ color: '#94A3B8' }}>Hold (mo)</div>
+                      <input type="number" value={params.holdMonths}
+                        onChange={e => setParams((p: SearchParams) => ({ ...p, holdMonths: Number(e.target.value) }))}
+                        className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                        style={{ borderColor: '#D1D9E6' }} />
+                    </div>
+                    <div>
+                      <div className="text-[9px] mb-0.5" style={{ color: '#94A3B8' }}>Rate %</div>
+                      <input type="number" step="0.5" value={params.financingRate}
+                        onChange={e => setParams((p: SearchParams) => ({ ...p, financingRate: Number(e.target.value) }))}
+                        className="w-full rounded-lg border text-xs px-2 py-1.5 outline-none"
+                        style={{ borderColor: '#D1D9E6' }} />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Market signals */}
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: '#94A3B8' }}>Market Signals</div>
+                <div className="space-y-2">
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span style={{ color: '#64748B' }}>Max DOM</span>
+                      <span className="font-bold" style={{ color: '#0F2460' }}>{params.daysOnMarketMax >= 365 ? 'Any' : `${params.daysOnMarketMax}d`}</span>
+                    </div>
+                    <input type="range" min="0" max="365" step="5" value={params.daysOnMarketMax}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, daysOnMarketMax: Number(e.target.value) }))}
+                      className="w-full" />
+                  </div>
+                  <div>
+                    <div className="flex justify-between text-[10px] mb-1">
+                      <span style={{ color: '#64748B' }}>Min DOM (motivated)</span>
+                      <span className="font-bold" style={{ color: '#0F2460' }}>{params.daysOnMarketMin || 'Any'}</span>
+                    </div>
+                    <input type="range" min="0" max="180" step="5" value={params.daysOnMarketMin}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, daysOnMarketMin: Number(e.target.value) }))}
+                      className="w-full" />
+                  </div>
+                  <label className="flex items-center gap-2 cursor-pointer text-xs">
+                    <input type="checkbox" checked={params.priceReduced}
+                      onChange={e => setParams((p: SearchParams) => ({ ...p, priceReduced: e.target.checked }))} />
+                    <span style={{ color: '#374151' }}>Price-reduced only</span>
+                  </label>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        )}
 
         {/* Content */}
         <main className="flex-1 overflow-hidden" style={{ background: '#F8FAFC' }}>
-          {activeTab === 'home'      && <DailyDigest />}
-          {activeTab === 'kpi'       && <KPIDashboard />}
-          {activeTab === 'radar'     && <LeadRadar />}
-          {activeTab === 'velocity'  && <NeighborhoodVelocity />}
-          {activeTab === 'stack'     && <ListStacking />}
-          {activeTab === 'drive'     && <DriveForDollars />}
-          {activeTab === 'deals'     && (
-            <Dashboard
-              appState={appState} results={strategyFiltered} allAnalyzed={allAnalyzed}
-              marketStats={marketStats} apiErrors={apiErrors} loadingMsg={loadingMsg}
-              sortKey={sortKey} viewMode={viewMode} onSort={handleSort}
-              onViewMode={setViewMode} onSelect={setSelected} searchMeta={searchMeta} params={params}
-            />
-          )}
-          {activeTab === 'hunt'      && <DealHunter />}
-          {activeTab === 'pipeline'  && <Pipeline />}
-          {activeTab === 'tasks'     && <Tasks />}
-          {activeTab === 'drip'      && <DripSequences />}
-          {activeTab === 'project'   && <ProjectTracker />}
-          {activeTab === 'pl'        && <DealPLTracker />}
-          {activeTab === 'wholesale' && <Wholesale />}
-          {activeTab === 'buyers'    && <BuyerList />}
-          {activeTab === 'financial' && <FinancialTools />}
-          {activeTab === 'market'    && <MarketPanel locationQuery={params.locationQuery} searchMode={params.searchMode} results={results} visible={activeTab === 'market'} />}
-          {activeTab === 'analyzer'  && <MarketAnalyzer />}
-          {activeTab === 'reference' && <ReferenceHub />}
-          {activeTab === 'settings'  && <Settings />}
+          <ErrorBoundary label="Morning Brief">    {activeTab === 'home'      && <DailyDigest />}            </ErrorBoundary>
+          <ErrorBoundary label="KPI Dashboard">    {activeTab === 'kpi'       && <KPIDashboard />}           </ErrorBoundary>
+          <ErrorBoundary label="Lead Radar">       {activeTab === 'radar'     && <LeadRadar />}              </ErrorBoundary>
+          <ErrorBoundary label="Neighborhood">     {activeTab === 'velocity'  && <NeighborhoodVelocity />}   </ErrorBoundary>
+          <ErrorBoundary label="List Stack">       {activeTab === 'stack'     && <ListStacking />}           </ErrorBoundary>
+          <ErrorBoundary label="Drive for Dollars">{activeTab === 'drive'     && <DriveForDollars />}        </ErrorBoundary>
+          <ErrorBoundary label="Deal Scanner">
+            {activeTab === 'deals' && (
+              <Dashboard
+                appState={appState} results={strategyFiltered} allAnalyzed={allAnalyzed}
+                marketStats={marketStats} apiErrors={apiErrors} loadingMsg={loadingMsg}
+                sortKey={sortKey} viewMode={viewMode} onSort={handleSort}
+                onViewMode={setViewMode} onSelect={setSelected} searchMeta={searchMeta} params={params}
+              />
+            )}
+          </ErrorBoundary>
+          <ErrorBoundary label="Deal Hunter">      {activeTab === 'hunt'      && <DealHunter />}             </ErrorBoundary>
+          <ErrorBoundary label="Pipeline CRM">     {activeTab === 'pipeline'  && <Pipeline />}               </ErrorBoundary>
+          <ErrorBoundary label="Tasks">            {activeTab === 'tasks'     && <Tasks />}                  </ErrorBoundary>
+          <ErrorBoundary label="Drip Sequences">   {activeTab === 'drip'      && <DripSequences />}          </ErrorBoundary>
+          <ErrorBoundary label="Project Clock">    {activeTab === 'project'   && <ProjectTracker />}         </ErrorBoundary>
+          <ErrorBoundary label="Deal P&L">         {activeTab === 'pl'        && <DealPLTracker />}          </ErrorBoundary>
+          <ErrorBoundary label="Wholesale">        {activeTab === 'wholesale' && <Wholesale />}              </ErrorBoundary>
+          <ErrorBoundary label="Buyer List">       {activeTab === 'buyers'    && <BuyerList />}              </ErrorBoundary>
+          <ErrorBoundary label="Financial Tools">  {activeTab === 'financial' && <FinancialTools />}         </ErrorBoundary>
+          <ErrorBoundary label="Market Trends">
+            {activeTab === 'market' && <MarketPanel locationQuery={params.locationQuery} searchMode={params.searchMode} results={results} visible={activeTab === 'market'} />}
+          </ErrorBoundary>
+          <ErrorBoundary label="Area Intelligence">{activeTab === 'analyzer'  && <MarketAnalyzer />}         </ErrorBoundary>
+          <ErrorBoundary label="Lead Sources">     {activeTab === 'reference' && <ReferenceHub />}           </ErrorBoundary>
+          <ErrorBoundary label="Settings">         {activeTab === 'settings'  && <Settings />}               </ErrorBoundary>
         </main>
       </div>
 
       {selected && <PropertyModal property={selected} params={params} onClose={() => setSelected(null)} />}
 
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[999] px-5 py-3 rounded-xl text-sm shadow-xl flex items-center gap-2.5 max-w-md"
-          style={{
-            background: toast.err ? '#FEF0ED' : '#0F2460',
-            color:      toast.err ? '#C0341D' : 'white',
-            border:     `1px solid ${toast.err ? '#C0341D30' : 'rgba(255,255,255,0.1)'}`,
-          }}>
-          <span>{toast.err ? '⚠' : '✓'}</span>
-          <span>{toast.msg}</span>
-        </div>
-      )}
+      <ToastContainer />
+      {showOnboarding && <Onboarding onDismiss={() => setShowOnboarding(false)} />}
     </div>
   )
 }

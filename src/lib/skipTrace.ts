@@ -22,28 +22,28 @@ export interface SkipTraceResult {
   phones: {
     number:       string
     type:         'mobile' | 'landline'
-    dnc:          boolean      // Do Not Call — never call if true
-    litigator:    boolean      // Known TCPA litigator — never contact
-    confidence:   number       // 0-100
+    dnc:          boolean
+    litigator:    boolean
+    confidence:   number
   }[]
   emails: {
     address:      string
     confidence:   number
   }[]
   property: {
-    beds:         number
-    baths:        number
-    sqft:         number
-    yearBuilt:    number
-    propertyType: string
-    estimatedValue: number
-    equity:       number
-    equityPct:    number
+    beds:            number
+    baths:           number
+    sqft:            number
+    yearBuilt:       number
+    propertyType:    string
+    estimatedValue:  number
+    equity:          number
+    equityPct:       number
     mortgageBalance: number
-    lastSalePrice:  number
-    lastSaleDate:   string
-    taxStatus:    string       // current, delinquent
-    vacant:       boolean
+    lastSalePrice:   number
+    lastSaleDate:    string
+    taxStatus:       string
+    vacant:          boolean
     absenteeOwner:boolean
   } | null
   rawData: any
