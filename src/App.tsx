@@ -529,8 +529,9 @@ const fPct=(n:number,d=1)=>`${n>=0?"+":""}${n.toFixed(d)}%`;
 const fM=(n:number)=>n>=1e9?`$${(n/1e9).toFixed(1)}B`:n>=1e6?`$${(n/1e6).toFixed(0)}M`:`$${Math.round(n).toLocaleString()}`;
 const fVol=(n:number)=>n>=1e9?`${(n/1e9).toFixed(2)}B`:n>=1e6?`${(n/1e6).toFixed(1)}M`:`${n.toLocaleString()}`;
 
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string;
 async function callAI(msgs:{role:string;content:string}[],sys:string) {
-  const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${SUPABASE_ANON_KEY}`},body:JSON.stringify({messages:msgs,system:sys})});
+  const r=await fetch(AI_URL,{method:"POST",headers:{"Content-Type":"application/json","Authorization":`Bearer ${SUPABASE_ANON_KEY}`,"apikey":SUPABASE_ANON_KEY},body:JSON.stringify({messages:msgs,system:sys})});
   const d=await r.json();
   if(!r.ok||d.error) throw new Error(d.error||`HTTP ${r.status}`);
   return d.text as string;
@@ -541,8 +542,8 @@ const AuthCtx=createContext<{user:User|null}>({user:null});
 function AuthProvider({children}:{children:React.ReactNode}) {
   const [user,setUser]=useState<User|null>(null);
   useEffect(()=>{
-    supabase.auth.getSession().then(({data})=>setUser(data.session?.user||null));
-    const {data:{subscription}}=supabase.auth.onAuthStateChange((_,s)=>setUser(s?.user||null));
+    supabase.auth.getSession().then(({data}: any)=>setUser(data.session?.user||null));
+    const {data:{subscription}}=supabase.auth.onAuthStateChange((_: any,s: any)=>setUser(s?.user||null));
     return()=>subscription.unsubscribe();
   },[]);
   return <AuthCtx.Provider value={{user}}>{children}</AuthCtx.Provider>;
