@@ -12,7 +12,21 @@
 //  6. Paste as src/App.tsx
 // ============================================================
 
-import React, {
+// ── LIVE DATE COMPONENT ─────────────────────────────────────
+function LiveDate() {
+  const [now, setNow] = useState(new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  return (
+    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums", letterSpacing: 0.5 }}>
+      {now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {" "}
+      {now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
+    </span>
+  );
+}
+
   useState, useEffect, useRef, useMemo, useCallback,
   createContext, useContext,
 } from "react";
