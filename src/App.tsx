@@ -17,7 +17,7 @@ import React, {
   createContext, useContext,
 } from "react";
 import type { User } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase } from "./integrations/supabase/client";
 
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const AI_URL       = `${SUPABASE_URL}/functions/v1/sgc-ai`;
