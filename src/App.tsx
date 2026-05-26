@@ -1072,7 +1072,8 @@ Write EXACTLY these sections:
             <div style={{fontSize:10,color:"rgba(255,255,255,0.55)",letterSpacing:1.5}}>LIVE PRICES · BARSI 21 CRITERIA · TECHNICAL ANALYSIS · sgcbuilt.com</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:20,alignItems:"center"}}>
+        <div style={{display:"flex",gap:14,alignItems:"center"}}>
+          <LiveDate />
           <div style={{display:"flex",gap:16,fontSize:12,color:"rgba(255,255,255,0.7)"}}>
             <span style={{display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:7,height:7,borderRadius:"50%",background:quoteLoading?"#f59e0b":"#22c55e",animation:"pulse 2s infinite",display:"inline-block"}}/>
@@ -1086,6 +1087,7 @@ Write EXACTLY these sections:
             ?<button onClick={()=>supabase.auth.signOut()} style={{...G.btn("rgba(255,255,255,0.12)"),border:"1px solid rgba(255,255,255,0.2)",fontSize:11,padding:"6px 12px"}}>Sign Out</button>
             :<button onClick={()=>setShowAuth(true)} style={{...G.btn(T.gold),color:T.navyD,fontSize:12,padding:"8px 18px"}}>Sign In</button>}
         </div>
+
       </div>
 
       {/* TABS */}
