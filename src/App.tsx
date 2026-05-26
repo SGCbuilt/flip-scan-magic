@@ -16,13 +16,12 @@ import React, {
   useState, useEffect, useRef, useMemo, useCallback,
   createContext, useContext,
 } from "react";
-import { createClient, User } from "@supabase/supabase-js";
+import type { User } from "@supabase/supabase-js";
+import { supabase } from "@/integrations/supabase/client";
 
-const SUPABASE_URL      = "https://YOUR_PROJECT.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_ANON_KEY";
-const AI_URL            = `${SUPABASE_URL}/functions/v1/sgc-ai`;
-const PROXY             = "https://api.allorigins.win/get?url=";
-const supabase          = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
+const AI_URL       = `${SUPABASE_URL}/functions/v1/sgc-ai`;
+const PROXY        = "https://api.allorigins.win/get?url=";
 
 // ── THEME ─────────────────────────────────────────────────────
 const T = {
