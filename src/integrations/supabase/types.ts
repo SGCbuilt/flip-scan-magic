@@ -14,30 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      alerts_log: {
-        Row: {
-          id: string
-          message: string
-          sym: string
-          triggered_at: string
-          user_id: string
-        }
-        Insert: {
-          id?: string
-          message: string
-          sym: string
-          triggered_at?: string
-          user_id: string
-        }
-        Update: {
-          id?: string
-          message?: string
-          sym?: string
-          triggered_at?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       email_send_log: {
         Row: {
           created_at: string
@@ -149,33 +125,6 @@ export type Database = {
         }
         Relationships: []
       }
-      portfolios: {
-        Row: {
-          avg_price: number
-          created_at: string
-          id: string
-          qty: number
-          sym: string
-          user_id: string
-        }
-        Insert: {
-          avg_price: number
-          created_at?: string
-          id?: string
-          qty: number
-          sym: string
-          user_id: string
-        }
-        Update: {
-          avg_price?: number
-          created_at?: string
-          id?: string
-          qty?: number
-          sym?: string
-          user_id?: string
-        }
-        Relationships: []
-      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -244,33 +193,6 @@ export type Database = {
           created_at?: string
           id?: string
           role?: Database["public"]["Enums"]["app_role"]
-          user_id?: string
-        }
-        Relationships: []
-      }
-      watchlists: {
-        Row: {
-          alert_price: number | null
-          alert_type: string
-          created_at: string
-          id: string
-          sym: string
-          user_id: string
-        }
-        Insert: {
-          alert_price?: number | null
-          alert_type?: string
-          created_at?: string
-          id?: string
-          sym: string
-          user_id: string
-        }
-        Update: {
-          alert_price?: number | null
-          alert_type?: string
-          created_at?: string
-          id?: string
-          sym?: string
           user_id?: string
         }
         Relationships: []
