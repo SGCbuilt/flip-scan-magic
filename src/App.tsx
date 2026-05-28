@@ -19,22 +19,6 @@ import React, {
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "./integrations/supabase/client";
 
-// ── LIVE DATE COMPONENT ─────────────────────────────────────
-function LiveDate() {
-  const [now, setNow] = useState(new Date());
-  useEffect(() => {
-    const t = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(t);
-  }, []);
-  return (
-    <span style={{ fontSize: 12, color: "rgba(255,255,255,0.7)", fontVariantNumeric: "tabular-nums", letterSpacing: 0.5 }}>
-      {now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })} · {" "}
-      {now.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}
-    </span>
-  );
-}
-
-
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
 const AI_URL       = `${SUPABASE_URL}/functions/v1/sgc-ai`;
 const PROXY        = "https://api.allorigins.win/get?url=";
@@ -1072,8 +1056,7 @@ Write EXACTLY these sections:
             <div style={{fontSize:10,color:"rgba(255,255,255,0.55)",letterSpacing:1.5}}>LIVE PRICES · BARSI 21 CRITERIA · TECHNICAL ANALYSIS · sgcbuilt.com</div>
           </div>
         </div>
-        <div style={{display:"flex",gap:14,alignItems:"center"}}>
-          <LiveDate />
+        <div style={{display:"flex",gap:20,alignItems:"center"}}>
           <div style={{display:"flex",gap:16,fontSize:12,color:"rgba(255,255,255,0.7)"}}>
             <span style={{display:"flex",alignItems:"center",gap:5}}>
               <span style={{width:7,height:7,borderRadius:"50%",background:quoteLoading?"#f59e0b":"#22c55e",animation:"pulse 2s infinite",display:"inline-block"}}/>
@@ -1087,7 +1070,6 @@ Write EXACTLY these sections:
             ?<button onClick={()=>supabase.auth.signOut()} style={{...G.btn("rgba(255,255,255,0.12)"),border:"1px solid rgba(255,255,255,0.2)",fontSize:11,padding:"6px 12px"}}>Sign Out</button>
             :<button onClick={()=>setShowAuth(true)} style={{...G.btn(T.gold),color:T.navyD,fontSize:12,padding:"8px 18px"}}>Sign In</button>}
         </div>
-
       </div>
 
       {/* TABS */}
