@@ -339,6 +339,17 @@ type SettingsTab = 'keys' | 'sync' | 'sms' | 'mail'
 
 export default function Settings() {
   const [tab, setTab] = useState<SettingsTab>('keys')
+  const [email, setEmail] = useState<string>('')
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setEmail(data.user?.email || ''))
+  }, [])
+
+  const signOut = async () => {
+    await supabase.auth.signOut()
+    clearLocalKeys()
+    toast.success('Signed out')
+  }
 
   const tabs: { id: SettingsTab; label: string; icon: string }[] = [
     { id: 'keys', label: 'API Keys',     icon: '🔑' },
@@ -350,6 +361,19 @@ export default function Settings() {
   return (
     <div className="h-full overflow-y-auto" style={{ background: 'var(--sgc-gray-light)' }}>
       <div className="p-5 max-w-2xl mx-auto space-y-4">
+
+        {/* Account bar */}
+        <div className="flex items-center justify-between bg-white rounded-2xl p-3 border" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+          <div className="text-xs">
+            <div className="font-bold" style={{ color: 'var(--sgc-black)' }}>Signed in</div>
+            <div style={{ color: 'var(--sgc-gray-mid)' }}>{email || '—'}</div>
+          </div>
+          <button onClick={signOut}
+            className="px-3 py-2 rounded-xl text-xs font-bold border cursor-pointer"
+            style={{ borderColor: '#FCA5A5', color: '#C0341D', background: 'white' }}>
+            Sign Out
+          </button>
+        </div>
 
         {/* Tab bar */}
         <div className="flex gap-1 bg-white rounded-2xl p-1 border" style={{ borderColor: 'var(--sgc-gray-border)' }}>
