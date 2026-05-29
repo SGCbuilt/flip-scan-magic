@@ -3,6 +3,7 @@ import type { Session } from '@supabase/supabase-js'
 import { supabase } from '@/integrations/supabase/client'
 import { hydrateKeysFromCloud, clearLocalKeys } from '../lib/keyVault'
 import AuthPage from './AuthPage'
+import ResetPasswordPage from './ResetPasswordPage'
 
 interface Props { children: React.ReactNode }
 
@@ -10,10 +11,19 @@ export default function AuthGate({ children }: Props) {
   const [session, setSession] = useState<Session | null>(null)
   const [ready, setReady] = useState(false)
   const [hydrated, setHydrated] = useState(false)
+  const [recovery, setRecovery] = useState(false)
 
   useEffect(() => {
-    const { data: sub } = supabase.auth.onAuthStateChange((_e, s) => {
+    // Detect recovery link landing (Supabase puts type=recovery in URL hash or query)
+    const hash = window.location.hash || ''
+    const search = window.location.search || ''
+    if (hash.includes('type=recovery') || search.includes('type=recovery')) {
+      setRecovery(true)
+    }
+
+    const { data: sub } = supabase.auth.onAuthStateChange((event, s) => {
       setSession(s)
+      if (event === 'PASSWORD_RECOVERY') setRecovery(true)
       if (!s) {
         clearLocalKeys()
         setHydrated(false)
@@ -41,6 +51,10 @@ export default function AuthGate({ children }: Props) {
   }
 
   if (!session) return <AuthPage />
+
+  if (recovery) {
+    return <ResetPasswordPage onDone={() => setRecovery(false)} />
+  }
 
   if (!hydrated) {
     return (
