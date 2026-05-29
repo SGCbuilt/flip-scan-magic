@@ -13,6 +13,9 @@ import { getSyncStatus, exportAllData, importAllData, hydratFromCloud } from '..
 import { isSupabaseConfigured } from '../lib/supabase'
 import { SMS_TEMPLATES, buildSMSUrl, buildSMSBody, sendDirectMail, MailRequest } from '../lib/directMail'
 import { getPipeline } from '../lib/pipeline'
+import { supabase } from '@/integrations/supabase/client'
+import { saveKey, clearLocalKeys } from '../lib/keyVault'
+import { toast } from '../lib/toast'
 
 // ── API Key Field ─────────────────────────────────────────────────────────────
 function KeyField({ label, storageKey, placeholder, docs, description }: {
@@ -22,8 +25,9 @@ function KeyField({ label, storageKey, placeholder, docs, description }: {
   const [visible, setVis]   = useState(false)
   const [saved, setSaved]   = useState(false)
 
-  const handleSave = () => {
-    try { localStorage.setItem(storageKey, val) } catch {}
+  const handleSave = async () => {
+    const { data } = await supabase.auth.getUser()
+    await saveKey(storageKey, val, data.user?.id)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
   }
