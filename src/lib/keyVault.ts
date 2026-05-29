@@ -46,10 +46,8 @@ export async function pushKeysToCloud(userId: string): Promise<void> {
 export async function saveKey(lsKey: string, value: string, userId?: string | null): Promise<void> {
   try { localStorage.setItem(lsKey, value) } catch {}
   if (userId && KEY_MAP[lsKey]) {
-    await supabase.from('user_api_keys').upsert(
-      { user_id: userId, [KEY_MAP[lsKey]]: value },
-      { onConflict: 'user_id' }
-    )
+    const row: any = { user_id: userId, [KEY_MAP[lsKey]]: value }
+    await supabase.from('user_api_keys').upsert(row, { onConflict: 'user_id' })
   }
 }
 
