@@ -14,7 +14,7 @@
  * Setup SQL → supabase/migrations/20240102_cloud_sync.sql
  */
 
-import { getSupabaseConfig, isSupabaseConfigured } from './supabase'
+import { supabase } from '@/integrations/supabase/client'
 
 const SYNC_KEYS = [
   'flipscan_pipeline_v2',
@@ -29,16 +29,13 @@ const SYNC_KEYS = [
 
 type SyncKey = typeof SYNC_KEYS[number]
 
-// Use browser fingerprint as stable user ID (no auth needed for single-user app)
-function getUserId(): string {
-  const key = 'fscan_user_id'
-  let id = localStorage.getItem(key)
-  if (!id) {
-    id = 'sgc-' + Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36)
-    localStorage.setItem(key, id)
-  }
-  return id
+// Use the authenticated user's id; cloud sync only works while logged in.
+async function getUserId(): Promise<string | null> {
+  const { data } = await supabase.auth.getUser()
+  return data.user?.id ?? null
 }
+
+function isSupabaseConfigured(): boolean { return true }
 
 // Debounce map — avoid hammering Supabase on every keystroke
 const pendingSync = new Map<string, ReturnType<typeof setTimeout>>()
@@ -46,59 +43,28 @@ const pendingSync = new Map<string, ReturnType<typeof setTimeout>>()
 // ── Core sync functions ───────────────────────────────────────────────────────
 
 async function pushToCloud(storageKey: string, data: any): Promise<void> {
-  if (!isSupabaseConfigured()) return
-  const { url, anon } = getSupabaseConfig()
-  const userId = getUserId()
-
-  try {
-    const res = await fetch(`${url}/rest/v1/flipscan_store?on_conflict=user_id,key`, {
-      method: 'POST',
-      headers: {
-        'Content-Type':  'application/json',
-        'Authorization': `Bearer ${anon}`,
-        'apikey':         anon,
-        'Prefer':         'resolution=merge-duplicates,return=minimal',
-      },
-      body: JSON.stringify({
-        user_id:    userId,
-        key:        storageKey,
-        data:       data,
-        updated_at: new Date().toISOString(),
-      }),
-      signal: AbortSignal.timeout(8000),
-    })
-    if (!res.ok) {
-      const err = await res.text().catch(() => '')
-      console.warn(`[CloudSync] push failed for ${storageKey}: ${res.status} ${err.slice(0,100)}`)
-    }
-  } catch (e: any) {
-    // Silent fail — localStorage already has the data
-    console.debug(`[CloudSync] push error for ${storageKey}:`, e?.message)
-  }
+  const userId = await getUserId()
+  if (!userId) return
+  const { error } = await supabase
+    .from('flipscan_store')
+    .upsert(
+      { user_id: userId, key: storageKey, data, updated_at: new Date().toISOString() },
+      { onConflict: 'user_id,key' }
+    )
+  if (error) console.warn(`[CloudSync] push failed for ${storageKey}:`, error.message)
 }
 
 async function pullFromCloud(storageKey: string): Promise<any | null> {
-  if (!isSupabaseConfigured()) return null
-  const { url, anon } = getSupabaseConfig()
-  const userId = getUserId()
-
-  try {
-    const res = await fetch(
-      `${url}/rest/v1/flipscan_store?user_id=eq.${encodeURIComponent(userId)}&key=eq.${encodeURIComponent(storageKey)}&select=data,updated_at`,
-      {
-        headers: {
-          'Authorization': `Bearer ${anon}`,
-          'apikey':         anon,
-        },
-        signal: AbortSignal.timeout(8000),
-      }
-    )
-    if (!res.ok) return null
-    const rows = await res.json()
-    return rows?.[0]?.data ?? null
-  } catch {
-    return null
-  }
+  const userId = await getUserId()
+  if (!userId) return null
+  const { data, error } = await supabase
+    .from('flipscan_store')
+    .select('data')
+    .eq('user_id', userId)
+    .eq('key', storageKey)
+    .maybeSingle()
+  if (error) return null
+  return (data as any)?.data ?? null
 }
 
 // ── Public API ────────────────────────────────────────────────────────────────
@@ -147,25 +113,18 @@ export function syncWrite(storageKey: SyncKey, data: any[]): void {
  * Only runs if Supabase is configured.
  */
 export async function hydratFromCloud(): Promise<{ synced: number; errors: number }> {
-  if (!isSupabaseConfigured()) return { synced: 0, errors: 0 }
+  const userId = await getUserId()
+  if (!userId) return { synced: 0, errors: 0 }
 
   let synced = 0, errors = 0
-  const { url, anon } = getSupabaseConfig()
-  const userId = getUserId()
-
   try {
-    const res = await fetch(
-      `${url}/rest/v1/flipscan_store?user_id=eq.${encodeURIComponent(userId)}&select=key,data,updated_at`,
-      {
-        headers: { 'Authorization': `Bearer ${anon}`, 'apikey': anon },
-        signal:  AbortSignal.timeout(12000),
-      }
-    )
-    if (!res.ok) return { synced: 0, errors: 1 }
+    const { data: rows, error } = await supabase
+      .from('flipscan_store')
+      .select('key,data,updated_at')
+      .eq('user_id', userId)
+    if (error || !rows) return { synced: 0, errors: 1 }
 
-    const rows: { key: string; data: any; updated_at: string }[] = await res.json()
-
-    for (const row of rows) {
+    for (const row of rows as { key: string; data: any; updated_at: string }[]) {
       if (!SYNC_KEYS.includes(row.key as SyncKey)) continue
       try {
         // Only overwrite local if cloud is newer or local is empty
@@ -191,7 +150,7 @@ export async function hydratFromCloud(): Promise<{ synced: number; errors: numbe
  * Export all data as JSON — for manual backup.
  */
 export function exportAllData(): string {
-  const out: Record<string, any> = { exportedAt: new Date().toISOString(), userId: getUserId() }
+  const out: Record<string, any> = { exportedAt: new Date().toISOString() }
   for (const key of SYNC_KEYS) {
     try { out[key] = JSON.parse(localStorage.getItem(key) || '[]') } catch { out[key] = [] }
   }
@@ -224,7 +183,7 @@ export function importAllData(json: string): { imported: number; errors: string[
 export function getSyncStatus(): { configured: boolean; userId: string; keyCount: number } {
   return {
     configured: isSupabaseConfigured(),
-    userId:     getUserId(),
+    userId:     '(authenticated)',
     keyCount:   SYNC_KEYS.length,
   }
 }
