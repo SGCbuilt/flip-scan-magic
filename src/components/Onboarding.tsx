@@ -10,6 +10,8 @@
  */
 import { useState } from 'react'
 import { toast } from '../lib/toast'
+import { supabase } from '@/integrations/supabase/client'
+import { pushKeysToCloud } from '../lib/keyVault'
 
 const STEPS = [
   {
@@ -56,7 +58,7 @@ export default function Onboarding({ onDismiss }: Props) {
   const current = STEPS[step]
   const isLast  = step === STEPS.length - 1
 
-  const handleSave = () => {
+  const handleSave = async () => {
     const val = (vals[current.key] || '').trim()
     if (current.required && !val) {
       toast.error('RentCast API key is required to use FlipScan Pro')
@@ -67,6 +69,8 @@ export default function Onboarding({ onDismiss }: Props) {
       toast.success(`${current.title} saved`)
     }
     if (isLast) {
+      const { data } = await supabase.auth.getUser()
+      if (data.user) await pushKeysToCloud(data.user.id)
       onDismiss()
     } else {
       setStep(s => s + 1)

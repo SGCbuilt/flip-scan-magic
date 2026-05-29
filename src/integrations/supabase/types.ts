@@ -227,6 +227,45 @@ export type Database = {
         }
         Relationships: []
       }
+      user_api_keys: {
+        Row: {
+          anthropic: string | null
+          attom: string | null
+          created_at: string
+          extras: Json
+          rentcast: string | null
+          supabase_anon: string | null
+          supabase_url: string | null
+          tracerfy: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          anthropic?: string | null
+          attom?: string | null
+          created_at?: string
+          extras?: Json
+          rentcast?: string | null
+          supabase_anon?: string | null
+          supabase_url?: string | null
+          tracerfy?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          anthropic?: string | null
+          attom?: string | null
+          created_at?: string
+          extras?: Json
+          rentcast?: string | null
+          supabase_anon?: string | null
+          supabase_url?: string | null
+          tracerfy?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_roles: {
         Row: {
           created_at: string
