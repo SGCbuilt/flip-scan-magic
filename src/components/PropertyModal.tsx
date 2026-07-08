@@ -3,7 +3,195 @@ import { useState, useEffect } from 'react'
 import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
-import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, type DealVariants } from '../lib/aiAnalysis'
+import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, runDeepScan, type DealVariants, type DeepScanResult } from '../lib/aiAnalysis'
+
+// ── DEEP SCAN TAB ─────────────────────────────────────────────────────────
+function DeepScanTab({ p }: { p: AnalyzedProperty }) {
+  const [data, setData] = useState<DeepScanResult | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [step, setStep] = useState('')
+
+  const run = async () => {
+    setLoading(true); setError(''); setData(null)
+    const steps = ['Pulling photos…', 'Searching permits & violations…', 'Scanning distress signals…', 'Running AI strategy variants…', 'Generating executive summary…']
+    let i = 0
+    setStep(steps[0])
+    const iv = setInterval(() => { i = Math.min(i + 1, steps.length - 1); setStep(steps[i]) }, 2500)
+    try {
+      const r = await runDeepScan(p)
+      setData(r)
+    } catch (e: any) {
+      setError(e.message || 'Deep scan failed')
+    } finally {
+      clearInterval(iv); setLoading(false); setStep('')
+    }
+  }
+
+  if (!data && !loading && !error) {
+    return (
+      <div className="text-center py-8">
+        <div className="text-4xl mb-3">🎯</div>
+        <h3 className="text-lg font-bold text-[var(--sgc-black)] mb-2">Full Deep Scan</h3>
+        <p className="text-xs text-[var(--sgc-gray-mid)] mb-5 max-w-md mx-auto leading-relaxed">
+          One click runs everything: photos, permits, code violations, distress signals,
+          all 3 exit strategies, and an AI-written executive summary you can hand to a lender or partner.
+        </p>
+        <button onClick={run}
+          className="bg-[var(--sgc-navy)] hover:bg-[#1a3a8f] text-white text-xs font-bold tracking-widest uppercase px-6 py-3 rounded-xl cursor-pointer border-none shadow-lg">
+          ⚡ Run Deep Scan
+        </button>
+        <div className="text-[10px] text-[var(--sgc-gray-mid)] mt-3">Takes ~15-30 seconds · uses AI credits</div>
+      </div>
+    )
+  }
+
+  if (loading) return (
+    <div className="flex flex-col items-center justify-center py-12">
+      <div className="w-10 h-10 border-2 border-[var(--sgc-gray-border)] border-t-[var(--sgc-navy)] rounded-full spin mb-4" />
+      <div className="text-xs text-[var(--sgc-black)] font-semibold mb-1">Deep Scan in progress</div>
+      <div className="text-[11px] text-[var(--sgc-gray-mid)]">{step}</div>
+    </div>
+  )
+
+  if (error) return (
+    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+      <div className="text-xs text-[var(--sgc-danger)] mb-2">{error}</div>
+      <button onClick={run} className="text-[11px] px-3 py-1.5 bg-[var(--sgc-navy)] text-white rounded-lg cursor-pointer border-none">Retry</button>
+    </div>
+  )
+
+  if (!data) return null
+  const v = data.variants
+
+  return (
+    <div className="space-y-4">
+      {/* HEADER */}
+      <div className="flex items-center justify-between">
+        <div>
+          <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold">Deep Scan Report</div>
+          <div className="text-[10px] text-[var(--sgc-gray-mid)]">Generated {new Date(data.generatedAt).toLocaleString()}</div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={() => window.print()} className="text-[10px] px-3 py-1.5 border border-[var(--sgc-gray-border)] rounded-lg text-[var(--sgc-black)] cursor-pointer bg-white hover:bg-[var(--sgc-gray-light)]">🖨 Print</button>
+          <button onClick={run} className="text-[10px] px-3 py-1.5 border border-[var(--sgc-gray-border)] rounded-lg text-[var(--sgc-gray-mid)] cursor-pointer bg-white hover:bg-[var(--sgc-gray-light)]">↻ Re-run</button>
+        </div>
+      </div>
+
+      {/* SUMMARY QUICK STATS */}
+      <div className="grid grid-cols-4 gap-2">
+        <StatBox label="Photos" value={String(data.photos.count)} tone="navy" />
+        <StatBox label="Permits" value={String(data.permits.permits.length)} tone={data.permits.permits.length > 0 ? 'navy' : 'muted'} />
+        <StatBox label="Violations" value={String(data.permits.violations.length)} tone={data.permits.violations.length > 0 ? 'danger' : 'muted'} />
+        <StatBox label="Distress Signals" value={String(data.distress.signals.length)} tone={data.distress.signals.length > 0 ? 'danger' : 'muted'} />
+      </div>
+
+      {/* EXECUTIVE SUMMARY */}
+      {data.summary && (
+        <div className="bg-[var(--sgc-navy)]/5 border border-[var(--sgc-navy)]/30 rounded-xl p-4">
+          <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold mb-2">Executive Summary</div>
+          <div className="text-xs text-[var(--sgc-black)] leading-relaxed whitespace-pre-wrap">{data.summary}</div>
+        </div>
+      )}
+
+      {/* AI RECOMMENDED */}
+      {v && (
+        <div className="bg-white border border-[var(--sgc-gray-border)] rounded-xl p-4">
+          <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold mb-2">Recommended Play</div>
+          <div className="flex items-center gap-3 mb-2">
+            <span className="text-lg font-bold text-[var(--sgc-black)] uppercase">{v.recommendedStrategy}</span>
+            <span className="text-[10px] bg-[var(--sgc-navy)] text-white px-2 py-0.5 rounded-full">AI PICK</span>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-[11px]">
+            <div className="bg-[var(--sgc-gray-light)] rounded p-2">
+              <div className="text-[9px] uppercase text-[var(--sgc-gray-mid)]">Flip Max Offer</div>
+              <div className="font-bold text-[var(--sgc-black)]">{fmt$(v.flip.maxOffer)}</div>
+            </div>
+            <div className="bg-[var(--sgc-gray-light)] rounded p-2">
+              <div className="text-[9px] uppercase text-[var(--sgc-gray-mid)]">Wholesale Fee</div>
+              <div className="font-bold text-[var(--sgc-black)]">{fmt$(v.wholesale.assignmentFeeLow)}–{fmt$(v.wholesale.assignmentFeeHigh)}</div>
+            </div>
+            <div className="bg-[var(--sgc-gray-light)] rounded p-2">
+              <div className="text-[9px] uppercase text-[var(--sgc-gray-mid)]">Rental Cashflow</div>
+              <div className="font-bold text-[var(--sgc-black)]">{fmt$(v.rental.monthlyCashflow)}/mo</div>
+            </div>
+          </div>
+          <div className="text-[10px] text-[var(--sgc-gray-mid)] mt-2 italic">Top risk: {v.topRisk}</div>
+        </div>
+      )}
+
+      {/* PERMITS */}
+      <div className="bg-white border border-[var(--sgc-gray-border)] rounded-xl p-4">
+        <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold mb-2">Permits & Inspections</div>
+        {data.permits.permits.length === 0
+          ? <div className="text-[11px] text-[var(--sgc-gray-mid)]">No permit records surfaced in public search.</div>
+          : <ul className="space-y-1.5">
+              {data.permits.permits.map((r, i) => (
+                <li key={i} className="text-[11px]">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-[var(--sgc-navy)] font-semibold hover:underline">{r.title}</a>
+                  {r.description && <div className="text-[10px] text-[var(--sgc-gray-mid)]">{r.description}</div>}
+                </li>
+              ))}
+            </ul>}
+      </div>
+
+      {/* VIOLATIONS */}
+      <div className={`border rounded-xl p-4 ${data.permits.violations.length > 0 ? 'bg-red-50 border-red-200' : 'bg-white border-[var(--sgc-gray-border)]'}`}>
+        <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-danger)] font-bold mb-2">Code Violations</div>
+        {data.permits.violations.length === 0
+          ? <div className="text-[11px] text-[var(--sgc-gray-mid)]">No violation records surfaced.</div>
+          : <ul className="space-y-1.5">
+              {data.permits.violations.map((r, i) => (
+                <li key={i} className="text-[11px]">
+                  <a href={r.url} target="_blank" rel="noreferrer" className="text-[var(--sgc-danger)] font-semibold hover:underline">{r.title}</a>
+                  {r.description && <div className="text-[10px] text-[var(--sgc-gray-mid)]">{r.description}</div>}
+                </li>
+              ))}
+            </ul>}
+      </div>
+
+      {/* DISTRESS */}
+      <div className={`border rounded-xl p-4 ${data.distress.signals.length > 0 ? 'bg-amber-50 border-amber-200' : 'bg-white border-[var(--sgc-gray-border)]'}`}>
+        <div className="text-[10px] uppercase tracking-[2px] text-amber-700 font-bold mb-2">Distress Signals</div>
+        {data.distress.signals.length === 0
+          ? <div className="text-[11px] text-[var(--sgc-gray-mid)]">No foreclosure / tax / probate / eviction signals detected in public search.</div>
+          : <ul className="space-y-1.5">
+              {data.distress.signals.map((s, i) => (
+                <li key={i} className="text-[11px]">
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    {s.flags.map(f => <span key={f} className="text-[9px] bg-amber-200 text-amber-900 px-1.5 py-0.5 rounded-full uppercase font-bold">{f}</span>)}
+                  </div>
+                  <a href={s.url} target="_blank" rel="noreferrer" className="text-[var(--sgc-navy)] font-semibold hover:underline">{s.title}</a>
+                  {s.description && <div className="text-[10px] text-[var(--sgc-gray-mid)]">{s.description}</div>}
+                </li>
+              ))}
+            </ul>}
+      </div>
+
+      {/* PHOTO STRIP */}
+      {data.photos.list.length > 0 && (
+        <div className="bg-white border border-[var(--sgc-gray-border)] rounded-xl p-4">
+          <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold mb-2">Photos ({data.photos.count} · {data.photos.source})</div>
+          <div className="grid grid-cols-4 gap-2">
+            {data.photos.list.slice(0, 8).map((url, i) => (
+              <img key={i} src={url} alt="" loading="lazy" className="aspect-square object-cover rounded-lg border border-[var(--sgc-gray-border)]" />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function StatBox({ label, value, tone }: { label: string; value: string; tone: 'navy' | 'danger' | 'muted' }) {
+  const cls = tone === 'danger' ? 'text-[var(--sgc-danger)]' : tone === 'navy' ? 'text-[var(--sgc-navy)]' : 'text-[var(--sgc-gray-mid)]'
+  return (
+    <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-lg p-2 text-center">
+      <div className="text-[9px] uppercase tracking-wider text-[var(--sgc-gray-mid)] mb-0.5">{label}</div>
+      <div className={`text-lg font-bold ${cls}`}>{value}</div>
+    </div>
+  )
+}
 import { fetchRentEstimate } from '../lib/market'
 
 interface Props {
@@ -12,7 +200,7 @@ interface Props {
   onClose: () => void
 }
 
-type ModalTab = 'overview' | 'photos' | 'deal' | 'calculator' | 'comps' | 'ai' | 'strategies'
+type ModalTab = 'overview' | 'deepscan' | 'photos' | 'deal' | 'calculator' | 'comps' | 'ai' | 'strategies'
 
 const Row = ({ label, value, cls = '' }: { label: string; value: string; cls?: string }) => (
   <div className="flex justify-between items-center py-2 border-b border-[var(--sgc-gray-border)]/60 last:border-0 text-sm">
@@ -524,6 +712,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
   const TABS: { id: ModalTab; label: string }[] = [
     { id: 'overview',    label: '📋 Overview'     },
+    { id: 'deepscan',    label: '⚡ Deep Scan'     },
     { id: 'photos',      label: '📷 Photos'       },
     { id: 'strategies',  label: '⚡ Strategies'    },
     { id: 'deal',        label: '💰 Deal Analysis' },
@@ -615,6 +804,12 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
                 {l.label} ↗
               </a>
             ))}
+            <button
+              onClick={() => setTab('deepscan')}
+              className="ml-auto text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border-none cursor-pointer bg-[var(--sgc-navy)] text-white hover:bg-[#1a3a8f] shadow"
+            >
+              ⚡ Deep Scan
+            </button>
           </div>
 
           {/* Quick numbers */}
@@ -766,6 +961,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
           {tab === 'ai'         && <AITab p={p} />}
           {tab === 'photos'     && <PhotosTab p={p} />}
           {tab === 'strategies' && <StrategiesTab p={p} />}
+          {tab === 'deepscan'   && <DeepScanTab p={p} />}
         </div>
       </div>
     </div>
