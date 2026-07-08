@@ -105,7 +105,7 @@ async function fetchPermitsFromArcGIS(street: string, city: string) {
 
   for (const layer of layers) {
     try {
-      const where = `UPPER(${layer.streetNameField}) LIKE '%${streetName.toUpperCase().replace(/'/g, "''")}%' AND ${layer.streetNumberField}=${Number(streetNumber)}`
+      const where = `UPPER(${layer.streetNameField}) LIKE '%${streetName.toUpperCase().replace(/'/g, "''")}%' AND ${layer.streetNumberField}='${streetNumber.replace(/'/g, "''")}'`
       const params = new URLSearchParams({
         where,
         outFields: '*',
