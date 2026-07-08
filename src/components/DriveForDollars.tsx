@@ -298,7 +298,7 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
 }
 
 // ── Result card ───────────────────────────────────────────────────────────────
-function ResultCard({ capture, onAddPipeline }: {
+function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   capture: Capture
   onAddPipeline: (id: string) => void
   onDeepScanComplete: (id: string, deepScan: DeepScanData) => void
@@ -355,6 +355,48 @@ function ResultCard({ capture, onAddPipeline }: {
       </div>
 
       <div className="p-4 space-y-4">
+
+        {/* Professional Analysis */}
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: analysis.score >= 75 ? '#C45E1A60' : 'var(--sgc-gray-border)' }}>
+          <div className="px-3 py-2 flex items-center justify-between" style={{ background: analysis.score >= 75 ? '#C45E1A' : 'var(--sgc-navy)' }}>
+            <span className="text-xs font-bold text-white uppercase tracking-wide">📊 Professional Deal Analysis</span>
+            <span className="text-[10px] font-bold text-white/80">{analysis.confidence}</span>
+          </div>
+          <div className="p-3 space-y-3">
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 rounded-lg" style={{ background: '#EEF2FB' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Score</div>
+                <div className="text-lg font-black" style={{ color: 'var(--sgc-navy)' }}>{analysis.score}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF7EA' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Priority</div>
+                <div className="text-[11px] font-black leading-tight" style={{ color: '#8A5700' }}>{analysis.tier}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#EDFAF3' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>MAO</div>
+                <div className="text-sm font-black" style={{ color: '#1A7A4A' }}>{analysis.maxOffer ? fmt$(analysis.maxOffer) : '—'}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF0ED' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Signals</div>
+                <div className="text-lg font-black" style={{ color: '#C0341D' }}>{analysis.leadSignals}</div>
+              </div>
+            </div>
+
+            <div className="rounded-lg p-2.5" style={{ background: 'var(--sgc-gray-light)' }}>
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>Recommended next move</div>
+              <div className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{analysis.nextAction}</div>
+            </div>
+
+            <div className="space-y-1.5">
+              {analysis.reasons.map((reason, i) => (
+                <div key={i} className="flex gap-2 text-[11px] leading-relaxed" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  <span style={{ color: 'var(--sgc-navy)' }}>•</span>
+                  <span>{reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* AI Motivation Score */}
         {motiv && (
@@ -498,10 +540,10 @@ function ResultCard({ capture, onAddPipeline }: {
           <button
             onClick={runDeepScan}
             disabled={dsRunning}
-            className="px-4 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
+            className="px-3 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
             style={{ background: dsRunning ? '#EEF2FB' : '#0F2460', color: dsRunning ? 'var(--sgc-navy)' : 'white' }}
             title="Deep Scan — photos, permits, violations, distress signals, AI summary">
-            {dsRunning ? '⏳' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
+            {dsRunning ? '⏳' : dsData?.generatedAt ? '✓' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
           </button>
           <a href={`https://maps.google.com/?q=${encodeURIComponent(capture.address + ' ' + capture.city + ' ' + capture.state)}`}
             target="_blank" rel="noopener noreferrer"
@@ -523,11 +565,25 @@ function ResultCard({ capture, onAddPipeline }: {
           <div className="rounded-xl border overflow-hidden mt-2" style={{ borderColor: 'var(--sgc-navy)40' }}>
             <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#0F2460' }}>
               <span className="text-xs font-bold text-white">⚡ Deep Scan</span>
-              {dsRunning && <span className="text-[10px] text-white/80">{dsStep}</span>}
+              {dsRunning && <span className="text-[10px] text-white/80">{dsStep} · ~45 sec</span>}
               {!dsRunning && dsData?.generatedAt && <span className="text-[10px] text-white/60">✓ complete</span>}
             </div>
             <div className="p-3 space-y-3">
               {dsError && <div className="text-xs p-2 rounded bg-red-50 text-red-700">{dsError}</div>}
+
+              {dsRunning && (
+                <div className="space-y-2">
+                  {['photos', 'permits', 'distress', 'AI summary'].map(step => {
+                    const active = dsStep.toLowerCase().includes(step === 'AI summary' ? 'ai summary' : step)
+                    return (
+                      <div key={step} className="flex items-center gap-2 text-xs" style={{ color: active ? 'var(--sgc-navy)' : 'var(--sgc-gray-mid)' }}>
+                        <span>{active ? '⏳' : '○'}</span>
+                        <span className="font-semibold capitalize">{step}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               {/* Photos */}
               {dsData?.photos && dsData.photos.list.length > 0 && (
@@ -587,6 +643,12 @@ function ResultCard({ capture, onAddPipeline }: {
                   <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
                 </div>
               )}
+
+              {!dsRunning && dsData?.errors?.length ? (
+                <div className="text-[10px] leading-relaxed p-2 rounded" style={{ background: '#FEF7EA', color: '#8A5700' }}>
+                  Partial scan: {dsData.errors.slice(0, 2).join(' · ')}
+                </div>
+              ) : null}
             </div>
           </div>
         )}
@@ -668,6 +730,14 @@ export default function DriveForDollars() {
       if (motivation) newCapture.motivation = motivation
     }
 
+    setProgress(p => [...p, '⚡ Deep Scan: photos · checking property imagery'])
+    try {
+      const deepScan = await runDeepScanForCapture(newCapture, step => {
+        setProgress(p => [...p.filter(item => !item.startsWith('⚡ Deep Scan:')), `⚡ Deep Scan: ${step}`])
+      })
+      newCapture.deepScan = deepScan
+    } catch {}
+
     setProgress(p => [...p, '✓ Done!'])
 
     const all = loadCaptures()
@@ -712,6 +782,12 @@ export default function DriveForDollars() {
     })
 
     const updated = all.map(c => c.id === captureId ? { ...c, inPipeline: true } : c)
+    saveAndRefresh(updated)
+  }
+
+  const handleDeepScanComplete = (captureId: string, deepScan: DeepScanData) => {
+    const all = loadCaptures()
+    const updated = all.map(c => c.id === captureId ? { ...c, deepScan } : c)
     saveAndRefresh(updated)
   }
 
@@ -814,6 +890,7 @@ export default function DriveForDollars() {
                     { icon: '🏠', t: 'Estimated value + 3 sold comps (RentCast)' },
                     { icon: '💰', t: 'Equity %, tax status, absentee flag' },
                     { icon: '🧠', t: 'AI Motivation Score — call this one first?' },
+                    { icon: '⚡', t: 'Deep Scan — photos, permits, distress, investor summary' },
                     { icon: '🎯', t: 'One tap to add to your Pipeline CRM' },
                   ].map(s => (
                     <div key={s.t} className="flex items-center gap-2 text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
@@ -873,6 +950,7 @@ export default function DriveForDollars() {
                     key={cap.id}
                     capture={cap}
                     onAddPipeline={handleAddPipeline}
+                    onDeepScanComplete={handleDeepScanComplete}
                   />
                 ))}
               </div>
