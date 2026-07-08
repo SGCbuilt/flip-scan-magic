@@ -1,3 +1,45 @@
+// ── Date extractor: pulls the most plausible date from title/description/url
+function extractDate(text: string): { iso: string; label: string } | null {
+  if (!text) return null
+  const patterns: RegExp[] = [
+    // 2024-05-13 or 2024/05/13
+    /\b(20\d{2})[-\/](0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])\b/,
+    // 05/13/2024 or 5-13-24
+    /\b(0?[1-9]|1[0-2])[-\/](0?[1-9]|[12]\d|3[01])[-\/](20\d{2}|\d{2})\b/,
+    // May 13, 2024  or  May 2024
+    /\b(Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\s+(\d{1,2},?\s+)?(20\d{2})\b/i,
+  ]
+  for (const p of patterns) {
+    const m = text.match(p)
+    if (!m) continue
+    const raw = m[0]
+    const d = new Date(raw.replace(/-/g, '/'))
+    if (!isNaN(d.getTime()) && d.getFullYear() >= 2000 && d.getFullYear() <= new Date().getFullYear() + 1) {
+      return { iso: d.toISOString().slice(0, 10), label: raw }
+    }
+  }
+  return null
+}
+
+function classifyPermitType(text: string): string {
+  const t = text.toLowerCase()
+  if (t.includes('electric')) return 'Electrical'
+  if (t.includes('plumb')) return 'Plumbing'
+  if (t.includes('mechanical') || t.includes('hvac')) return 'Mechanical/HVAC'
+  if (t.includes('roof')) return 'Roofing'
+  if (t.includes('demo')) return 'Demolition'
+  if (t.includes('addition')) return 'Addition'
+  if (t.includes('renov') || t.includes('remodel') || t.includes('alteration')) return 'Renovation'
+  if (t.includes('new construction') || t.includes('new build')) return 'New Construction'
+  if (t.includes('fence')) return 'Fence'
+  if (t.includes('deck')) return 'Deck'
+  if (t.includes('pool')) return 'Pool'
+  if (t.includes('sign')) return 'Sign'
+  if (t.includes('inspection')) return 'Inspection'
+  if (t.includes('violation') || t.includes('code enforcement')) return 'Violation'
+  return 'Building'
+}
+
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 interface Body {
@@ -92,13 +134,28 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
         const streetHit = streetNoSuffix && (t.includes(streetNoSuffix.toLowerCase()) || url.toLowerCase().includes(streetNoSuffix.toLowerCase().replace(/\s+/g, '')))
         const portalHit = portalSites.some(p => url.toLowerCase().includes(p))
         if (!streetHit && !portalHit) continue
-        const item = { title: r.title, url, description: r.description }
+        const combined = `${r.title || ''} ${r.description || ''} ${url}`
+        const dateInfo = extractDate(combined)
+        const permitType = classifyPermitType(combined)
+        const item = {
+          title: r.title,
+          url,
+          description: r.description,
+          date: dateInfo?.iso || null,
+          dateLabel: dateInfo?.label || null,
+          permitType,
+          source: (portalSites.find(p => url.toLowerCase().includes(p)) || new URL(url).hostname).replace(/^www\./, ''),
+        }
         if (t.includes('violation') || t.includes('condemn') || t.includes('code enforcement') || t.includes('unsafe')) violations.push(item)
         else if (t.includes('permit') || t.includes('inspection') || t.includes('license') || portalHit) permits.push(item)
       }
     } catch { /* swallow */ }
   }))
 
+  // Sort permits + violations by date desc (undated last)
+  const byDateDesc = (a: any, b: any) => (b.date || '').localeCompare(a.date || '')
+  permits.sort(byDateDesc)
+  violations.sort(byDateDesc)
   return { permits: permits.slice(0, 12), violations: violations.slice(0, 8), source: 'firecrawl' as const, queriesRun: queries.length }
 }
 
