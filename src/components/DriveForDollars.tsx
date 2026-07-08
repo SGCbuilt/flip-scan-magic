@@ -28,7 +28,11 @@ import { supabase } from '@/integrations/supabase/client'
 // ── Deep Scan types (lightweight, no coupling to protected engines) ───────
 interface DeepScanData {
   photos?: { list: string[]; source: string; count: number }
-  permits?: { permits: Array<{ title?: string; url?: string; description?: string }>; violations: Array<{ title?: string; url?: string; description?: string }>; source: string }
+  permits?: {
+    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
+    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
+    source: string;
+  }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
   generatedAt?: string
@@ -666,25 +670,103 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 </div>
               )}
 
-              {/* Permits & Violations */}
-              {dsData?.permits && (
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
-                    🏗️ Permits ({dsData.permits.permits.length}) · Violations ({dsData.permits.violations.length})
+              {/* Permit Timeline */}
+              {dsData?.permits && (() => {
+                const items = [
+                  ...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
+                  ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const })),
+                ]
+                // Sort by date desc, undated last
+                items.sort((a, b) => {
+                  if (!a.date && !b.date) return 0
+                  if (!a.date) return 1
+                  if (!b.date) return -1
+                  return b.date.localeCompare(a.date)
+                })
+                const dated = items.filter(i => i.date)
+                const undated = items.filter(i => !i.date)
+                const total = items.length
+                const latest = dated[0]?.date
+                return (
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>
+                        🏗️ Permit Timeline ({total})
+                      </div>
+                      {latest && (
+                        <div className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          Latest: {new Date(latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </div>
+                      )}
+                    </div>
+
+                    {total === 0 && (
+                      <div className="text-[11px] p-3 rounded-lg text-center" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                        No permit or violation records found
+                      </div>
+                    )}
+
+                    {total > 0 && (
+                      <div className="relative pl-4">
+                        {/* Vertical rail */}
+                        <div className="absolute left-1.5 top-1 bottom-1 w-px" style={{ background: 'var(--sgc-gray-border)' }} />
+                        {items.slice(0, 8).map((it, i) => {
+                          const isViolation = it.type === 'violation'
+                          const dotColor = isViolation ? '#C0341D' : 'var(--sgc-navy)'
+                          const bgColor = isViolation ? '#FEF0ED' : '#EEF2FB'
+                          const dateText = it.date
+                            ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            : (it.dateLabel || 'Date unknown')
+                          return (
+                            <div key={i} className="relative mb-2 last:mb-0">
+                              {/* Dot */}
+                              <div className="absolute -left-[13px] top-1.5 w-2.5 h-2.5 rounded-full ring-2 ring-white"
+                                style={{ background: dotColor }} />
+                              <div className="rounded-lg p-2" style={{ background: bgColor }}>
+                                <div className="flex items-center justify-between gap-2 mb-0.5">
+                                  <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: dotColor }}>
+                                    {it.date ? dateText : '⏱ ' + dateText}
+                                  </span>
+                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: dotColor }}>
+                                    {isViolation ? 'Violation' : (it.permitType || 'Permit')}
+                                  </span>
+                                </div>
+                                {it.title && (
+                                  <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--sgc-black)' }}>
+                                    {it.title}
+                                  </div>
+                                )}
+                                {it.description && (
+                                  <div className="text-[10px] leading-snug mt-0.5 line-clamp-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                                    {it.description}
+                                  </div>
+                                )}
+                                <div className="flex items-center justify-between mt-1">
+                                  <span className="text-[9px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                                    {it.source || 'source'}
+                                  </span>
+                                  {it.url && (
+                                    <a href={it.url} target="_blank" rel="noopener noreferrer"
+                                      className="text-[9px] font-bold no-underline"
+                                      style={{ color: dotColor }}>
+                                      Open record →
+                                    </a>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                        {undated.length > 0 && dated.length > 0 && (
+                          <div className="text-[9px] mt-1 pl-1" style={{ color: 'var(--sgc-gray-mid)' }}>
+                            {undated.length} additional record{undated.length === 1 ? '' : 's'} without dates
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {[...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
-                    ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const }))].slice(0, 4).map((it, i) => (
-                    <a key={i} href={it.url} target="_blank" rel="noopener noreferrer"
-                       className="block text-xs py-1 no-underline"
-                       style={{ color: it.type === 'violation' ? '#C0341D' : 'var(--sgc-navy)' }}>
-                      • {it.title || it.url}
-                    </a>
-                  ))}
-                  {dsData.permits.permits.length + dsData.permits.violations.length === 0 && (
-                    <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No records found</div>
-                  )}
-                </div>
-              )}
+                )
+              })()}
 
               {/* Distress */}
               {dsData?.distress && (
