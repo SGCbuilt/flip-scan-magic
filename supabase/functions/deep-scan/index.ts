@@ -407,6 +407,51 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
   }
 }
 
+// ── ORCHESTRATOR: Official open-data first, Firecrawl fallback ────────────
+async function fetchPermits(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
+  const [socrata, firecrawl] = await Promise.all([
+    fetchPermitsFromSocrata(street, city, state, zip).catch(() => null),
+    fetchPermitsViaFirecrawl(street, city, state, zip, ownerName, parcelId).catch(() => null),
+  ])
+
+  const officialPermits = socrata?.permits || []
+  const officialViolations = socrata?.violations || []
+  const webPermits = firecrawl?.permits || []
+  const webViolations = firecrawl?.violations || []
+
+  // Dedupe web results against official (skip web if same date+type already covered)
+  const officialSig = new Set([...officialPermits, ...officialViolations].map(p => `${p.date}|${(p.permitType || '').toLowerCase()}`))
+  const filteredWebP = webPermits.filter(p => !officialSig.has(`${p.date}|${(p.permitType || '').toLowerCase()}`))
+  const filteredWebV = webViolations.filter(p => !officialSig.has(`${p.date}|${(p.permitType || '').toLowerCase()}`))
+
+  const byDateDesc = (a: any, b: any) => (b.date || '').localeCompare(a.date || '')
+  const permits = [...officialPermits, ...filteredWebP].sort(byDateDesc).slice(0, 20)
+  const violations = [...officialViolations, ...filteredWebV].sort(byDateDesc).slice(0, 15)
+
+  const sources: string[] = []
+  if (socrata?.domain) sources.push(`Official: ${socrata.domain}`)
+  if (firecrawl?.debug?.rawHits) sources.push(`Web: ${firecrawl.debug.rawHits} hits`)
+
+  return {
+    permits,
+    violations,
+    source: socrata?.domain ? 'open-data+web' : 'firecrawl',
+    debug: {
+      openData: socrata ? {
+        domain: socrata.domain || null,
+        dataset: socrata.dataset || null,
+        matched: socrata.matched || 0,
+        totalRowsScanned: socrata.totalRowsScanned || 0,
+        checkedDomains: socrata.checked || [],
+        available: !!socrata.domain,
+      } : { available: false, note: 'City not in open-data registry map' },
+      web: firecrawl?.debug || null,
+      sources,
+      totalRecords: permits.length + violations.length,
+    },
+  }
+}
+
 // ── DISTRESS SIGNALS via Firecrawl web search ─────────────────────────────
 async function fetchDistressSignals(fullAddr: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
