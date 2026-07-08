@@ -32,6 +32,15 @@ interface DeepScanData {
     permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
     violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
     source: string;
+    debug?: {
+      queriesRun?: number;
+      queriesOk?: number;
+      rawHits?: number;
+      aiUsed?: boolean;
+      aiError?: string | null;
+      note?: string | null;
+      rawSample?: Array<{ title?: string; url?: string }>;
+    };
   }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
