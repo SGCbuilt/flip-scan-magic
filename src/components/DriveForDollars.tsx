@@ -721,6 +721,12 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                           const dateText = it.date
                             ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
                             : (it.dateLabel || 'Date unknown')
+                          const conf = it.confidence || 'low'
+                          const confMeta = conf === 'high'
+                            ? { label: 'High match', bg: '#1A7A4A', dotBg: '#EDFAF3', text: '#1A7A4A' }
+                            : conf === 'medium'
+                              ? { label: 'Medium match', bg: '#C45E1A', dotBg: '#FEF7EA', text: '#8A5700' }
+                              : { label: 'Low match', bg: '#8892A6', dotBg: '#F1F3F7', text: '#5C6473' }
                           return (
                             <div key={i} className="relative mb-2 last:mb-0">
                               {/* Dot */}
@@ -731,9 +737,17 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                                   <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: dotColor }}>
                                     {it.date ? dateText : '⏱ ' + dateText}
                                   </span>
-                                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: dotColor }}>
-                                    {isViolation ? 'Violation' : (it.permitType || 'Permit')}
-                                  </span>
+                                  <div className="flex items-center gap-1">
+                                    <span
+                                      className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide text-white"
+                                      style={{ background: confMeta.bg }}
+                                      title={`${confMeta.label} — ${it.matchReasons?.join(' · ') || 'no signals'}`}>
+                                      {conf === 'high' ? '●●●' : conf === 'medium' ? '●●○' : '●○○'} {conf}
+                                    </span>
+                                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: dotColor }}>
+                                      {isViolation ? 'Violation' : (it.permitType || 'Permit')}
+                                    </span>
+                                  </div>
                                 </div>
                                 {it.title && (
                                   <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--sgc-black)' }}>
@@ -743,6 +757,16 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                                 {it.description && (
                                   <div className="text-[10px] leading-snug mt-0.5 line-clamp-2" style={{ color: 'var(--sgc-gray-mid)' }}>
                                     {it.description}
+                                  </div>
+                                )}
+                                {it.matchReasons && it.matchReasons.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {it.matchReasons.map((r, ri) => (
+                                      <span key={ri} className="text-[9px] font-semibold px-1.5 py-0.5 rounded-full"
+                                        style={{ background: confMeta.dotBg, color: confMeta.text }}>
+                                        ✓ {r}
+                                      </span>
+                                    ))}
                                   </div>
                                 )}
                                 <div className="flex items-center justify-between mt-1">
