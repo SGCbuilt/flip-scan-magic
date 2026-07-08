@@ -160,8 +160,10 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
       arvSuggestion: capture.comps?.arvSuggestion,
       motivationTier: capture.motivation?.tier,
       motivationScore: capture.motivation?.score,
-      permits: (permitsData?.permits || []).slice(0, 3),
-      violations: (permitsData?.violations || []).slice(0, 3),
+      dataGuardrail: 'Use only provided fields. Do not invent dates, permit history, ARV, ownership, violations, or offer strategy. Low-confidence records are review-only.',
+      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 3),
+      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 3),
+      recordsHeldForReview: [...(permitsData?.permits || []), ...(permitsData?.violations || [])].filter((r: PermitRecord) => !isSupportPermitRecord(r)).length,
       distress: (distressData?.signals || []).slice(0, 3),
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
@@ -563,7 +565,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                       const conf = it.confidence || 'low'
                       const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
                       const dateText = it.date
-                        ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        ? formatPermitDate(it.date, it.dateLabel)
                         : (it.dateLabel || 'undated')
                       return (
                         <a key={i} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
@@ -919,7 +921,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                           const dotColor = isViolation ? '#C0341D' : 'var(--sgc-navy)'
                           const bgColor = isViolation ? '#FEF0ED' : '#EEF2FB'
                           const dateText = it.date
-                            ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            ? formatPermitDate(it.date, it.dateLabel)
                             : (it.dateLabel || 'Date unknown')
                           const conf = it.confidence || 'low'
                           const confMeta = conf === 'high'
@@ -1019,7 +1021,8 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               {dsData?.summary && (
                 <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
                   <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
-                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
+                <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: '#8A5700' }}>Review-only narrative — numbers above are authoritative</div>
+                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
                 </div>
               )}
 
