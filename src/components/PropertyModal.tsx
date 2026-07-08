@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
-import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, type DealVariants } from '../lib/aiAnalysis'
+import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, runDeepScan, type DealVariants, type DeepScanResult } from '../lib/aiAnalysis'
 import { fetchRentEstimate } from '../lib/market'
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void
 }
 
-type ModalTab = 'overview' | 'photos' | 'deal' | 'calculator' | 'comps' | 'ai' | 'strategies'
+type ModalTab = 'overview' | 'deepscan' | 'photos' | 'deal' | 'calculator' | 'comps' | 'ai' | 'strategies'
 
 const Row = ({ label, value, cls = '' }: { label: string; value: string; cls?: string }) => (
   <div className="flex justify-between items-center py-2 border-b border-[var(--sgc-gray-border)]/60 last:border-0 text-sm">
