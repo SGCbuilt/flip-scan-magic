@@ -29,8 +29,8 @@ import { supabase } from '@/integrations/supabase/client'
 interface DeepScanData {
   photos?: { list: string[]; source: string; count: number }
   permits?: {
-    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
-    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
+    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
+    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
     source: string;
   }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
@@ -93,7 +93,11 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
   onStep?.('permits · scanning building records')
   let permitsData: any = null
   try {
-    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'permits' } })
+    const permitBody: any = { ...base, mode: 'permits' }
+    if (capture.trace?.owner?.name) permitBody.ownerName = capture.trace.owner.name
+    const parcelId = (capture.trace?.property as any)?.parcelId || (capture.trace?.property as any)?.parcel
+    if (parcelId) permitBody.parcelId = parcelId
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: permitBody })
     if (error) throw error
     permitsData = data || { permits: [], violations: [], source: 'none' }
     scan.permits = permitsData
