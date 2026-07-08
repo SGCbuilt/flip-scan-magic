@@ -175,7 +175,25 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
       ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
       : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
 
-  return { score, tier, confidence, maxOffer, leadSignals, reasons, nextAction }
+  // Letter grade
+  const grade = score >= 90 ? 'A+' : score >= 82 ? 'A' : score >= 75 ? 'A-' : score >= 68 ? 'B+' : score >= 60 ? 'B' : score >= 52 ? 'C+' : score >= 45 ? 'C' : score >= 35 ? 'D' : 'F'
+  const gradeColor = score >= 75 ? '#1A7A4A' : score >= 60 ? '#C45E1A' : score >= 45 ? '#8A5700' : '#C0341D'
+
+  // Strengths & red flags (concise, tag-style)
+  const strengths: string[] = []
+  const redFlags: string[] = []
+  if ((trace?.property?.equityPct || 0) >= 50) strengths.push(`${Math.round(trace!.property!.equityPct!)}% equity`)
+  else if ((trace?.property?.equityPct || 0) >= 30) strengths.push(`${Math.round(trace!.property!.equityPct!)}% equity`)
+  if (trace?.property?.absenteeOwner) strengths.push('Absentee owner')
+  if (trace?.property?.vacant) redFlags.push('Vacant')
+  if (trace?.property?.taxStatus === 'delinquent') redFlags.push('Tax delinquent')
+  if (violations > 0) redFlags.push(`${violations} violation${violations === 1 ? '' : 's'}`)
+  if (permits > 0) strengths.push(`${permits} permit record${permits === 1 ? '' : 's'}`)
+  if (distress > 0) redFlags.push(`${distress} distress signal${distress === 1 ? '' : 's'}`)
+  if (comps?.arvSuggestion) strengths.push(`ARV ${fmt$(comps.arvSuggestion)}`)
+  if (trace?.phones?.length) strengths.push(`${trace.phones.length} phone${trace.phones.length === 1 ? '' : 's'}`)
+
+  return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags }
 }
 
 // ── Address input with speech recognition ─────────────────────────────────────
