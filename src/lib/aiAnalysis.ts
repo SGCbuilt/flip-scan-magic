@@ -142,6 +142,31 @@ export async function runDeepScan(p: AnalyzedProperty): Promise<DeepScanResult> 
   return data as DeepScanResult
 }
 
+// ── Per-step deep-scan helpers (for real-time progress UI) ────────────────
+export async function fetchDeepScanPermits(p: AnalyzedProperty) {
+  const { data, error } = await supabase.functions.invoke('deep-scan', {
+    body: { mode: 'permits', address: p.addr, city: p.city, state: p.state, zip: p.zip },
+  })
+  if (error) throw new Error(error.message || 'Permits fetch failed')
+  return data as { permits: any[]; violations: any[]; source: string }
+}
+
+export async function fetchDeepScanDistress(p: AnalyzedProperty) {
+  const { data, error } = await supabase.functions.invoke('deep-scan', {
+    body: { mode: 'distress', address: p.addr, city: p.city, state: p.state, zip: p.zip },
+  })
+  if (error) throw new Error(error.message || 'Distress fetch failed')
+  return data as { signals: any[]; source: string }
+}
+
+export async function fetchDeepScanSummary(p: AnalyzedProperty, context: Record<string, unknown>) {
+  const { data, error } = await supabase.functions.invoke('deep-scan', {
+    body: { mode: 'summary', address: p.addr, city: p.city, state: p.state, zip: p.zip, context },
+  })
+  if (error) throw new Error(error.message || 'Summary generation failed')
+  return (data?.summary as string) || ''
+}
+
 export function generateQuickInsight(p: AnalyzedProperty): string {
   const lines: string[] = []
   if (p.flipScore >= 80) lines.push('🔥 Strong deal — scores in the top tier.')
