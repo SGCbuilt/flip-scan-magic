@@ -23,6 +23,16 @@ import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
 import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
+import { supabase } from '@/integrations/supabase/client'
+
+// ── Deep Scan types (lightweight, no coupling to protected engines) ───────
+interface DeepScanData {
+  photos?: { list: string[]; source: string; count: number }
+  permits?: { permits: Array<{ title?: string; url?: string; description?: string }>; violations: Array<{ title?: string; url?: string; description?: string }>; source: string }
+  distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
+  summary?: string
+  generatedAt?: string
+}
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
@@ -190,6 +200,55 @@ function ResultCard({ capture, onAddPipeline }: {
   const motiv  = capture.motivation
   const inPipe = capture.inPipeline
 
+  // Deep Scan state — scoped to this card
+  const [dsRunning, setDsRunning] = useState(false)
+  const [dsData, setDsData] = useState<DeepScanData | null>(null)
+  const [dsError, setDsError] = useState<string | null>(null)
+  const [dsStep, setDsStep] = useState<string>('')
+
+  const runDeepScan = async () => {
+    setDsRunning(true); setDsError(null); setDsData({}); setDsStep('Fetching photos…')
+    const base = { address: capture.address, city: capture.city, state: capture.state, zip: capture.zip }
+    try {
+      // Photos (piggyback on full-mode call would be heavy; call property-photos directly)
+      try {
+        const { data } = await supabase.functions.invoke('property-photos', { body: base })
+        setDsData(d => ({ ...(d || {}), photos: { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 } }))
+      } catch {}
+
+      setDsStep('Scanning permits & violations…')
+      const permitsRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'permits' } })
+      if (permitsRes.data) setDsData(d => ({ ...(d || {}), permits: permitsRes.data }))
+
+      setDsStep('Searching distress signals…')
+      const distressRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' } })
+      if (distressRes.data) setDsData(d => ({ ...(d || {}), distress: distressRes.data }))
+
+      setDsStep('Generating AI summary…')
+      const context = {
+        ownerName: trace?.owner?.name,
+        equityPct: trace?.property?.equityPct,
+        taxStatus: trace?.property?.taxStatus,
+        estValue: trace?.property?.estimatedValue,
+        vacant: trace?.property?.vacant,
+        absentee: trace?.property?.absenteeOwner,
+        arvSuggestion: comps?.arvSuggestion,
+        motivationTier: motiv?.tier,
+        motivationScore: motiv?.score,
+        permits: (permitsRes.data?.permits || []).slice(0, 3),
+        violations: (permitsRes.data?.violations || []).slice(0, 3),
+        distress: (distressRes.data?.signals || []).slice(0, 3),
+      }
+      const sumRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
+      if (sumRes.data) setDsData(d => ({ ...(d || {}), summary: sumRes.data?.summary || '', generatedAt: new Date().toISOString() }))
+      setDsStep('')
+    } catch (e: any) {
+      setDsError(e?.message || 'Deep Scan failed')
+    } finally {
+      setDsRunning(false)
+    }
+  }
+
   const safePct = (n?: number) => (n != null && isFinite(n) && n > 0 && n < 100) ? `${n.toFixed(0)}%` : '—'
 
   const motivColor = motiv
@@ -356,6 +415,14 @@ function ResultCard({ capture, onAddPipeline }: {
             style={{ background: inPipe ? '#EDFAF3' : '#1A7A4A', color: inPipe ? '#1A7A4A' : 'white' }}>
             {inPipe ? '✓ In Pipeline' : '+ Add to Pipeline'}
           </button>
+          <button
+            onClick={runDeepScan}
+            disabled={dsRunning}
+            className="px-4 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
+            style={{ background: dsRunning ? '#EEF2FB' : '#0F2460', color: dsRunning ? 'var(--sgc-navy)' : 'white' }}
+            title="Deep Scan — photos, permits, violations, distress signals, AI summary">
+            {dsRunning ? '⏳' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
+          </button>
           <a href={`https://maps.google.com/?q=${encodeURIComponent(capture.address + ' ' + capture.city + ' ' + capture.state)}`}
             target="_blank" rel="noopener noreferrer"
             className="px-4 py-3 rounded-xl text-sm font-bold border-none no-underline flex items-center"
@@ -370,6 +437,79 @@ function ResultCard({ capture, onAddPipeline }: {
             </a>
           )}
         </div>
+
+        {/* Deep Scan panel */}
+        {(dsRunning || dsData || dsError) && (
+          <div className="rounded-xl border overflow-hidden mt-2" style={{ borderColor: 'var(--sgc-navy)40' }}>
+            <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#0F2460' }}>
+              <span className="text-xs font-bold text-white">⚡ Deep Scan</span>
+              {dsRunning && <span className="text-[10px] text-white/80">{dsStep}</span>}
+              {!dsRunning && dsData?.generatedAt && <span className="text-[10px] text-white/60">✓ complete</span>}
+            </div>
+            <div className="p-3 space-y-3">
+              {dsError && <div className="text-xs p-2 rounded bg-red-50 text-red-700">{dsError}</div>}
+
+              {/* Photos */}
+              {dsData?.photos && dsData.photos.list.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>📸 Photos ({dsData.photos.count})</div>
+                  <div className="flex gap-1.5 overflow-x-auto">
+                    {dsData.photos.list.slice(0, 6).map((src, i) => (
+                      <img key={i} src={src} alt="" className="h-16 w-20 object-cover rounded flex-shrink-0" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Permits & Violations */}
+              {dsData?.permits && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
+                    🏗️ Permits ({dsData.permits.permits.length}) · Violations ({dsData.permits.violations.length})
+                  </div>
+                  {[...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
+                    ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const }))].slice(0, 4).map((it, i) => (
+                    <a key={i} href={it.url} target="_blank" rel="noopener noreferrer"
+                       className="block text-xs py-1 no-underline"
+                       style={{ color: it.type === 'violation' ? '#C0341D' : 'var(--sgc-navy)' }}>
+                      • {it.title || it.url}
+                    </a>
+                  ))}
+                  {dsData.permits.permits.length + dsData.permits.violations.length === 0 && (
+                    <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No records found</div>
+                  )}
+                </div>
+              )}
+
+              {/* Distress */}
+              {dsData?.distress && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
+                    🚨 Distress signals ({dsData.distress.signals.length})
+                  </div>
+                  {dsData.distress.signals.slice(0, 4).map((s, i) => (
+                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                       className="block text-xs py-1 no-underline" style={{ color: '#C45E1A' }}>
+                      • {s.title || s.url}
+                      {s.flags?.length ? <span className="ml-1 text-[9px] uppercase" style={{ color: '#8A5700' }}>[{s.flags.join(', ')}]</span> : null}
+                    </a>
+                  ))}
+                  {dsData.distress.signals.length === 0 && (
+                    <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No distress signals detected</div>
+                  )}
+                </div>
+              )}
+
+              {/* AI Summary */}
+              {dsData?.summary && (
+                <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
+                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
