@@ -414,9 +414,19 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   const analysis = buildAnalysis(capture, dsData)
 
   const runDeepScan = async () => {
-    setDsRunning(true); setDsError(null); setDsData({}); setDsStep('photos · checking property imagery')
+    // Wipe any locally cached scan so the UI can't fall back to stale state
+    // while the fresh request is in flight, and force the backend to bypass
+    // any upstream caches.
+    setDsRunning(true)
+    setDsError(null)
+    setDsData({})
+    setDsStep('photos · checking property imagery')
     try {
-      const scan = await runDeepScanForCapture(capture, step => setDsStep(step))
+      const scan = await runDeepScanForCapture(
+        capture,
+        step => setDsStep(step),
+        { forceRefresh: true },
+      )
       setDsData(scan)
       onDeepScanComplete(capture.id, scan)
       setDsStep('')
