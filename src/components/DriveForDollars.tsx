@@ -32,6 +32,15 @@ interface DeepScanData {
     permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
     violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
     source: string;
+    debug?: {
+      queriesRun?: number;
+      queriesOk?: number;
+      rawHits?: number;
+      aiUsed?: boolean;
+      aiError?: string | null;
+      note?: string | null;
+      rawSample?: Array<{ title?: string; url?: string }>;
+    };
   }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
@@ -453,8 +462,24 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 </div>
 
                 {total === 0 ? (
-                  <div className="px-3 py-2 text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>
-                    No permits or violations returned for this address.
+                  <div className="px-3 py-2.5 space-y-2">
+                    <div className="text-[11px] font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
+                      {dsData.permits.debug?.note || 'No matched permits or violations for this address.'}
+                    </div>
+                    <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>
+                      Scan: {dsData.permits.debug?.queriesOk || 0}/{dsData.permits.debug?.queriesRun || 0} queries · {dsData.permits.debug?.rawHits || 0} raw web hits {dsData.permits.debug?.aiUsed ? '· AI verified' : ''}
+                    </div>
+                    {dsData.permits.debug?.rawSample && dsData.permits.debug.rawSample.length > 0 && (
+                      <div className="rounded-md p-2 space-y-1" style={{ background: '#F7F9FC' }}>
+                        <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Manual sources to check</div>
+                        {dsData.permits.debug.rawSample.slice(0, 4).map((r, i) => (
+                          <a key={i} href={r.url} target="_blank" rel="noopener noreferrer"
+                            className="block text-[10px] no-underline truncate" style={{ color: 'var(--sgc-navy)' }}>
+                            → {r.title || r.url}
+                          </a>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 ) : (
                   <div className="px-3 py-2 space-y-1.5">
