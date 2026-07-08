@@ -33,6 +33,8 @@ import PortalHub from './components/PortalHub'
 import ErrorBoundary from './components/ErrorBoundary'
 import ToastContainer from './components/ToastContainer'
 import Onboarding from './components/Onboarding'
+import AddPropertyMobile from './components/AddPropertyMobile'
+import { initAutoSync, pendingCount, onQueueChange } from './lib/addPropertyQueue'
 import { toast } from './lib/toast'
 import { getTaskStats }  from './lib/followUpEngine'
 import { getDripStats }  from './lib/drip'
@@ -521,6 +523,8 @@ export default function App() {
   const [searchMeta,      setSearchMeta]      = useState<{ time: number; raw: number } | null>(null)
   const [taskBadge,       setTaskBadge]       = useState(0)
   const [showFilters,     setShowFilters]     = useState(false)
+  const [showAddProperty, setShowAddProperty] = useState(false)
+  const [queueBadge,      setQueueBadge]      = useState(0)
   const [showOnboarding,  setShowOnboarding]  = useState(() => {
     const hasKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast')
     return !hasKey
@@ -532,6 +536,15 @@ export default function App() {
     upd()
     const t = setInterval(upd, 60000)
     return () => clearInterval(t)
+  }, [])
+
+  // Init offline queue auto-sync + track pending count for FAB badge
+  useEffect(() => {
+    initAutoSync()
+    const upd = () => { pendingCount().then(setQueueBadge) }
+    upd()
+    const unsub = onQueueChange(upd)
+    return () => { unsub() }
   }, [])
 
   // Hydrate from cloud on startup (silent, non-blocking)
@@ -858,6 +871,29 @@ export default function App() {
 
       <ToastContainer />
       {showOnboarding && <Onboarding onDismiss={() => setShowOnboarding(false)} />}
+
+      {/* Floating "Add Property" button — mobile-first D4D capture */}
+      <button
+        onClick={() => setShowAddProperty(true)}
+        aria-label="Add property"
+        className="fixed z-[90] rounded-full shadow-2xl border-none cursor-pointer text-white font-bold flex items-center justify-center bg-[#0F2460] hover:bg-[#1a3a8f] transition-colors"
+        style={{
+          bottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+          right: '20px',
+          width: '56px',
+          height: '56px',
+          fontSize: '28px',
+        }}
+      >
+        +
+        {queueBadge > 0 && (
+          <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+            {queueBadge}
+          </span>
+        )}
+      </button>
+
+      {showAddProperty && <AddPropertyMobile onClose={() => setShowAddProperty(false)} />}
     </div>
   )
 }
