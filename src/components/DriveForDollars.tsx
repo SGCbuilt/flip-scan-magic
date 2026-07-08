@@ -375,45 +375,96 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
       <div className="p-4 space-y-4">
 
         {/* Professional Analysis */}
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: analysis.score >= 75 ? '#C45E1A60' : 'var(--sgc-gray-border)' }}>
-          <div className="px-3 py-2 flex items-center justify-between" style={{ background: analysis.score >= 75 ? '#C45E1A' : 'var(--sgc-navy)' }}>
-            <span className="text-xs font-bold text-white uppercase tracking-wide">📊 Professional Deal Analysis</span>
-            <span className="text-[10px] font-bold text-white/80">{analysis.confidence}</span>
+        <div className="rounded-2xl border overflow-hidden" style={{ borderColor: analysis.gradeColor + '55' }}>
+          {/* Header band */}
+          <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: 'var(--sgc-navy)' }}>
+            <span className="text-[11px] font-black text-white uppercase tracking-wider">📊 Deal Analysis</span>
+            <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">{analysis.confidence}</span>
           </div>
-          <div className="p-3 space-y-3">
-            <div className="grid grid-cols-4 gap-2">
-              <div className="text-center p-2 rounded-lg" style={{ background: '#EEF2FB' }}>
-                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Score</div>
-                <div className="text-lg font-black" style={{ color: 'var(--sgc-navy)' }}>{analysis.score}</div>
+
+          {/* Hero rating */}
+          <div className="p-4 flex items-center gap-4" style={{ background: `linear-gradient(135deg, ${analysis.gradeColor}12, transparent)` }}>
+            <div className="flex-shrink-0 rounded-2xl flex flex-col items-center justify-center"
+              style={{ width: 82, height: 82, background: analysis.gradeColor, boxShadow: `0 8px 20px -8px ${analysis.gradeColor}` }}>
+              <div className="text-3xl font-black leading-none text-white">{analysis.grade}</div>
+              <div className="text-[9px] font-bold text-white/80 uppercase tracking-wider mt-1">Grade</div>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-black leading-none" style={{ color: analysis.gradeColor }}>{analysis.score}</span>
+                <span className="text-xs font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>/100</span>
               </div>
-              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF7EA' }}>
-                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Priority</div>
-                <div className="text-[11px] font-black leading-tight" style={{ color: '#8A5700' }}>{analysis.tier}</div>
-              </div>
-              <div className="text-center p-2 rounded-lg" style={{ background: '#EDFAF3' }}>
-                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>MAO</div>
-                <div className="text-sm font-black" style={{ color: '#1A7A4A' }}>{analysis.maxOffer ? fmt$(analysis.maxOffer) : '—'}</div>
-              </div>
-              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF0ED' }}>
-                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Signals</div>
-                <div className="text-lg font-black" style={{ color: '#C0341D' }}>{analysis.leadSignals}</div>
+              <div className="text-xs font-black uppercase tracking-wide mt-0.5" style={{ color: analysis.gradeColor }}>{analysis.tier}</div>
+              <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
+                <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, analysis.score)}%`, background: analysis.gradeColor }} />
               </div>
             </div>
+          </div>
 
-            <div className="rounded-lg p-2.5" style={{ background: 'var(--sgc-gray-light)' }}>
-              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>Recommended next move</div>
+          {/* Key numbers */}
+          <div className="grid grid-cols-3 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+            <div className="p-3 text-center border-r" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Max Offer</div>
+              <div className="text-sm font-black mt-0.5" style={{ color: '#1A7A4A' }}>{analysis.maxOffer ? fmt$(analysis.maxOffer) : '—'}</div>
+            </div>
+            <div className="p-3 text-center border-r" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Signals</div>
+              <div className="text-sm font-black mt-0.5" style={{ color: 'var(--sgc-navy)' }}>{analysis.leadSignals} / 6</div>
+            </div>
+            <div className="p-3 text-center">
+              <div className="text-[9px] font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Priority</div>
+              <div className="text-[11px] font-black mt-0.5 leading-tight" style={{ color: analysis.gradeColor }}>{analysis.tier}</div>
+            </div>
+          </div>
+
+          {/* Strengths + Red flags */}
+          {(analysis.strengths.length > 0 || analysis.redFlags.length > 0) && (
+            <div className="px-3 pt-3 pb-1 border-t space-y-2" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              {analysis.strengths.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#1A7A4A' }}>✓ Strengths</div>
+                  <div className="flex flex-wrap gap-1">
+                    {analysis.strengths.map((s, i) => (
+                      <span key={i} className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: '#EDFAF3', color: '#1A7A4A' }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {analysis.redFlags.length > 0 && (
+                <div>
+                  <div className="text-[9px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#C0341D' }}>⚠ Red Flags</div>
+                  <div className="flex flex-wrap gap-1">
+                    {analysis.redFlags.map((s, i) => (
+                      <span key={i} className="text-[10px] font-bold px-2 py-1 rounded-full" style={{ background: '#FEF0ED', color: '#C0341D' }}>{s}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Next move */}
+          <div className="px-3 py-3 border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+            <div className="rounded-xl p-3" style={{ background: analysis.gradeColor + '12', borderLeft: `3px solid ${analysis.gradeColor}` }}>
+              <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: analysis.gradeColor }}>▶ Recommended Next Move</div>
               <div className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{analysis.nextAction}</div>
             </div>
+          </div>
 
-            <div className="space-y-1.5">
+          {/* Detail reasons (collapsible via <details>) */}
+          <details className="border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+            <summary className="px-3 py-2 text-[10px] font-bold uppercase tracking-wider cursor-pointer select-none" style={{ color: 'var(--sgc-gray-mid)' }}>
+              Show analysis details
+            </summary>
+            <div className="px-3 pb-3 space-y-1.5">
               {analysis.reasons.map((reason, i) => (
                 <div key={i} className="flex gap-2 text-[11px] leading-relaxed" style={{ color: 'var(--sgc-gray-mid)' }}>
-                  <span style={{ color: 'var(--sgc-navy)' }}>•</span>
+                  <span style={{ color: analysis.gradeColor }}>•</span>
                   <span>{reason}</span>
                 </div>
               ))}
             </div>
-          </div>
+          </details>
         </div>
 
         {/* AI Motivation Score */}
