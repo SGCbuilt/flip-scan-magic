@@ -457,6 +457,12 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: 'var(--sgc-navy)', border: '1px solid var(--sgc-gray-border)' }}>
                       {p.length} permit{p.length === 1 ? '' : 's'} · {v.length} violation{v.length === 1 ? '' : 's'}
                     </span>
+                    {dsData.permits.debug?.openData?.available && dsData.permits.debug.openData.domain && (
+                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide text-white" style={{ background: '#1A7A4A' }}
+                        title={`Official registry: ${dsData.permits.debug.openData.domain} · ${dsData.permits.debug.openData.matched} matched of ${dsData.permits.debug.openData.totalRowsScanned} rows`}>
+                        ✓ Official
+                      </span>
+                    )}
                   </div>
                   {latest && (
                     <span className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
@@ -464,6 +470,13 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     </span>
                   )}
                 </div>
+
+                {dsData.permits.debug?.openData?.available && dsData.permits.debug.openData.domain && (
+                  <div className="px-3 py-1.5 text-[9px] font-semibold border-b flex items-center justify-between" style={{ borderColor: 'var(--sgc-gray-border)', background: '#EDFAF3', color: '#1A7A4A' }}>
+                    <span>📊 Source: {dsData.permits.debug.openData.domain}</span>
+                    <span>{dsData.permits.debug.openData.matched} matched · {dsData.permits.debug.openData.totalRowsScanned} scanned</span>
+                  </div>
+                )}
 
                 {total === 0 ? (
                   <div className="px-3 py-2.5 space-y-2">
