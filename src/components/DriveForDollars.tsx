@@ -54,6 +54,23 @@ interface DeepScanData {
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
+type PermitRecord = NonNullable<DeepScanData['permits']>['permits'][number]
+
+const isOfficialPermitRecord = (record: PermitRecord) => {
+  const source = String(record.source || '').toLowerCase()
+  const reasons = (record.matchReasons || []).join(' ').toLowerCase()
+  return source.includes('official') || source.includes('arcgis') || source.includes('open-data') || reasons.includes('official')
+}
+
+const isVerifiedPermitRecord = (record: PermitRecord) => record.confidence === 'high' || isOfficialPermitRecord(record)
+const isSupportPermitRecord = (record: PermitRecord) => record.confidence === 'medium' || isVerifiedPermitRecord(record)
+
+const formatPermitDate = (date?: string | null, fallback?: string | null) => {
+  if (!date) return fallback || 'Date not verified'
+  const parsed = new Date(`${date}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? (fallback || date) : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 interface Capture {
   id:          string
   address:     string
@@ -143,8 +160,10 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
       arvSuggestion: capture.comps?.arvSuggestion,
       motivationTier: capture.motivation?.tier,
       motivationScore: capture.motivation?.score,
-      permits: (permitsData?.permits || []).slice(0, 3),
-      violations: (permitsData?.violations || []).slice(0, 3),
+      dataGuardrail: 'Use only provided fields. Do not invent dates, permit history, ARV, ownership, violations, or offer strategy. Low-confidence records are review-only.',
+      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 3),
+      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 3),
+      recordsHeldForReview: [...(permitsData?.permits || []), ...(permitsData?.violations || [])].filter((r: PermitRecord) => !isSupportPermitRecord(r)).length,
       distress: (distressData?.signals || []).slice(0, 3),
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
@@ -162,39 +181,61 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   const comps = capture.comps
   const trace = capture.trace
   const motiv = capture.motivation
-  const violations = deepScan?.permits?.violations?.length || 0
-  const permits = deepScan?.permits?.permits?.length || 0
+  const permitRecords = deepScan?.permits?.permits || []
+  const violationRecords = deepScan?.permits?.violations || []
+  const verifiedPermits = permitRecords.filter(isVerifiedPermitRecord).length
+  const verifiedViolations = violationRecords.filter(isVerifiedPermitRecord).length
+  const supportPermits = permitRecords.filter(isSupportPermitRecord).length
+  const supportViolations = violationRecords.filter(isSupportPermitRecord).length
+  const reviewRecords = [...permitRecords, ...violationRecords].filter(r => !isSupportPermitRecord(r)).length
+  const violations = supportViolations
+  const permits = supportPermits
   const distress = deepScan?.distress?.signals?.length || 0
   const photos = deepScan?.photos?.count || 0
+  const hasComps = !!comps?.arvSuggestion
+  const hasOwner = !!(trace?.hit && trace.owner?.name)
+  const hasDeepScan = !!deepScan?.generatedAt
+  const verifiedEvidenceCount = [hasComps, hasOwner, verifiedPermits + verifiedViolations > 0, distress > 0, photos > 0].filter(Boolean).length
   const leadSignals = [
     trace?.property?.absenteeOwner,
     trace?.property?.vacant,
     trace?.property?.taxStatus === 'delinquent',
-    violations > 0,
+    verifiedViolations > 0,
     distress > 0,
     (trace?.property?.equityPct || 0) >= 35,
   ].filter(Boolean).length
 
-  const score = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (comps ? 8 : 0))
+  const rawScore = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (hasComps ? 8 : 0))
+  const confidenceCap = !hasComps ? 58 : !hasOwner && !hasDeepScan ? 68 : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? 72 : 95
+  const score = Math.min(rawScore, confidenceCap)
   const tier = score >= 75 ? 'High Priority' : score >= 60 ? 'Worth Pursuing' : score >= 45 ? 'Research Further' : 'Low Signal'
-  const confidence = motiv ? 'AI scored' : comps && trace?.hit ? 'Strong' : comps ? 'Comps only' : 'Preliminary'
-  const maxOffer = comps?.arvSuggestion ? Math.round(comps.arvSuggestion * 0.7) : 0
+  const confidence = hasComps && hasOwner && hasDeepScan ? 'Verified inputs' : hasComps && hasOwner ? 'Owner + comps' : hasComps ? 'Comps only' : 'Preliminary'
+  const maxOffer = hasComps ? Math.round(comps!.arvSuggestion * 0.7) : 0
+  const dataQuality = hasComps && hasOwner && (hasDeepScan || verifiedEvidenceCount >= 3)
+    ? { label: 'Decision-ready', color: '#1A7A4A', note: 'Key fields are supported by current lookup data.' }
+    : hasComps || hasOwner || hasDeepScan
+      ? { label: 'Needs verification', color: '#C45E1A', note: 'Use this as a research screen until missing fields are confirmed.' }
+      : { label: 'Research only', color: '#C0341D', note: 'Not enough verified data for an offer or seller recommendation.' }
 
   const reasons = [
-    comps?.arvSuggestion ? `Suggested ARV ${fmt$(comps.arvSuggestion)} with ${comps.confidence} comp confidence.` : 'Comp data did not return enough support for ARV yet.',
+    hasComps ? `Suggested ARV ${fmt$(comps!.arvSuggestion)} with ${comps!.confidence} comp confidence.` : 'Comp data did not return enough support for ARV yet.',
     maxOffer ? `70% MAO target is ${fmt$(maxOffer)} before rehab, holding costs, and assignment margin.` : 'Max offer needs ARV support before using it for negotiation.',
     trace?.hit && trace.owner?.name ? `Owner found: ${trace.owner.name}${trace.phones?.length ? ` · ${trace.phones.length} phone record${trace.phones.length === 1 ? '' : 's'}` : ''}.` : 'Owner/contact data is not available from the current lookup.',
     trace?.property?.equityPct ? `Estimated equity is ${trace.property.equityPct.toFixed(0)}%.` : 'Equity could not be verified from the current data.',
-    violations || permits ? `${violations} violation record${violations === 1 ? '' : 's'} and ${permits} permit record${permits === 1 ? '' : 's'} found.` : 'No permit or violation records found in the scan.',
+    verifiedViolations || verifiedPermits ? `${verifiedViolations} verified violation record${verifiedViolations === 1 ? '' : 's'} and ${verifiedPermits} verified permit record${verifiedPermits === 1 ? '' : 's'} found.` : reviewRecords ? `${reviewRecords} low-confidence permit/violation hit${reviewRecords === 1 ? '' : 's'} held for manual review, not scoring.` : 'No verified permit or violation records found in the scan.',
     distress ? `${distress} distress signal${distress === 1 ? '' : 's'} detected from public-source search.` : 'No public distress signals detected yet.',
     photos ? `${photos} property image${photos === 1 ? '' : 's'} available for visual review.` : 'No property photos returned from imagery sources.',
   ]
 
-  const nextAction = score >= 75
-    ? 'Call owner today, verify condition, then underwrite rehab before making an offer.'
-    : score >= 60
-      ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
-      : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
+  const nextAction = !hasComps
+    ? 'Research only — verify ARV/comps before making any offer recommendation.'
+    : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0
+      ? 'Manually verify permit links first; low-confidence web hits are not enough for a recommendation.'
+      : score >= 75
+        ? 'Call owner today, verify condition, then underwrite rehab before making an offer.'
+        : score >= 60
+          ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
+          : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
 
   // Letter grade
   const grade = score >= 90 ? 'A+' : score >= 82 ? 'A' : score >= 75 ? 'A-' : score >= 68 ? 'B+' : score >= 60 ? 'B' : score >= 52 ? 'C+' : score >= 45 ? 'C' : score >= 35 ? 'D' : 'F'
@@ -208,13 +249,14 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   if (trace?.property?.absenteeOwner) strengths.push('Absentee owner')
   if (trace?.property?.vacant) redFlags.push('Vacant')
   if (trace?.property?.taxStatus === 'delinquent') redFlags.push('Tax delinquent')
-  if (violations > 0) redFlags.push(`${violations} violation${violations === 1 ? '' : 's'}`)
-  if (permits > 0) strengths.push(`${permits} permit record${permits === 1 ? '' : 's'}`)
+  if (verifiedViolations > 0) redFlags.push(`${verifiedViolations} verified violation${verifiedViolations === 1 ? '' : 's'}`)
+  if (verifiedPermits > 0) strengths.push(`${verifiedPermits} verified permit record${verifiedPermits === 1 ? '' : 's'}`)
+  if (reviewRecords > 0) redFlags.push(`${reviewRecords} permit hit${reviewRecords === 1 ? '' : 's'} need review`)
   if (distress > 0) redFlags.push(`${distress} distress signal${distress === 1 ? '' : 's'}`)
   if (comps?.arvSuggestion) strengths.push(`ARV ${fmt$(comps.arvSuggestion)}`)
   if (trace?.phones?.length) strengths.push(`${trace.phones.length} phone${trace.phones.length === 1 ? '' : 's'}`)
 
-  return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags }
+  return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags, dataQuality, evidence: { hasComps, hasOwner, hasDeepScan, verifiedPermits, verifiedViolations, reviewRecords } }
 }
 
 // ── Address input with speech recognition ─────────────────────────────────────
@@ -416,9 +458,21 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 <span className="text-xs font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>/100</span>
               </div>
               <div className="text-xs font-black uppercase tracking-wide mt-0.5" style={{ color: analysis.gradeColor }}>{analysis.tier}</div>
+              <div className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide"
+                style={{ background: analysis.dataQuality.color + '14', color: analysis.dataQuality.color }}>
+                {analysis.dataQuality.label}
+              </div>
               <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, analysis.score)}%`, background: analysis.gradeColor }} />
               </div>
+            </div>
+          </div>
+
+          <div className="px-3 py-2 border-t flex items-start gap-2" style={{ borderColor: 'var(--sgc-gray-border)', background: '#FFFDF8' }}>
+            <span className="text-xs">🛡️</span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: analysis.dataQuality.color }}>Data Guardrail</div>
+              <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--sgc-gray-mid)' }}>{analysis.dataQuality.note}</div>
             </div>
           </div>
 
@@ -446,6 +500,8 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               ...v.map(x => ({ ...x, type: 'violation' as const })),
               ...p.map(x => ({ ...x, type: 'permit' as const })),
             ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            const verified = all.filter(isVerifiedPermitRecord)
+            const needsReview = all.filter(x => !isSupportPermitRecord(x))
             const latest = all.find(i => i.date)?.date
             const total = all.length
             return (
@@ -456,6 +512,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Permit Activity</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: 'var(--sgc-navy)', border: '1px solid var(--sgc-gray-border)' }}>
                       {p.length} permit{p.length === 1 ? '' : 's'} · {v.length} violation{v.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide" style={{ background: verified.length ? '#EDFAF3' : '#FEF7EA', color: verified.length ? '#1A7A4A' : '#8A5700' }}>
+                      {verified.length} verified
                     </span>
                     {dsData.permits.debug?.openData?.available && dsData.permits.debug.openData.domain && (
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide text-white" style={{ background: '#1A7A4A' }}
@@ -506,7 +565,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                       const conf = it.confidence || 'low'
                       const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
                       const dateText = it.date
-                        ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        ? formatPermitDate(it.date, it.dateLabel)
                         : (it.dateLabel || 'undated')
                       return (
                         <a key={i} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
@@ -528,6 +587,11 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     {total > 3 && (
                       <div className="text-[10px] pt-1 font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
                         + {total - 3} more in full timeline below ↓
+                      </div>
+                    )}
+                    {needsReview.length > 0 && (
+                      <div className="text-[10px] pt-1 font-semibold" style={{ color: '#8A5700' }}>
+                        {needsReview.length} low-confidence hit{needsReview.length === 1 ? '' : 's'} shown for review only — not used in the score.
                       </div>
                     )}
                   </div>
@@ -582,6 +646,18 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             <div className="rounded-xl p-3" style={{ background: analysis.gradeColor + '12', borderLeft: `3px solid ${analysis.gradeColor}` }}>
               <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: analysis.gradeColor }}>▶ Recommended Next Move</div>
               <div className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{analysis.nextAction}</div>
+              <div className="grid grid-cols-3 gap-1.5 mt-2">
+                {[
+                  { label: 'Owner', ok: analysis.evidence.hasOwner },
+                  { label: 'Comps', ok: analysis.evidence.hasComps },
+                  { label: 'Deep Scan', ok: analysis.evidence.hasDeepScan },
+                ].map(item => (
+                  <div key={item.label} className="rounded-md px-2 py-1 text-[9px] font-black uppercase tracking-wide text-center"
+                    style={{ background: item.ok ? '#EDFAF3' : '#F1F3F7', color: item.ok ? '#1A7A4A' : '#5C6473' }}>
+                    {item.ok ? '✓' : '○'} {item.label}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -845,7 +921,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                           const dotColor = isViolation ? '#C0341D' : 'var(--sgc-navy)'
                           const bgColor = isViolation ? '#FEF0ED' : '#EEF2FB'
                           const dateText = it.date
-                            ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                            ? formatPermitDate(it.date, it.dateLabel)
                             : (it.dateLabel || 'Date unknown')
                           const conf = it.confidence || 'low'
                           const confMeta = conf === 'high'
@@ -945,7 +1021,8 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               {dsData?.summary && (
                 <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
                   <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
-                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
+                <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: '#8A5700' }}>Review-only narrative — numbers above are authoritative</div>
+                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
                 </div>
               )}
 
