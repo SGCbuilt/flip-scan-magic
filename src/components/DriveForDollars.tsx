@@ -54,6 +54,23 @@ interface DeepScanData {
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
+type PermitRecord = NonNullable<DeepScanData['permits']>['permits'][number]
+
+const isOfficialPermitRecord = (record: PermitRecord) => {
+  const source = String(record.source || '').toLowerCase()
+  const reasons = (record.matchReasons || []).join(' ').toLowerCase()
+  return source.includes('official') || source.includes('arcgis') || source.includes('open-data') || reasons.includes('official')
+}
+
+const isVerifiedPermitRecord = (record: PermitRecord) => record.confidence === 'high' || isOfficialPermitRecord(record)
+const isSupportPermitRecord = (record: PermitRecord) => record.confidence === 'medium' || isVerifiedPermitRecord(record)
+
+const formatPermitDate = (date?: string | null, fallback?: string | null) => {
+  if (!date) return fallback || 'Date not verified'
+  const parsed = new Date(`${date}T00:00:00`)
+  return Number.isNaN(parsed.getTime()) ? (fallback || date) : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
 interface Capture {
   id:          string
   address:     string
@@ -162,39 +179,61 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   const comps = capture.comps
   const trace = capture.trace
   const motiv = capture.motivation
-  const violations = deepScan?.permits?.violations?.length || 0
-  const permits = deepScan?.permits?.permits?.length || 0
+  const permitRecords = deepScan?.permits?.permits || []
+  const violationRecords = deepScan?.permits?.violations || []
+  const verifiedPermits = permitRecords.filter(isVerifiedPermitRecord).length
+  const verifiedViolations = violationRecords.filter(isVerifiedPermitRecord).length
+  const supportPermits = permitRecords.filter(isSupportPermitRecord).length
+  const supportViolations = violationRecords.filter(isSupportPermitRecord).length
+  const reviewRecords = [...permitRecords, ...violationRecords].filter(r => !isSupportPermitRecord(r)).length
+  const violations = supportViolations
+  const permits = supportPermits
   const distress = deepScan?.distress?.signals?.length || 0
   const photos = deepScan?.photos?.count || 0
+  const hasComps = !!comps?.arvSuggestion
+  const hasOwner = !!(trace?.hit && trace.owner?.name)
+  const hasDeepScan = !!deepScan?.generatedAt
+  const verifiedEvidenceCount = [hasComps, hasOwner, verifiedPermits + verifiedViolations > 0, distress > 0, photos > 0].filter(Boolean).length
   const leadSignals = [
     trace?.property?.absenteeOwner,
     trace?.property?.vacant,
     trace?.property?.taxStatus === 'delinquent',
-    violations > 0,
+    verifiedViolations > 0,
     distress > 0,
     (trace?.property?.equityPct || 0) >= 35,
   ].filter(Boolean).length
 
-  const score = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (comps ? 8 : 0))
+  const rawScore = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (hasComps ? 8 : 0))
+  const confidenceCap = !hasComps ? 58 : !hasOwner && !hasDeepScan ? 68 : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? 72 : 95
+  const score = Math.min(rawScore, confidenceCap)
   const tier = score >= 75 ? 'High Priority' : score >= 60 ? 'Worth Pursuing' : score >= 45 ? 'Research Further' : 'Low Signal'
-  const confidence = motiv ? 'AI scored' : comps && trace?.hit ? 'Strong' : comps ? 'Comps only' : 'Preliminary'
-  const maxOffer = comps?.arvSuggestion ? Math.round(comps.arvSuggestion * 0.7) : 0
+  const confidence = hasComps && hasOwner && hasDeepScan ? 'Verified inputs' : hasComps && hasOwner ? 'Owner + comps' : hasComps ? 'Comps only' : 'Preliminary'
+  const maxOffer = hasComps ? Math.round(comps!.arvSuggestion * 0.7) : 0
+  const dataQuality = hasComps && hasOwner && (hasDeepScan || verifiedEvidenceCount >= 3)
+    ? { label: 'Decision-ready', color: '#1A7A4A', note: 'Key fields are supported by current lookup data.' }
+    : hasComps || hasOwner || hasDeepScan
+      ? { label: 'Needs verification', color: '#C45E1A', note: 'Use this as a research screen until missing fields are confirmed.' }
+      : { label: 'Research only', color: '#C0341D', note: 'Not enough verified data for an offer or seller recommendation.' }
 
   const reasons = [
-    comps?.arvSuggestion ? `Suggested ARV ${fmt$(comps.arvSuggestion)} with ${comps.confidence} comp confidence.` : 'Comp data did not return enough support for ARV yet.',
+    hasComps ? `Suggested ARV ${fmt$(comps!.arvSuggestion)} with ${comps!.confidence} comp confidence.` : 'Comp data did not return enough support for ARV yet.',
     maxOffer ? `70% MAO target is ${fmt$(maxOffer)} before rehab, holding costs, and assignment margin.` : 'Max offer needs ARV support before using it for negotiation.',
     trace?.hit && trace.owner?.name ? `Owner found: ${trace.owner.name}${trace.phones?.length ? ` · ${trace.phones.length} phone record${trace.phones.length === 1 ? '' : 's'}` : ''}.` : 'Owner/contact data is not available from the current lookup.',
     trace?.property?.equityPct ? `Estimated equity is ${trace.property.equityPct.toFixed(0)}%.` : 'Equity could not be verified from the current data.',
-    violations || permits ? `${violations} violation record${violations === 1 ? '' : 's'} and ${permits} permit record${permits === 1 ? '' : 's'} found.` : 'No permit or violation records found in the scan.',
+    verifiedViolations || verifiedPermits ? `${verifiedViolations} verified violation record${verifiedViolations === 1 ? '' : 's'} and ${verifiedPermits} verified permit record${verifiedPermits === 1 ? '' : 's'} found.` : reviewRecords ? `${reviewRecords} low-confidence permit/violation hit${reviewRecords === 1 ? '' : 's'} held for manual review, not scoring.` : 'No verified permit or violation records found in the scan.',
     distress ? `${distress} distress signal${distress === 1 ? '' : 's'} detected from public-source search.` : 'No public distress signals detected yet.',
     photos ? `${photos} property image${photos === 1 ? '' : 's'} available for visual review.` : 'No property photos returned from imagery sources.',
   ]
 
-  const nextAction = score >= 75
-    ? 'Call owner today, verify condition, then underwrite rehab before making an offer.'
-    : score >= 60
-      ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
-      : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
+  const nextAction = !hasComps
+    ? 'Research only — verify ARV/comps before making any offer recommendation.'
+    : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0
+      ? 'Manually verify permit links first; low-confidence web hits are not enough for a recommendation.'
+      : score >= 75
+        ? 'Call owner today, verify condition, then underwrite rehab before making an offer.'
+        : score >= 60
+          ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
+          : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
 
   // Letter grade
   const grade = score >= 90 ? 'A+' : score >= 82 ? 'A' : score >= 75 ? 'A-' : score >= 68 ? 'B+' : score >= 60 ? 'B' : score >= 52 ? 'C+' : score >= 45 ? 'C' : score >= 35 ? 'D' : 'F'
@@ -208,13 +247,14 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   if (trace?.property?.absenteeOwner) strengths.push('Absentee owner')
   if (trace?.property?.vacant) redFlags.push('Vacant')
   if (trace?.property?.taxStatus === 'delinquent') redFlags.push('Tax delinquent')
-  if (violations > 0) redFlags.push(`${violations} violation${violations === 1 ? '' : 's'}`)
-  if (permits > 0) strengths.push(`${permits} permit record${permits === 1 ? '' : 's'}`)
+  if (verifiedViolations > 0) redFlags.push(`${verifiedViolations} verified violation${verifiedViolations === 1 ? '' : 's'}`)
+  if (verifiedPermits > 0) strengths.push(`${verifiedPermits} verified permit record${verifiedPermits === 1 ? '' : 's'}`)
+  if (reviewRecords > 0) redFlags.push(`${reviewRecords} permit hit${reviewRecords === 1 ? '' : 's'} need review`)
   if (distress > 0) redFlags.push(`${distress} distress signal${distress === 1 ? '' : 's'}`)
   if (comps?.arvSuggestion) strengths.push(`ARV ${fmt$(comps.arvSuggestion)}`)
   if (trace?.phones?.length) strengths.push(`${trace.phones.length} phone${trace.phones.length === 1 ? '' : 's'}`)
 
-  return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags }
+  return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags, dataQuality, evidence: { hasComps, hasOwner, hasDeepScan, verifiedPermits, verifiedViolations, reviewRecords } }
 }
 
 // ── Address input with speech recognition ─────────────────────────────────────
