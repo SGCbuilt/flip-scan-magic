@@ -47,6 +47,8 @@ interface Body {
   city?: string
   state?: string
   zip?: string
+  ownerName?: string
+  parcelId?: string
   deal?: Record<string, unknown>
   mode?: 'full' | 'permits' | 'distress' | 'summary'
   context?: Record<string, unknown>
@@ -69,7 +71,7 @@ async function invoke(fn: string, body: unknown): Promise<any> {
 }
 
 // ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
-async function fetchPermitsViaFirecrawl(street: string, city: string, state: string, zip: string) {
+async function fetchPermitsViaFirecrawl(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
   if (!key) return { permits: [], violations: [], source: 'unavailable' as const, queriesRun: 0 }
 
@@ -78,6 +80,15 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
   const streetNoSuffix = streetOnly.replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '').trim()
   const cityLower = (city || '').toLowerCase().replace(/\s+/g, '')
   const stateLower = (state || '').toLowerCase()
+
+  // Address tokens for match scoring
+  const streetNumberMatch = streetOnly.match(/^\s*(\d+)/)
+  const streetNumber = streetNumberMatch?.[1] || ''
+  const streetNameLower = streetNoSuffix.toLowerCase().replace(/^\d+\s*/, '').trim()
+  const zipStr = (zip || '').trim()
+  const cityRaw = (city || '').toLowerCase()
+  const ownerLast = (ownerName || '').trim().split(/\s+/).filter(Boolean).pop()?.toLowerCase() || ''
+  const parcelLower = (parcelId || '').toLowerCase().trim()
 
   // Known permit portals in VA/NC + common national platforms
   const portalSites = [
@@ -135,8 +146,37 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
         const portalHit = portalSites.some(p => url.toLowerCase().includes(p))
         if (!streetHit && !portalHit) continue
         const combined = `${r.title || ''} ${r.description || ''} ${url}`
+        const combinedLower = combined.toLowerCase()
         const dateInfo = extractDate(combined)
         const permitType = classifyPermitType(combined)
+
+        // ── Match-confidence scoring ────────────────────────────────
+        const matchReasons: string[] = []
+        let matchScore = 0
+
+        const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
+        const streetNameHit = streetNameLower.length >= 3 && combinedLower.includes(streetNameLower)
+        const cityHit = cityRaw.length >= 3 && combinedLower.includes(cityRaw)
+        const zipHit = zipStr.length >= 5 && combined.includes(zipStr)
+        const parcelHit = parcelLower.length >= 4 && combinedLower.includes(parcelLower)
+        const ownerHit = ownerLast.length >= 3 && combinedLower.includes(ownerLast)
+        const portalHitLocal = portalSites.some(p => url.toLowerCase().includes(p))
+
+        if (numberHit && streetNameHit) { matchScore += 4; matchReasons.push(`Street # ${streetNumber} + name`) }
+        else if (streetNameHit) { matchScore += 2; matchReasons.push('Street name') }
+        else if (numberHit) { matchScore += 1; matchReasons.push(`Street # ${streetNumber}`) }
+
+        if (zipHit) { matchScore += 2; matchReasons.push(`ZIP ${zipStr}`) }
+        else if (cityHit) { matchScore += 1; matchReasons.push('City') }
+
+        if (parcelHit) { matchScore += 4; matchReasons.push(`Parcel ${parcelId}`) }
+        if (ownerHit) { matchScore += 3; matchReasons.push(`Owner "${ownerName}"`) }
+        if (portalHitLocal) { matchScore += 1; matchReasons.push('Permit portal') }
+
+        const confidence: 'high' | 'medium' | 'low' =
+          matchScore >= 7 ? 'high' :
+          matchScore >= 4 ? 'medium' : 'low'
+
         const item = {
           title: r.title,
           url,
@@ -144,6 +184,9 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
           date: dateInfo?.iso || null,
           dateLabel: dateInfo?.label || null,
           permitType,
+          confidence,
+          matchReasons,
+          matchScore,
           source: (() => {
             const portal = portalSites.find(p => url.toLowerCase().includes(p))
             if (portal) return portal
@@ -245,7 +288,7 @@ Deno.serve(async (req) => {
 
     // ── Per-step modes for client-side step-by-step UI ──────────────────
     if (body.mode === 'permits') {
-      const r = await fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '')
+      const r = await fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '', body.ownerName, body.parcelId)
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'distress') {
@@ -260,7 +303,7 @@ Deno.serve(async (req) => {
     // Run everything in parallel
     const [photos, permits, distress, variants] = await Promise.all([
       invoke('property-photos', { address: body.address, city, state, zip: body.zip }).catch(e => ({ error: String(e) })),
-      fetchPermitsViaFirecrawl(body.address, city, state, body.zip || ''),
+      fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
       fetchDistressSignals(fullAddr),
       body.deal
         ? invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }).catch(e => ({ error: String(e) }))
