@@ -509,13 +509,14 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
 
 // ── ORCHESTRATOR: Official open-data first, Firecrawl fallback ────────────
 async function fetchPermits(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
-  const [socrata, firecrawl] = await Promise.all([
+  const [arcgis, socrata, firecrawl] = await Promise.all([
+    fetchPermitsFromArcGIS(street, city).catch(() => null),
     fetchPermitsFromSocrata(street, city, state, zip).catch(() => null),
     fetchPermitsViaFirecrawl(street, city, state, zip, ownerName, parcelId).catch(() => null),
   ])
 
-  const officialPermits = socrata?.permits || []
-  const officialViolations = socrata?.violations || []
+  const officialPermits = [...(arcgis?.permits || []), ...(socrata?.permits || [])]
+  const officialViolations = [...(arcgis?.violations || []), ...(socrata?.violations || [])]
   const webPermits = firecrawl?.permits || []
   const webViolations = firecrawl?.violations || []
 
@@ -529,22 +530,28 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
   const violations = [...officialViolations, ...filteredWebV].sort(byDateDesc).slice(0, 15)
 
   const sources: string[] = []
-  if (socrata?.domain) sources.push(`Official: ${socrata.domain}`)
+  if (arcgis?.domain) sources.push(`Official (ArcGIS): ${arcgis.dataset}`)
+  if (socrata?.domain) sources.push(`Official (Socrata): ${socrata.domain}`)
   if (firecrawl?.debug?.rawHits) sources.push(`Web: ${firecrawl.debug.rawHits} hits`)
+
+  const officialDomain = arcgis?.domain || socrata?.domain || null
+  const officialLabel = arcgis?.dataset || socrata?.domain || null
+  const officialMatched = (arcgis?.matched || 0) + (socrata?.matched || 0)
+  const officialScanned = (arcgis?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
 
   return {
     permits,
     violations,
-    source: socrata?.domain ? 'open-data+web' : 'firecrawl',
+    source: officialDomain ? 'open-data+web' : 'firecrawl',
     debug: {
-      openData: socrata ? {
-        domain: socrata.domain || null,
-        dataset: socrata.dataset || null,
-        matched: socrata.matched || 0,
-        totalRowsScanned: socrata.totalRowsScanned || 0,
-        checkedDomains: socrata.checked || [],
-        available: !!socrata.domain,
-      } : { available: false, note: 'City not in open-data registry map' },
+      openData: officialDomain ? {
+        domain: officialDomain,
+        dataset: officialLabel,
+        matched: officialMatched,
+        totalRowsScanned: officialScanned,
+        checkedDomains: [...(arcgis?.checked || []), ...(socrata?.checked || [])],
+        available: true,
+      } : { available: false, note: 'City not yet in official-registry map — using web sources' },
       web: firecrawl?.debug || null,
       sources,
       totalRecords: permits.length + violations.length,
