@@ -3,7 +3,7 @@ import { useState, useEffect } from 'react'
 import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
-import { getAIAnalysis, generateQuickInsight } from '../lib/aiAnalysis'
+import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, type DealVariants } from '../lib/aiAnalysis'
 import { fetchRentEstimate } from '../lib/market'
 
 interface Props {
@@ -12,7 +12,7 @@ interface Props {
   onClose: () => void
 }
 
-type ModalTab = 'overview' | 'deal' | 'calculator' | 'comps' | 'ai'
+type ModalTab = 'overview' | 'photos' | 'deal' | 'calculator' | 'comps' | 'ai' | 'strategies'
 
 const Row = ({ label, value, cls = '' }: { label: string; value: string; cls?: string }) => (
   <div className="flex justify-between items-center py-2 border-b border-[var(--sgc-gray-border)]/60 last:border-0 text-sm">
@@ -212,6 +212,166 @@ function CompsTab({ p }: { p: AnalyzedProperty }) {
   )
 }
 
+// ── PHOTOS TAB ────────────────────────────────────────────────────────────
+function PhotosTab({ p }: { p: AnalyzedProperty }) {
+  const [photos, setPhotos] = useState<string[]>([])
+  const [source, setSource] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [active, setActive] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true); setError('')
+    getPropertyPhotos(p)
+      .then(r => { setPhotos(r.photos); setSource(r.source) })
+      .catch(e => setError(e.message || 'Failed to load photos'))
+      .finally(() => setLoading(false))
+  }, [p.addr])
+
+  if (loading) return (
+    <div className="flex items-center gap-3 p-6 bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl">
+      <div className="w-5 h-5 border-2 border-[var(--sgc-gray-border)] border-t-[var(--sgc-navy)] rounded-full spin" />
+      <div className="text-xs text-[var(--sgc-gray-mid)]">Pulling property photos (RentCast → Firecrawl)…</div>
+    </div>
+  )
+  if (error) return <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-xs text-[var(--sgc-danger)]">{error}</div>
+  if (!photos.length) return (
+    <div className="p-6 bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl text-center">
+      <div className="text-xs text-[var(--sgc-gray-mid)] mb-2">No photos found from any source.</div>
+      <div className="text-[10px] text-[var(--sgc-gray-mid)]">Try the Zillow / Realtor links in the header.</div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] font-semibold">
+          {photos.length} Photos
+        </div>
+        <div className="text-[10px] text-[var(--sgc-gray-mid)]">Source: {source}</div>
+      </div>
+      <div className="grid grid-cols-3 gap-2">
+        {photos.map((url, i) => (
+          <button key={i} onClick={() => setActive(url)}
+            className="relative aspect-square rounded-lg overflow-hidden border border-[var(--sgc-gray-border)] bg-[var(--sgc-gray-light)] hover:border-[var(--sgc-navy)] transition-colors cursor-pointer p-0">
+            <img src={url} alt={`Property photo ${i+1}`} loading="lazy"
+              className="w-full h-full object-cover"
+              onError={(e) => { (e.target as HTMLImageElement).style.opacity = '0.2' }} />
+          </button>
+        ))}
+      </div>
+
+      {active && (
+        <div className="fixed inset-0 z-[200] bg-black/85 flex items-center justify-center p-6" onClick={() => setActive(null)}>
+          <img src={active} alt="Enlarged" className="max-w-full max-h-full object-contain rounded-lg" />
+          <button onClick={() => setActive(null)}
+            className="absolute top-4 right-4 w-10 h-10 bg-white/90 rounded-full text-[var(--sgc-black)] font-bold cursor-pointer border-none">✕</button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── STRATEGIES TAB (variants) ─────────────────────────────────────────────
+function StrategiesTab({ p }: { p: AnalyzedProperty }) {
+  const [v, setV] = useState<DealVariants | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+
+  const run = async () => {
+    setLoading(true); setError(''); setV(null)
+    try { setV(await getDealVariants(p)) }
+    catch (e: any) { setError(e.message || 'Failed to generate strategies') }
+    finally { setLoading(false) }
+  }
+
+  useEffect(() => { run() }, [p.id])
+
+  const verdictCls = (verd: string) =>
+    verd === 'Pursue' ? 'bg-[var(--sgc-success)] text-white'
+    : verd === 'Negotiate' ? 'bg-amber-500 text-white'
+    : 'bg-[var(--sgc-danger)] text-white'
+
+  if (loading) return (
+    <div className="flex items-center gap-3 p-4 bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl">
+      <div className="w-5 h-5 border-2 border-[var(--sgc-gray-border)] border-t-[var(--sgc-navy)] rounded-full spin" />
+      <div className="text-xs text-[var(--sgc-gray-mid)]">AI is comparing all exit strategies…</div>
+    </div>
+  )
+  if (error) return (
+    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+      <div className="text-xs text-[var(--sgc-danger)] mb-2">{error}</div>
+      <button onClick={run} className="text-[11px] px-3 py-1.5 bg-[var(--sgc-navy)] text-white rounded-lg cursor-pointer border-none">Retry</button>
+    </div>
+  )
+  if (!v) return null
+
+  const StratCard = ({ title, verdict, rows, reasoning, recommended }: {
+    title: string; verdict: string; rows: [string, string][]; reasoning: string; recommended: boolean
+  }) => (
+    <div className={`rounded-xl border p-4 mb-3 ${recommended ? 'border-[var(--sgc-navy)] bg-[var(--sgc-navy)]/5' : 'border-[var(--sgc-gray-border)] bg-white'}`}>
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <div className="text-xs font-bold tracking-wide uppercase text-[var(--sgc-black)]">{title}</div>
+          {recommended && <span className="text-[9px] bg-[var(--sgc-navy)] text-white px-2 py-0.5 rounded-full">AI PICK</span>}
+        </div>
+        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full ${verdictCls(verdict)}`}>{verdict}</span>
+      </div>
+      <div className="grid grid-cols-2 gap-y-1.5 gap-x-4 mb-2">
+        {rows.map(([k, val]) => (
+          <div key={k} className="flex justify-between text-[11px]">
+            <span className="text-[var(--sgc-gray-mid)]">{k}</span>
+            <span className="font-semibold text-[var(--sgc-black)]">{val}</span>
+          </div>
+        ))}
+      </div>
+      <div className="text-[11px] text-[var(--sgc-gray-mid)] italic leading-relaxed border-t border-[var(--sgc-gray-border)] pt-2 mt-2">{reasoning}</div>
+    </div>
+  )
+
+  return (
+    <div>
+      <div className="bg-[var(--sgc-navy)]/10 border border-[var(--sgc-navy)]/30 rounded-xl p-3 mb-3">
+        <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold mb-1">Top Risk</div>
+        <div className="text-xs text-[var(--sgc-black)]">{v.topRisk}</div>
+      </div>
+
+      <StratCard title="🔨 Fix & Flip" verdict={v.flip.verdict} recommended={v.recommendedStrategy === 'flip'}
+        rows={[['Max Offer', fmt$(v.flip.maxOffer)], ['Projected Profit', fmt$(v.flip.projectedProfit)], ['ROI', v.flip.roiPct.toFixed(1)+'%'], ['vs List', fmt$(p.price - v.flip.maxOffer)+' off']]}
+        reasoning={v.flip.reasoning} />
+
+      <StratCard title="📄 Wholesale / Assign" verdict={v.wholesale.verdict} recommended={v.recommendedStrategy === 'wholesale'}
+        rows={[['Fee Low', fmt$(v.wholesale.assignmentFeeLow)], ['Fee High', fmt$(v.wholesale.assignmentFeeHigh)], ['Buyer', v.wholesale.buyerProfile], ['', '']]}
+        reasoning={v.wholesale.reasoning} />
+
+      <StratCard title="🏠 Rental / BRRRR" verdict={v.rental.verdict} recommended={v.recommendedStrategy === 'rental'}
+        rows={[['Monthly Rent', fmt$(v.rental.monthlyRent)], ['Cashflow', fmt$(v.rental.monthlyCashflow)+'/mo'], ['Cap Rate', v.rental.capRatePct.toFixed(2)+'%'], ['Refi Potential', v.rental.refiPotential]]}
+        reasoning={v.rental.reasoning} />
+
+      <div className="mt-4">
+        <div className="text-[10px] tracking-[2px] uppercase text-[var(--sgc-navy)] font-bold mb-2">Rehab Strategy Tiers</div>
+        <div className="grid grid-cols-3 gap-2">
+          {(['light','medium','heavy'] as const).map(k => {
+            const t = v.rehabTiers[k]
+            return (
+              <div key={k} className="border border-[var(--sgc-gray-border)] rounded-lg p-3 bg-[var(--sgc-gray-light)]">
+                <div className="text-[10px] uppercase font-bold text-[var(--sgc-navy)] mb-1">{k}</div>
+                <div className="text-sm font-bold text-[var(--sgc-black)]">{fmt$(t.cost)}</div>
+                <div className="text-[10px] text-[var(--sgc-success)] mb-1.5">+{fmt$(t.arvImpact)} ARV</div>
+                <div className="text-[10px] text-[var(--sgc-gray-mid)] leading-snug">{t.scope}</div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+
+      <button onClick={run} className="mt-4 text-[10px] text-[var(--sgc-gray-mid)] hover:text-[var(--sgc-black)] cursor-pointer bg-transparent border-none">
+        ↻ Regenerate strategies
+      </button>
+    </div>
+  )
+}
+
 // ── AI TAB ────────────────────────────────────────────────────────────────
 function AITab({ p }: { p: AnalyzedProperty }) {
   const [aiText, setAiText] = useState('')
@@ -364,6 +524,8 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
   const TABS: { id: ModalTab; label: string }[] = [
     { id: 'overview',    label: '📋 Overview'     },
+    { id: 'photos',      label: '📷 Photos'       },
+    { id: 'strategies',  label: '⚡ Strategies'    },
     { id: 'deal',        label: '💰 Deal Analysis' },
     { id: 'calculator',  label: '🔢 Calculator'    },
     { id: 'comps',       label: '📊 Comps'         },
@@ -602,6 +764,8 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
           {tab === 'calculator' && <CalcTab p={p} />}
           {tab === 'comps'      && <CompsTab p={p} />}
           {tab === 'ai'         && <AITab p={p} />}
+          {tab === 'photos'     && <PhotosTab p={p} />}
+          {tab === 'strategies' && <StrategiesTab p={p} />}
         </div>
       </div>
     </div>

@@ -5,6 +5,19 @@ const fmt = (n: number) => '$' + Math.round(n).toLocaleString()
 
 export type AIProvider = 'gemini' | 'claude'
 
+export interface DealVariants {
+  flip: { verdict: string; maxOffer: number; projectedProfit: number; roiPct: number; reasoning: string }
+  wholesale: { verdict: string; assignmentFeeLow: number; assignmentFeeHigh: number; buyerProfile: string; reasoning: string }
+  rental: { verdict: string; monthlyRent: number; monthlyCashflow: number; capRatePct: number; refiPotential: string; reasoning: string }
+  rehabTiers: {
+    light:  { scope: string; cost: number; arvImpact: number }
+    medium: { scope: string; cost: number; arvImpact: number }
+    heavy:  { scope: string; cost: number; arvImpact: number }
+  }
+  recommendedStrategy: 'flip' | 'wholesale' | 'rental'
+  topRisk: string
+}
+
 function buildPrompt(p: AnalyzedProperty): string {
   const margin = p.arv > 0 ? ((p.profit / p.arv) * 100).toFixed(1) : '0'
   const rehabPerSqft = p.sqft ? (p.rehabCost / p.sqft).toFixed(0) : 'n/a'
@@ -45,6 +58,52 @@ export async function getAIAnalysis(
   if (error) throw new Error(error.message || 'AI request failed')
   if (data?.error) throw new Error(data.error)
   return data?.text || 'No analysis returned.'
+}
+
+export async function getDealVariants(
+  p: AnalyzedProperty,
+  provider: AIProvider = 'gemini'
+): Promise<DealVariants> {
+  const deal = {
+    address: `${p.addr}, ${p.city}, ${p.state} ${p.zip}`,
+    listPrice: p.price,
+    arv: p.arv,
+    arvConservative: p.arvConservative,
+    arvAggressive: p.arvAggressive,
+    beds: p.beds, baths: p.baths, sqft: p.sqft,
+    yearBuilt: p.yearBuilt || null,
+    propertyType: p.propType,
+    daysOnMarket: p.dom,
+    estRehabCost: p.rehabCost,
+    rehabPerSqft: p.sqft ? Math.round(p.rehabCost / p.sqft) : null,
+    seventyPctMax: p.momsRule,
+    currentFlipProfit: p.profit,
+    currentROI: p.roi,
+    flipScore: p.flipScore,
+  }
+  const { data, error } = await supabase.functions.invoke('ai-analysis', {
+    body: { mode: 'variants', deal, provider },
+  })
+  if (error) throw new Error(error.message || 'AI variants request failed')
+  if (data?.error) throw new Error(data.error)
+  if (!data?.variants) throw new Error('No variants returned')
+  return data.variants as DealVariants
+}
+
+// ── PHOTOS ────────────────────────────────────────────────────────────────
+export interface PhotosResult {
+  photos: string[]
+  source: 'rentcast' | 'firecrawl' | 'none'
+  count: number
+}
+
+export async function getPropertyPhotos(p: AnalyzedProperty): Promise<PhotosResult> {
+  const { data, error } = await supabase.functions.invoke('property-photos', {
+    body: { address: p.addr, city: p.city, state: p.state, zip: p.zip },
+  })
+  if (error) throw new Error(error.message || 'Photo fetch failed')
+  if (data?.error && !data?.photos?.length) throw new Error(data.error)
+  return { photos: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 }
 }
 
 export function generateQuickInsight(p: AnalyzedProperty): string {
