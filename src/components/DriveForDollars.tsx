@@ -23,6 +23,16 @@ import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
 import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
+import { supabase } from '@/integrations/supabase/client'
+
+// ── Deep Scan types (lightweight, no coupling to protected engines) ───────
+interface DeepScanData {
+  photos?: { list: string[]; source: string; count: number }
+  permits?: { permits: Array<{ title?: string; url?: string; description?: string }>; violations: Array<{ title?: string; url?: string; description?: string }>; source: string }
+  distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
+  summary?: string
+  generatedAt?: string
+}
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
