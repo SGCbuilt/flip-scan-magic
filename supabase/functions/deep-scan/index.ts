@@ -6,6 +6,8 @@ interface Body {
   state?: string
   zip?: string
   deal?: Record<string, unknown>
+  mode?: 'full' | 'permits' | 'distress' | 'summary'
+  context?: Record<string, unknown>
 }
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
@@ -132,6 +134,20 @@ Deno.serve(async (req) => {
     const fullAddr = [body.address, body.city, body.state, body.zip].filter(Boolean).join(', ')
     const city = body.city || ''
     const state = body.state || ''
+
+    // ── Per-step modes for client-side step-by-step UI ──────────────────
+    if (body.mode === 'permits') {
+      const r = await fetchPermitsViaFirecrawl(fullAddr, city, state)
+      return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'distress') {
+      const r = await fetchDistressSignals(fullAddr)
+      return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'summary') {
+      const summary = await execSummary({ address: fullAddr, ...(body.context || {}) })
+      return new Response(JSON.stringify({ summary }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
 
     // Run everything in parallel
     const [photos, permits, distress, variants] = await Promise.all([
