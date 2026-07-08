@@ -425,6 +425,90 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             </div>
           </div>
 
+          {/* Permit Activity strip (surfaced from Deep Scan) */}
+          {dsData?.permits && (() => {
+            const p = dsData.permits.permits || []
+            const v = dsData.permits.violations || []
+            const all = [
+              ...v.map(x => ({ ...x, type: 'violation' as const })),
+              ...p.map(x => ({ ...x, type: 'permit' as const })),
+            ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            const latest = all.find(i => i.date)?.date
+            const total = all.length
+            return (
+              <div className="border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: '#F7F9FC' }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm">🏗️</span>
+                    <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Permit Activity</span>
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: 'var(--sgc-navy)', border: '1px solid var(--sgc-gray-border)' }}>
+                      {p.length} permit{p.length === 1 ? '' : 's'} · {v.length} violation{v.length === 1 ? '' : 's'}
+                    </span>
+                  </div>
+                  {latest && (
+                    <span className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
+                      Latest {new Date(latest).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                    </span>
+                  )}
+                </div>
+
+                {total === 0 ? (
+                  <div className="px-3 py-2 text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                    No permits or violations returned for this address.
+                  </div>
+                ) : (
+                  <div className="px-3 py-2 space-y-1.5">
+                    {all.slice(0, 3).map((it, i) => {
+                      const isV = it.type === 'violation'
+                      const color = isV ? '#C0341D' : 'var(--sgc-navy)'
+                      const conf = it.confidence || 'low'
+                      const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
+                      const dateText = it.date
+                        ? new Date(it.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : (it.dateLabel || 'undated')
+                      return (
+                        <a key={i} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-[11px] no-underline py-1 px-1.5 rounded-md hover:bg-black/5 transition-colors"
+                          style={{ color: 'var(--sgc-black)' }}>
+                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                          <span className="font-mono font-bold flex-shrink-0" style={{ color, minWidth: 78 }}>{dateText}</span>
+                          <span className="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase" style={{ background: '#EEF2FB', color }}>
+                            {isV ? 'Violation' : (it.permitType || 'Permit')}
+                          </span>
+                          <span className="truncate flex-1 font-semibold">{it.title || it.url || 'record'}</span>
+                          <span className="flex-shrink-0 text-[8px] font-black px-1 py-0.5 rounded uppercase text-white" style={{ background: confBg }}
+                            title={it.matchReasons?.join(' · ') || 'match confidence'}>
+                            {conf}
+                          </span>
+                        </a>
+                      )
+                    })}
+                    {total > 3 && (
+                      <div className="text-[10px] pt-1 font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        + {total - 3} more in full timeline below ↓
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          })()}
+
+          {/* No-permits-yet nudge when Deep Scan hasn't been run */}
+          {!dsData?.permits && !dsRunning && (
+            <div className="border-t px-3 py-2.5 flex items-center justify-between gap-2" style={{ borderColor: 'var(--sgc-gray-border)', background: '#FEF7EA' }}>
+              <div className="flex items-center gap-2 min-w-0">
+                <span>🏗️</span>
+                <span className="text-[11px] font-bold truncate" style={{ color: '#8A5700' }}>Permit history not scanned yet</span>
+              </div>
+              <button onClick={runDeepScan}
+                className="text-[10px] font-black uppercase tracking-wide px-2.5 py-1 rounded-full border-none cursor-pointer text-white flex-shrink-0"
+                style={{ background: '#0F2460' }}>
+                ⚡ Run Deep Scan
+              </button>
+            </div>
+          )}
+
           {/* Strengths + Red flags */}
           {(analysis.strengths.length > 0 || analysis.redFlags.length > 0) && (
             <div className="px-3 pt-3 pb-1 border-t space-y-2" style={{ borderColor: 'var(--sgc-gray-border)' }}>
