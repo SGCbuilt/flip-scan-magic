@@ -106,6 +106,42 @@ export async function getPropertyPhotos(p: AnalyzedProperty): Promise<PhotosResu
   return { photos: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 }
 }
 
+// ── DEEP SCAN (photos + permits + distress + strategies + AI summary) ─────
+export interface DeepScanResult {
+  address: string
+  generatedAt: string
+  photos: { list: string[]; source: string; count: number }
+  permits: {
+    permits: Array<{ title?: string; url?: string; description?: string }>
+    violations: Array<{ title?: string; url?: string; description?: string }>
+    source: string
+  }
+  distress: {
+    signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>
+    source: string
+  }
+  variants: DealVariants | null
+  summary: string
+}
+
+export async function runDeepScan(p: AnalyzedProperty): Promise<DeepScanResult> {
+  const deal = {
+    address: `${p.addr}, ${p.city}, ${p.state} ${p.zip}`,
+    listPrice: p.price, arv: p.arv,
+    beds: p.beds, baths: p.baths, sqft: p.sqft,
+    yearBuilt: p.yearBuilt || null, propertyType: p.propType,
+    daysOnMarket: p.dom, estRehabCost: p.rehabCost,
+    seventyPctMax: p.momsRule, currentFlipProfit: p.profit,
+    currentROI: p.roi, flipScore: p.flipScore,
+  }
+  const { data, error } = await supabase.functions.invoke('deep-scan', {
+    body: { address: p.addr, city: p.city, state: p.state, zip: p.zip, deal },
+  })
+  if (error) throw new Error(error.message || 'Deep scan failed')
+  if (data?.error) throw new Error(data.error)
+  return data as DeepScanResult
+}
+
 export function generateQuickInsight(p: AnalyzedProperty): string {
   const lines: string[] = []
   if (p.flipScore >= 80) lines.push('🔥 Strong deal — scores in the top tier.')
