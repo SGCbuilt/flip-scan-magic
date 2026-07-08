@@ -523,6 +523,8 @@ export default function App() {
   const [searchMeta,      setSearchMeta]      = useState<{ time: number; raw: number } | null>(null)
   const [taskBadge,       setTaskBadge]       = useState(0)
   const [showFilters,     setShowFilters]     = useState(false)
+  const [showAddProperty, setShowAddProperty] = useState(false)
+  const [queueBadge,      setQueueBadge]      = useState(0)
   const [showOnboarding,  setShowOnboarding]  = useState(() => {
     const hasKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast')
     return !hasKey
@@ -534,6 +536,15 @@ export default function App() {
     upd()
     const t = setInterval(upd, 60000)
     return () => clearInterval(t)
+  }, [])
+
+  // Init offline queue auto-sync + track pending count for FAB badge
+  useEffect(() => {
+    initAutoSync()
+    const upd = () => { pendingCount().then(setQueueBadge) }
+    upd()
+    const unsub = onQueueChange(upd)
+    return () => { unsub() }
   }, [])
 
   // Hydrate from cloud on startup (silent, non-blocking)
