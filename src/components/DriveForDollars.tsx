@@ -456,9 +456,21 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 <span className="text-xs font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>/100</span>
               </div>
               <div className="text-xs font-black uppercase tracking-wide mt-0.5" style={{ color: analysis.gradeColor }}>{analysis.tier}</div>
+              <div className="mt-1 inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-black uppercase tracking-wide"
+                style={{ background: analysis.dataQuality.color + '14', color: analysis.dataQuality.color }}>
+                {analysis.dataQuality.label}
+              </div>
               <div className="mt-2 h-2 rounded-full overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
                 <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, analysis.score)}%`, background: analysis.gradeColor }} />
               </div>
+            </div>
+          </div>
+
+          <div className="px-3 py-2 border-t flex items-start gap-2" style={{ borderColor: 'var(--sgc-gray-border)', background: '#FFFDF8' }}>
+            <span className="text-xs">🛡️</span>
+            <div className="min-w-0">
+              <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: analysis.dataQuality.color }}>Data Guardrail</div>
+              <div className="text-[11px] font-semibold leading-snug" style={{ color: 'var(--sgc-gray-mid)' }}>{analysis.dataQuality.note}</div>
             </div>
           </div>
 
@@ -486,6 +498,8 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               ...v.map(x => ({ ...x, type: 'violation' as const })),
               ...p.map(x => ({ ...x, type: 'permit' as const })),
             ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            const verified = all.filter(isVerifiedPermitRecord)
+            const needsReview = all.filter(x => !isSupportPermitRecord(x))
             const latest = all.find(i => i.date)?.date
             const total = all.length
             return (
@@ -496,6 +510,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     <span className="text-[11px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>Permit Activity</span>
                     <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: 'var(--sgc-navy)', border: '1px solid var(--sgc-gray-border)' }}>
                       {p.length} permit{p.length === 1 ? '' : 's'} · {v.length} violation{v.length === 1 ? '' : 's'}
+                    </span>
+                    <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide" style={{ background: verified.length ? '#EDFAF3' : '#FEF7EA', color: verified.length ? '#1A7A4A' : '#8A5700' }}>
+                      {verified.length} verified
                     </span>
                     {dsData.permits.debug?.openData?.available && dsData.permits.debug.openData.domain && (
                       <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase tracking-wide text-white" style={{ background: '#1A7A4A' }}
@@ -570,6 +587,11 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                         + {total - 3} more in full timeline below ↓
                       </div>
                     )}
+                    {needsReview.length > 0 && (
+                      <div className="text-[10px] pt-1 font-semibold" style={{ color: '#8A5700' }}>
+                        {needsReview.length} low-confidence hit{needsReview.length === 1 ? '' : 's'} shown for review only — not used in the score.
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
@@ -622,6 +644,18 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             <div className="rounded-xl p-3" style={{ background: analysis.gradeColor + '12', borderLeft: `3px solid ${analysis.gradeColor}` }}>
               <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: analysis.gradeColor }}>▶ Recommended Next Move</div>
               <div className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{analysis.nextAction}</div>
+              <div className="grid grid-cols-3 gap-1.5 mt-2">
+                {[
+                  { label: 'Owner', ok: analysis.evidence.hasOwner },
+                  { label: 'Comps', ok: analysis.evidence.hasComps },
+                  { label: 'Deep Scan', ok: analysis.evidence.hasDeepScan },
+                ].map(item => (
+                  <div key={item.label} className="rounded-md px-2 py-1 text-[9px] font-black uppercase tracking-wide text-center"
+                    style={{ background: item.ok ? '#EDFAF3' : '#F1F3F7', color: item.ok ? '#1A7A4A' : '#5C6473' }}>
+                    {item.ok ? '✓' : '○'} {item.label}
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
