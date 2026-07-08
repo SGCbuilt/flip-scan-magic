@@ -32,6 +32,7 @@ interface DeepScanData {
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
   generatedAt?: string
+  errors?: string[]
 }
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
@@ -49,6 +50,7 @@ interface Capture {
   trace?:      SkipTraceResult
   comps?:      CompResult
   motivation?: MotivationScore
+  deepScan?:   DeepScanData
   inPipeline:  boolean
 }
 
@@ -69,6 +71,111 @@ function getTracerKey() {
 }
 function getAnthropicKey() {
   try { return localStorage.getItem('fscan_anthropic') || '' } catch { return '' }
+}
+
+async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) => void): Promise<DeepScanData> {
+  const scan: DeepScanData = { errors: [] }
+  const base = { address: capture.address, city: capture.city, state: capture.state, zip: capture.zip }
+
+  onStep?.('photos · checking property imagery')
+  try {
+    const { data, error } = await supabase.functions.invoke('property-photos', { body: base })
+    if (error) throw error
+    scan.photos = { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 }
+  } catch (e: any) {
+    scan.errors?.push(`Photos unavailable: ${e?.message || 'source failed'}`)
+  }
+
+  onStep?.('permits · scanning building records')
+  let permitsData: any = null
+  try {
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'permits' } })
+    if (error) throw error
+    permitsData = data || { permits: [], violations: [], source: 'none' }
+    scan.permits = permitsData
+  } catch (e: any) {
+    scan.errors?.push(`Permits unavailable: ${e?.message || 'source failed'}`)
+    scan.permits = { permits: [], violations: [], source: 'unavailable' }
+  }
+
+  onStep?.('distress · searching risk signals')
+  let distressData: any = null
+  try {
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' } })
+    if (error) throw error
+    distressData = data || { signals: [], source: 'none' }
+    scan.distress = distressData
+  } catch (e: any) {
+    scan.errors?.push(`Distress search unavailable: ${e?.message || 'source failed'}`)
+    scan.distress = { signals: [], source: 'unavailable' }
+  }
+
+  onStep?.('AI summary · building investor brief')
+  try {
+    const context = {
+      ownerName: capture.trace?.owner?.name,
+      equityPct: capture.trace?.property?.equityPct,
+      taxStatus: capture.trace?.property?.taxStatus,
+      estValue: capture.trace?.property?.estimatedValue,
+      vacant: capture.trace?.property?.vacant,
+      absentee: capture.trace?.property?.absenteeOwner,
+      arvSuggestion: capture.comps?.arvSuggestion,
+      motivationTier: capture.motivation?.tier,
+      motivationScore: capture.motivation?.score,
+      permits: (permitsData?.permits || []).slice(0, 3),
+      violations: (permitsData?.violations || []).slice(0, 3),
+      distress: (distressData?.signals || []).slice(0, 3),
+    }
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
+    if (error) throw error
+    scan.summary = data?.summary || ''
+  } catch (e: any) {
+    scan.errors?.push(`AI summary unavailable: ${e?.message || 'source failed'}`)
+  }
+
+  scan.generatedAt = new Date().toISOString()
+  return scan
+}
+
+function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
+  const comps = capture.comps
+  const trace = capture.trace
+  const motiv = capture.motivation
+  const violations = deepScan?.permits?.violations?.length || 0
+  const permits = deepScan?.permits?.permits?.length || 0
+  const distress = deepScan?.distress?.signals?.length || 0
+  const photos = deepScan?.photos?.count || 0
+  const leadSignals = [
+    trace?.property?.absenteeOwner,
+    trace?.property?.vacant,
+    trace?.property?.taxStatus === 'delinquent',
+    violations > 0,
+    distress > 0,
+    (trace?.property?.equityPct || 0) >= 35,
+  ].filter(Boolean).length
+
+  const score = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (comps ? 8 : 0))
+  const tier = score >= 75 ? 'High Priority' : score >= 60 ? 'Worth Pursuing' : score >= 45 ? 'Research Further' : 'Low Signal'
+  const confidence = motiv ? 'AI scored' : comps && trace?.hit ? 'Strong' : comps ? 'Comps only' : 'Preliminary'
+  const maxOffer = comps?.arvSuggestion ? Math.round(comps.arvSuggestion * 0.7) : 0
+
+  const reasons = [
+    comps?.arvSuggestion ? `Suggested ARV ${fmt$(comps.arvSuggestion)} with ${comps.confidence} comp confidence.` : 'Comp data did not return enough support for ARV yet.',
+    maxOffer ? `70% MAO target is ${fmt$(maxOffer)} before rehab, holding costs, and assignment margin.` : 'Max offer needs ARV support before using it for negotiation.',
+    trace?.hit && trace.owner?.name ? `Owner found: ${trace.owner.name}${trace.phones?.length ? ` · ${trace.phones.length} phone record${trace.phones.length === 1 ? '' : 's'}` : ''}.` : 'Owner/contact data is not available from the current lookup.',
+    trace?.property?.equityPct ? `Estimated equity is ${trace.property.equityPct.toFixed(0)}%.` : 'Equity could not be verified from the current data.',
+    violations || permits ? `${violations} violation record${violations === 1 ? '' : 's'} and ${permits} permit record${permits === 1 ? '' : 's'} found.` : 'No permit or violation records found in the scan.',
+    distress ? `${distress} distress signal${distress === 1 ? '' : 's'} detected from public-source search.` : 'No public distress signals detected yet.',
+    photos ? `${photos} property image${photos === 1 ? '' : 's'} available for visual review.` : 'No property photos returned from imagery sources.',
+  ]
+
+  const nextAction = score >= 75
+    ? 'Call owner today, verify condition, then underwrite rehab before making an offer.'
+    : score >= 60
+      ? 'Save to pipeline and confirm owner motivation, property condition, and repair spread.'
+      : 'Do not chase yet — gather stronger distress, contact, or equity evidence first.'
+
+  return { score, tier, confidence, maxOffer, leadSignals, reasons, nextAction }
 }
 
 // ── Address input with speech recognition ─────────────────────────────────────
@@ -191,9 +298,10 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
 }
 
 // ── Result card ───────────────────────────────────────────────────────────────
-function ResultCard({ capture, onAddPipeline }: {
+function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   capture: Capture
   onAddPipeline: (id: string) => void
+  onDeepScanComplete: (id: string, deepScan: DeepScanData) => void
 }) {
   const trace = capture.trace
   const comps  = capture.comps
@@ -202,45 +310,17 @@ function ResultCard({ capture, onAddPipeline }: {
 
   // Deep Scan state — scoped to this card
   const [dsRunning, setDsRunning] = useState(false)
-  const [dsData, setDsData] = useState<DeepScanData | null>(null)
+  const [dsData, setDsData] = useState<DeepScanData | null>(capture.deepScan || null)
   const [dsError, setDsError] = useState<string | null>(null)
   const [dsStep, setDsStep] = useState<string>('')
+  const analysis = buildAnalysis(capture, dsData)
 
   const runDeepScan = async () => {
-    setDsRunning(true); setDsError(null); setDsData({}); setDsStep('Fetching photos…')
-    const base = { address: capture.address, city: capture.city, state: capture.state, zip: capture.zip }
+    setDsRunning(true); setDsError(null); setDsData({}); setDsStep('photos · checking property imagery')
     try {
-      // Photos (piggyback on full-mode call would be heavy; call property-photos directly)
-      try {
-        const { data } = await supabase.functions.invoke('property-photos', { body: base })
-        setDsData(d => ({ ...(d || {}), photos: { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 } }))
-      } catch {}
-
-      setDsStep('Scanning permits & violations…')
-      const permitsRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'permits' } })
-      if (permitsRes.data) setDsData(d => ({ ...(d || {}), permits: permitsRes.data }))
-
-      setDsStep('Searching distress signals…')
-      const distressRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' } })
-      if (distressRes.data) setDsData(d => ({ ...(d || {}), distress: distressRes.data }))
-
-      setDsStep('Generating AI summary…')
-      const context = {
-        ownerName: trace?.owner?.name,
-        equityPct: trace?.property?.equityPct,
-        taxStatus: trace?.property?.taxStatus,
-        estValue: trace?.property?.estimatedValue,
-        vacant: trace?.property?.vacant,
-        absentee: trace?.property?.absenteeOwner,
-        arvSuggestion: comps?.arvSuggestion,
-        motivationTier: motiv?.tier,
-        motivationScore: motiv?.score,
-        permits: (permitsRes.data?.permits || []).slice(0, 3),
-        violations: (permitsRes.data?.violations || []).slice(0, 3),
-        distress: (distressRes.data?.signals || []).slice(0, 3),
-      }
-      const sumRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
-      if (sumRes.data) setDsData(d => ({ ...(d || {}), summary: sumRes.data?.summary || '', generatedAt: new Date().toISOString() }))
+      const scan = await runDeepScanForCapture(capture, step => setDsStep(step))
+      setDsData(scan)
+      onDeepScanComplete(capture.id, scan)
       setDsStep('')
     } catch (e: any) {
       setDsError(e?.message || 'Deep Scan failed')
@@ -275,6 +355,48 @@ function ResultCard({ capture, onAddPipeline }: {
       </div>
 
       <div className="p-4 space-y-4">
+
+        {/* Professional Analysis */}
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: analysis.score >= 75 ? '#C45E1A60' : 'var(--sgc-gray-border)' }}>
+          <div className="px-3 py-2 flex items-center justify-between" style={{ background: analysis.score >= 75 ? '#C45E1A' : 'var(--sgc-navy)' }}>
+            <span className="text-xs font-bold text-white uppercase tracking-wide">📊 Professional Deal Analysis</span>
+            <span className="text-[10px] font-bold text-white/80">{analysis.confidence}</span>
+          </div>
+          <div className="p-3 space-y-3">
+            <div className="grid grid-cols-4 gap-2">
+              <div className="text-center p-2 rounded-lg" style={{ background: '#EEF2FB' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Score</div>
+                <div className="text-lg font-black" style={{ color: 'var(--sgc-navy)' }}>{analysis.score}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF7EA' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Priority</div>
+                <div className="text-[11px] font-black leading-tight" style={{ color: '#8A5700' }}>{analysis.tier}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#EDFAF3' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>MAO</div>
+                <div className="text-sm font-black" style={{ color: '#1A7A4A' }}>{analysis.maxOffer ? fmt$(analysis.maxOffer) : '—'}</div>
+              </div>
+              <div className="text-center p-2 rounded-lg" style={{ background: '#FEF0ED' }}>
+                <div className="text-[9px] uppercase" style={{ color: 'var(--sgc-gray-mid)' }}>Signals</div>
+                <div className="text-lg font-black" style={{ color: '#C0341D' }}>{analysis.leadSignals}</div>
+              </div>
+            </div>
+
+            <div className="rounded-lg p-2.5" style={{ background: 'var(--sgc-gray-light)' }}>
+              <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>Recommended next move</div>
+              <div className="text-xs font-semibold leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{analysis.nextAction}</div>
+            </div>
+
+            <div className="space-y-1.5">
+              {analysis.reasons.map((reason, i) => (
+                <div key={i} className="flex gap-2 text-[11px] leading-relaxed" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  <span style={{ color: 'var(--sgc-navy)' }}>•</span>
+                  <span>{reason}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
 
         {/* AI Motivation Score */}
         {motiv && (
@@ -418,10 +540,10 @@ function ResultCard({ capture, onAddPipeline }: {
           <button
             onClick={runDeepScan}
             disabled={dsRunning}
-            className="px-4 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
+            className="px-3 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
             style={{ background: dsRunning ? '#EEF2FB' : '#0F2460', color: dsRunning ? 'var(--sgc-navy)' : 'white' }}
             title="Deep Scan — photos, permits, violations, distress signals, AI summary">
-            {dsRunning ? '⏳' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
+            {dsRunning ? '⏳' : dsData?.generatedAt ? '✓' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
           </button>
           <a href={`https://maps.google.com/?q=${encodeURIComponent(capture.address + ' ' + capture.city + ' ' + capture.state)}`}
             target="_blank" rel="noopener noreferrer"
@@ -443,11 +565,25 @@ function ResultCard({ capture, onAddPipeline }: {
           <div className="rounded-xl border overflow-hidden mt-2" style={{ borderColor: 'var(--sgc-navy)40' }}>
             <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#0F2460' }}>
               <span className="text-xs font-bold text-white">⚡ Deep Scan</span>
-              {dsRunning && <span className="text-[10px] text-white/80">{dsStep}</span>}
+              {dsRunning && <span className="text-[10px] text-white/80">{dsStep} · ~45 sec</span>}
               {!dsRunning && dsData?.generatedAt && <span className="text-[10px] text-white/60">✓ complete</span>}
             </div>
             <div className="p-3 space-y-3">
               {dsError && <div className="text-xs p-2 rounded bg-red-50 text-red-700">{dsError}</div>}
+
+              {dsRunning && (
+                <div className="space-y-2">
+                  {['photos', 'permits', 'distress', 'AI summary'].map(step => {
+                    const active = dsStep.toLowerCase().includes(step === 'AI summary' ? 'ai summary' : step)
+                    return (
+                      <div key={step} className="flex items-center gap-2 text-xs" style={{ color: active ? 'var(--sgc-navy)' : 'var(--sgc-gray-mid)' }}>
+                        <span>{active ? '⏳' : '○'}</span>
+                        <span className="font-semibold capitalize">{step}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
 
               {/* Photos */}
               {dsData?.photos && dsData.photos.list.length > 0 && (
@@ -507,6 +643,12 @@ function ResultCard({ capture, onAddPipeline }: {
                   <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
                 </div>
               )}
+
+              {!dsRunning && dsData?.errors?.length ? (
+                <div className="text-[10px] leading-relaxed p-2 rounded" style={{ background: '#FEF7EA', color: '#8A5700' }}>
+                  Partial scan: {dsData.errors.slice(0, 2).join(' · ')}
+                </div>
+              ) : null}
             </div>
           </div>
         )}
@@ -588,6 +730,14 @@ export default function DriveForDollars() {
       if (motivation) newCapture.motivation = motivation
     }
 
+    setProgress(p => [...p, '⚡ Deep Scan: photos · checking property imagery'])
+    try {
+      const deepScan = await runDeepScanForCapture(newCapture, step => {
+        setProgress(p => [...p.filter(item => !item.startsWith('⚡ Deep Scan:')), `⚡ Deep Scan: ${step}`])
+      })
+      newCapture.deepScan = deepScan
+    } catch {}
+
     setProgress(p => [...p, '✓ Done!'])
 
     const all = loadCaptures()
@@ -632,6 +782,12 @@ export default function DriveForDollars() {
     })
 
     const updated = all.map(c => c.id === captureId ? { ...c, inPipeline: true } : c)
+    saveAndRefresh(updated)
+  }
+
+  const handleDeepScanComplete = (captureId: string, deepScan: DeepScanData) => {
+    const all = loadCaptures()
+    const updated = all.map(c => c.id === captureId ? { ...c, deepScan } : c)
     saveAndRefresh(updated)
   }
 
@@ -734,6 +890,7 @@ export default function DriveForDollars() {
                     { icon: '🏠', t: 'Estimated value + 3 sold comps (RentCast)' },
                     { icon: '💰', t: 'Equity %, tax status, absentee flag' },
                     { icon: '🧠', t: 'AI Motivation Score — call this one first?' },
+                    { icon: '⚡', t: 'Deep Scan — photos, permits, distress, investor summary' },
                     { icon: '🎯', t: 'One tap to add to your Pipeline CRM' },
                   ].map(s => (
                     <div key={s.t} className="flex items-center gap-2 text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
@@ -793,6 +950,7 @@ export default function DriveForDollars() {
                     key={cap.id}
                     capture={cap}
                     onAddPipeline={handleAddPipeline}
+                    onDeepScanComplete={handleDeepScanComplete}
                   />
                 ))}
               </div>
