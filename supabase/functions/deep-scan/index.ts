@@ -71,60 +71,95 @@ async function invoke(fn: string, body: unknown): Promise<any> {
 }
 
 // ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
+// ── AI extraction of permits/violations from search results ───────────────
+async function extractPermitsWithAI(fullAddr: string, rawResults: Array<{ title?: string; description?: string; url?: string }>) {
+  const key = Deno.env.get('LOVABLE_API_KEY')
+  if (!key || rawResults.length === 0) return { permits: [], violations: [], aiUsed: false }
+  const system = `You extract building permits, inspections, and code-enforcement violations from raw web search results.
+ONLY include records that are clearly for the target property address. Reject unrelated results.
+For each record, extract: date (ISO YYYY-MM-DD if possible), permitType (Electrical/Plumbing/Mechanical-HVAC/Roofing/Renovation/Addition/New Construction/Demolition/Inspection/Fence/Deck/Pool/Sign/Violation/Building), title, description, url, and confidence (high/medium/low).
+High = record explicitly lists the target street number + street name.
+Medium = street name matches and city/zip matches.
+Low = weak signals only.
+Return {} if no relevant records are found. Do not invent dates.`
+
+  const user = `TARGET ADDRESS: ${fullAddr}
+
+RAW SEARCH RESULTS (JSON):
+${JSON.stringify(rawResults.slice(0, 25), null, 2)}`
+
+  try {
+    const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        temperature: 0,
+        response_format: { type: 'json_object' },
+        messages: [
+          { role: 'system', content: system },
+          { role: 'user', content: user + '\n\nRespond ONLY with JSON: {"permits":[{...}],"violations":[{...}]}' },
+        ],
+      }),
+    })
+    if (!res.ok) return { permits: [], violations: [], aiUsed: false, aiError: `AI ${res.status}` }
+    const data = await res.json()
+    const content = data.choices?.[0]?.message?.content || '{}'
+    let parsed: any = {}
+    try { parsed = JSON.parse(content) } catch {
+      const m = content.match(/\{[\s\S]*\}/)
+      if (m) { try { parsed = JSON.parse(m[0]) } catch { parsed = {} } }
+    }
+    const norm = (arr: any[]) => (Array.isArray(arr) ? arr : []).map(r => ({
+      title: r.title || '',
+      url: r.url || '',
+      description: r.description || '',
+      date: r.date && /^\d{4}-\d{2}-\d{2}$/.test(r.date) ? r.date : (extractDate(`${r.title || ''} ${r.description || ''} ${r.date || ''}`)?.iso || null),
+      dateLabel: r.date || null,
+      permitType: r.permitType || classifyPermitType(`${r.title || ''} ${r.description || ''}`),
+      confidence: (r.confidence === 'high' || r.confidence === 'medium' || r.confidence === 'low') ? r.confidence : 'medium',
+      matchReasons: r.matchReasons || ['AI-verified for address'],
+      source: (() => { try { return new URL(r.url).hostname.replace(/^www\./, '') } catch { return 'web' } })(),
+    }))
+    return { permits: norm(parsed.permits), violations: norm(parsed.violations), aiUsed: true }
+  } catch (e) {
+    return { permits: [], violations: [], aiUsed: false, aiError: String(e) }
+  }
+}
+
 async function fetchPermitsViaFirecrawl(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { permits: [], violations: [], source: 'unavailable' as const, queriesRun: 0 }
+  if (!key) return { permits: [], violations: [], source: 'unavailable' as const, debug: { reason: 'FIRECRAWL_API_KEY missing' } }
 
-  // Normalize street: strip unit and trailing state/zip if the caller passed a full string
   const streetOnly = (street || '').split(',')[0].trim()
   const streetNoSuffix = streetOnly.replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '').trim()
   const cityLower = (city || '').toLowerCase().replace(/\s+/g, '')
   const stateLower = (state || '').toLowerCase()
+  const streetNumber = (streetOnly.match(/^\s*(\d+)/) || [])[1] || ''
 
-  // Address tokens for match scoring
-  const streetNumberMatch = streetOnly.match(/^\s*(\d+)/)
-  const streetNumber = streetNumberMatch?.[1] || ''
-  const streetNameLower = streetNoSuffix.toLowerCase().replace(/^\d+\s*/, '').trim()
-  const zipStr = (zip || '').trim()
-  const cityRaw = (city || '').toLowerCase()
-  const ownerLast = (ownerName || '').trim().split(/\s+/).filter(Boolean).pop()?.toLowerCase() || ''
-  const parcelLower = (parcelId || '').toLowerCase().trim()
-
-  // Known permit portals in VA/NC + common national platforms
   const portalSites = [
-    `${cityLower}.gov`,
-    `${cityLower}${stateLower}.gov`,
-    `city${cityLower}.gov`,
-    `${cityLower}va.gov`,
-    `${cityLower}nc.gov`,
-    `${stateLower}.gov`,
-    'accela.com',
-    'aca-prod.accela.com',
-    'energovweb.tylertech.com',
-    'viewpointcloud.com',
-    'opengov.com',
-    'permits.com',
-    'buildingeye.com',
-    'citizenserve.com',
-    'cloudpermit.com',
-    'openpermit.co',
-    'permitsearch.com',
-    'shovels.ai',
-    'bldrs.com',
+    `${cityLower}.gov`, `${cityLower}${stateLower}.gov`, `city${cityLower}.gov`,
+    `${cityLower}va.gov`, `${cityLower}nc.gov`, `${stateLower}.gov`,
+    'accela.com', 'aca-prod.accela.com', 'energovweb.tylertech.com', 'viewpointcloud.com',
+    'opengov.com', 'permits.com', 'buildingeye.com', 'citizenserve.com', 'cloudpermit.com',
+    'openpermit.co', 'permitsearch.com', 'shovels.ai', 'bldrs.com', 'buildzoom.com',
+    'buildfax.com', 'housinginsights.com',
   ]
   const siteFilter = portalSites.map(s => `site:${s}`).join(' OR ')
 
-  // Multi-query: portal-scoped, unscoped, violations-only
   const queries = [
-    `"${streetOnly}" ${city} ${state} (permit OR inspection OR "building permit" OR "trade permit" OR "electrical permit" OR "mechanical permit" OR "plumbing permit") (${siteFilter})`,
-    `"${streetOnly}" ${city} ${state} permit history`,
-    `"${streetNoSuffix}" ${city} ${state} permit`,
-    `"${streetOnly}" ${zip || city} (violation OR "code enforcement" OR condemn OR "notice of violation" OR "unsafe structure")`,
+    `"${streetOnly}" ${city} ${state} permit`,
+    `"${streetOnly}" ${city} ${state} building permit history`,
+    `"${streetOnly}" ${city} ${state} inspection OR "code enforcement" OR violation`,
+    `${streetNumber} "${streetNoSuffix}" ${city} ${state} (permit OR inspection) (${siteFilter})`,
+    `"${streetOnly}" ${zip || city} (permit OR violation)`,
+    `site:shovels.ai "${streetOnly}" ${city}`,
+    `site:buildzoom.com "${streetOnly}" ${city}`,
   ]
 
-  const permits: any[] = []
-  const violations: any[] = []
+  const rawAll: any[] = []
   const seen = new Set<string>()
+  let queriesOk = 0
 
   await Promise.all(queries.map(async q => {
     try {
@@ -134,76 +169,67 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
         body: JSON.stringify({ query: q, limit: 8 }),
       })
       if (!res.ok) return
+      queriesOk++
       const data = await res.json()
       const results = data?.data?.web || data?.data || []
       for (const r of results) {
         const url = r.url || ''
         if (!url || seen.has(url)) continue
         seen.add(url)
-        const t = `${r.title || ''} ${r.description || ''}`.toLowerCase()
-        // Loose relevance check: address token must appear somewhere OR result comes from a permit portal
-        const streetHit = streetNoSuffix && (t.includes(streetNoSuffix.toLowerCase()) || url.toLowerCase().includes(streetNoSuffix.toLowerCase().replace(/\s+/g, '')))
-        const portalHit = portalSites.some(p => url.toLowerCase().includes(p))
-        if (!streetHit && !portalHit) continue
-        const combined = `${r.title || ''} ${r.description || ''} ${url}`
-        const combinedLower = combined.toLowerCase()
-        const dateInfo = extractDate(combined)
-        const permitType = classifyPermitType(combined)
-
-        // ── Match-confidence scoring ────────────────────────────────
-        const matchReasons: string[] = []
-        let matchScore = 0
-
-        const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
-        const streetNameHit = streetNameLower.length >= 3 && combinedLower.includes(streetNameLower)
-        const cityHit = cityRaw.length >= 3 && combinedLower.includes(cityRaw)
-        const zipHit = zipStr.length >= 5 && combined.includes(zipStr)
-        const parcelHit = parcelLower.length >= 4 && combinedLower.includes(parcelLower)
-        const ownerHit = ownerLast.length >= 3 && combinedLower.includes(ownerLast)
-        const portalHitLocal = portalSites.some(p => url.toLowerCase().includes(p))
-
-        if (numberHit && streetNameHit) { matchScore += 4; matchReasons.push(`Street # ${streetNumber} + name`) }
-        else if (streetNameHit) { matchScore += 2; matchReasons.push('Street name') }
-        else if (numberHit) { matchScore += 1; matchReasons.push(`Street # ${streetNumber}`) }
-
-        if (zipHit) { matchScore += 2; matchReasons.push(`ZIP ${zipStr}`) }
-        else if (cityHit) { matchScore += 1; matchReasons.push('City') }
-
-        if (parcelHit) { matchScore += 4; matchReasons.push(`Parcel ${parcelId}`) }
-        if (ownerHit) { matchScore += 3; matchReasons.push(`Owner "${ownerName}"`) }
-        if (portalHitLocal) { matchScore += 1; matchReasons.push('Permit portal') }
-
-        const confidence: 'high' | 'medium' | 'low' =
-          matchScore >= 7 ? 'high' :
-          matchScore >= 4 ? 'medium' : 'low'
-
-        const item = {
-          title: r.title,
-          url,
-          description: r.description,
-          date: dateInfo?.iso || null,
-          dateLabel: dateInfo?.label || null,
-          permitType,
-          confidence,
-          matchReasons,
-          matchScore,
-          source: (() => {
-            const portal = portalSites.find(p => url.toLowerCase().includes(p))
-            if (portal) return portal
-            try { return new URL(url).hostname.replace(/^www\./, '') } catch { return 'web' }
-          })(),
-        }
-        if (t.includes('violation') || t.includes('condemn') || t.includes('code enforcement') || t.includes('unsafe')) violations.push(item)
-        else if (t.includes('permit') || t.includes('inspection') || t.includes('license') || portalHit) permits.push(item)
+        rawAll.push({ title: r.title || '', description: r.description || '', url })
       }
     } catch { /* swallow */ }
   }))
 
-  // Sort permits + violations by date desc (undated last)
+  // Ask AI to extract structured permits/violations for THIS address
+  const fullAddr = [streetOnly, city, state, zip].filter(Boolean).join(', ')
+  const ai = await extractPermitsWithAI(fullAddr, rawAll)
+
+  // Fallback heuristic pass (keeps low-conf portal hits so user sees something)
+  const heuristic: any[] = []
+  if (ai.permits.length + ai.violations.length === 0 && rawAll.length > 0) {
+    for (const r of rawAll.slice(0, 12)) {
+      const combined = `${r.title || ''} ${r.description || ''} ${r.url}`
+      const portalHit = portalSites.some(p => (r.url || '').toLowerCase().includes(p))
+      const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
+      const streetNameHit = streetNoSuffix.length >= 3 && combined.toLowerCase().includes(streetNoSuffix.toLowerCase())
+      if (!portalHit && !numberHit && !streetNameHit) continue
+      const dateInfo = extractDate(combined)
+      heuristic.push({
+        title: r.title,
+        url: r.url,
+        description: r.description,
+        date: dateInfo?.iso || null,
+        dateLabel: dateInfo?.label || null,
+        permitType: classifyPermitType(combined),
+        confidence: numberHit && streetNameHit ? 'medium' : 'low',
+        matchReasons: [portalHit ? 'Permit portal' : '', numberHit ? `Street # ${streetNumber}` : '', streetNameHit ? 'Street name' : ''].filter(Boolean),
+        source: (() => { try { return new URL(r.url).hostname.replace(/^www\./, '') } catch { return 'web' } })(),
+      })
+    }
+  }
+
   const byDateDesc = (a: any, b: any) => (b.date || '').localeCompare(a.date || '')
-  permits.sort(byDateDesc)
-  violations.sort(byDateDesc)
-  return { permits: permits.slice(0, 12), violations: violations.slice(0, 8), source: 'firecrawl' as const, queriesRun: queries.length }
+  const outPermits = [...ai.permits, ...heuristic.filter(h => h.permitType !== 'Violation')].sort(byDateDesc).slice(0, 15)
+  const outViolations = [...ai.violations, ...heuristic.filter(h => h.permitType === 'Violation')].sort(byDateDesc).slice(0, 10)
+
+  return {
+    permits: outPermits,
+    violations: outViolations,
+    source: 'firecrawl' as const,
+    debug: {
+      queriesRun: queries.length,
+      queriesOk,
+      rawHits: rawAll.length,
+      aiUsed: ai.aiUsed,
+      aiError: (ai as any).aiError || null,
+      note: outPermits.length + outViolations.length === 0
+        ? (rawAll.length === 0 ? 'No web results returned. Portals may not be indexed publicly for this address.'
+                               : 'Web results found but none matched this address. Try the record links below.')
+        : null,
+      rawSample: rawAll.slice(0, 5).map(r => ({ title: r.title, url: r.url })),
+    },
+  }
 }
 
 // ── DISTRESS SIGNALS via Firecrawl web search ─────────────────────────────
