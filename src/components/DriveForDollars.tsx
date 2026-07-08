@@ -200,6 +200,55 @@ function ResultCard({ capture, onAddPipeline }: {
   const motiv  = capture.motivation
   const inPipe = capture.inPipeline
 
+  // Deep Scan state — scoped to this card
+  const [dsRunning, setDsRunning] = useState(false)
+  const [dsData, setDsData] = useState<DeepScanData | null>(null)
+  const [dsError, setDsError] = useState<string | null>(null)
+  const [dsStep, setDsStep] = useState<string>('')
+
+  const runDeepScan = async () => {
+    setDsRunning(true); setDsError(null); setDsData({}); setDsStep('Fetching photos…')
+    const base = { address: capture.address, city: capture.city, state: capture.state, zip: capture.zip }
+    try {
+      // Photos (piggyback on full-mode call would be heavy; call property-photos directly)
+      try {
+        const { data } = await supabase.functions.invoke('property-photos', { body: base })
+        setDsData(d => ({ ...(d || {}), photos: { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 } }))
+      } catch {}
+
+      setDsStep('Scanning permits & violations…')
+      const permitsRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'permits' } })
+      if (permitsRes.data) setDsData(d => ({ ...(d || {}), permits: permitsRes.data }))
+
+      setDsStep('Searching distress signals…')
+      const distressRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' } })
+      if (distressRes.data) setDsData(d => ({ ...(d || {}), distress: distressRes.data }))
+
+      setDsStep('Generating AI summary…')
+      const context = {
+        ownerName: trace?.owner?.name,
+        equityPct: trace?.property?.equityPct,
+        taxStatus: trace?.property?.taxStatus,
+        estValue: trace?.property?.estimatedValue,
+        vacant: trace?.property?.vacant,
+        absentee: trace?.property?.absenteeOwner,
+        arvSuggestion: comps?.arvSuggestion,
+        motivationTier: motiv?.tier,
+        motivationScore: motiv?.score,
+        permits: (permitsRes.data?.permits || []).slice(0, 3),
+        violations: (permitsRes.data?.violations || []).slice(0, 3),
+        distress: (distressRes.data?.signals || []).slice(0, 3),
+      }
+      const sumRes = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
+      if (sumRes.data) setDsData(d => ({ ...(d || {}), summary: sumRes.data?.summary || '', generatedAt: new Date().toISOString() }))
+      setDsStep('')
+    } catch (e: any) {
+      setDsError(e?.message || 'Deep Scan failed')
+    } finally {
+      setDsRunning(false)
+    }
+  }
+
   const safePct = (n?: number) => (n != null && isFinite(n) && n > 0 && n < 100) ? `${n.toFixed(0)}%` : '—'
 
   const motivColor = motiv
