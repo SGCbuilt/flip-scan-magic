@@ -712,6 +712,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
 
   const TABS: { id: ModalTab; label: string }[] = [
     { id: 'overview',    label: '📋 Overview'     },
+    { id: 'deepscan',    label: '⚡ Deep Scan'     },
     { id: 'photos',      label: '📷 Photos'       },
     { id: 'strategies',  label: '⚡ Strategies'    },
     { id: 'deal',        label: '💰 Deal Analysis' },
@@ -954,6 +955,7 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
           {tab === 'ai'         && <AITab p={p} />}
           {tab === 'photos'     && <PhotosTab p={p} />}
           {tab === 'strategies' && <StrategiesTab p={p} />}
+          {tab === 'deepscan'   && <DeepScanTab p={p} />}
         </div>
       </div>
     </div>
