@@ -415,6 +415,14 @@ function ResultCard({ capture, onAddPipeline }: {
             style={{ background: inPipe ? '#EDFAF3' : '#1A7A4A', color: inPipe ? '#1A7A4A' : 'white' }}>
             {inPipe ? '✓ In Pipeline' : '+ Add to Pipeline'}
           </button>
+          <button
+            onClick={runDeepScan}
+            disabled={dsRunning}
+            className="px-4 py-3 rounded-xl text-sm font-bold border-none cursor-pointer flex items-center gap-1"
+            style={{ background: dsRunning ? '#EEF2FB' : '#0F2460', color: dsRunning ? 'var(--sgc-navy)' : 'white' }}
+            title="Deep Scan — photos, permits, violations, distress signals, AI summary">
+            {dsRunning ? '⏳' : '⚡'} <span className="hidden sm:inline">Deep Scan</span>
+          </button>
           <a href={`https://maps.google.com/?q=${encodeURIComponent(capture.address + ' ' + capture.city + ' ' + capture.state)}`}
             target="_blank" rel="noopener noreferrer"
             className="px-4 py-3 rounded-xl text-sm font-bold border-none no-underline flex items-center"
@@ -429,6 +437,79 @@ function ResultCard({ capture, onAddPipeline }: {
             </a>
           )}
         </div>
+
+        {/* Deep Scan panel */}
+        {(dsRunning || dsData || dsError) && (
+          <div className="rounded-xl border overflow-hidden mt-2" style={{ borderColor: 'var(--sgc-navy)40' }}>
+            <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#0F2460' }}>
+              <span className="text-xs font-bold text-white">⚡ Deep Scan</span>
+              {dsRunning && <span className="text-[10px] text-white/80">{dsStep}</span>}
+              {!dsRunning && dsData?.generatedAt && <span className="text-[10px] text-white/60">✓ complete</span>}
+            </div>
+            <div className="p-3 space-y-3">
+              {dsError && <div className="text-xs p-2 rounded bg-red-50 text-red-700">{dsError}</div>}
+
+              {/* Photos */}
+              {dsData?.photos && dsData.photos.list.length > 0 && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>📸 Photos ({dsData.photos.count})</div>
+                  <div className="flex gap-1.5 overflow-x-auto">
+                    {dsData.photos.list.slice(0, 6).map((src, i) => (
+                      <img key={i} src={src} alt="" className="h-16 w-20 object-cover rounded flex-shrink-0" />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Permits & Violations */}
+              {dsData?.permits && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
+                    🏗️ Permits ({dsData.permits.permits.length}) · Violations ({dsData.permits.violations.length})
+                  </div>
+                  {[...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
+                    ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const }))].slice(0, 4).map((it, i) => (
+                    <a key={i} href={it.url} target="_blank" rel="noopener noreferrer"
+                       className="block text-xs py-1 no-underline"
+                       style={{ color: it.type === 'violation' ? '#C0341D' : 'var(--sgc-navy)' }}>
+                      • {it.title || it.url}
+                    </a>
+                  ))}
+                  {dsData.permits.permits.length + dsData.permits.violations.length === 0 && (
+                    <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No records found</div>
+                  )}
+                </div>
+              )}
+
+              {/* Distress */}
+              {dsData?.distress && (
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>
+                    🚨 Distress signals ({dsData.distress.signals.length})
+                  </div>
+                  {dsData.distress.signals.slice(0, 4).map((s, i) => (
+                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer"
+                       className="block text-xs py-1 no-underline" style={{ color: '#C45E1A' }}>
+                      • {s.title || s.url}
+                      {s.flags?.length ? <span className="ml-1 text-[9px] uppercase" style={{ color: '#8A5700' }}>[{s.flags.join(', ')}]</span> : null}
+                    </a>
+                  ))}
+                  {dsData.distress.signals.length === 0 && (
+                    <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No distress signals detected</div>
+                  )}
+                </div>
+              )}
+
+              {/* AI Summary */}
+              {dsData?.summary && (
+                <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
+                  <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
