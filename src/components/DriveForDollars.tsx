@@ -28,7 +28,11 @@ import { supabase } from '@/integrations/supabase/client'
 // ── Deep Scan types (lightweight, no coupling to protected engines) ───────
 interface DeepScanData {
   photos?: { list: string[]; source: string; count: number }
-  permits?: { permits: Array<{ title?: string; url?: string; description?: string }>; violations: Array<{ title?: string; url?: string; description?: string }>; source: string }
+  permits?: {
+    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
+    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string }>;
+    source: string;
+  }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
   generatedAt?: string
