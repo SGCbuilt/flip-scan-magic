@@ -1,49 +1,50 @@
 import { AnalyzedProperty } from '../types'
+import { supabase } from '@/integrations/supabase/client'
 
 const fmt = (n: number) => '$' + Math.round(n).toLocaleString()
 
-export async function getAIAnalysis(property: AnalyzedProperty): Promise<string> {
-  // Add your Anthropic API key to .env as VITE_ANTHROPIC_API_KEY
-  const apiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('Set VITE_ANTHROPIC_API_KEY in your .env file')
+export type AIProvider = 'gemini' | 'claude'
 
-  const prompt = `You are a real estate flip analyst. Analyze this flip opportunity and give a concise, actionable assessment. Be specific, data-driven, and direct.
+function buildPrompt(p: AnalyzedProperty): string {
+  const margin = p.arv > 0 ? ((p.profit / p.arv) * 100).toFixed(1) : '0'
+  const rehabPerSqft = p.sqft ? (p.rehabCost / p.sqft).toFixed(0) : 'n/a'
+  const age = p.yearBuilt ? new Date().getFullYear() - p.yearBuilt : null
 
-Property: ${property.addr}, ${property.city}, ${property.state}
-List Price: ${fmt(property.price)} | Est ARV: ${fmt(property.arv)}
-Beds/Baths: ${property.beds}/${property.baths} | Sqft: ${property.sqft || 'unknown'}
-Days on Market: ${property.dom || 'unknown'} | Year Built: ${property.yearBuilt || 'unknown'}
-Property Type: ${property.propType}
-Flip Score: ${property.flipScore}/100 | Grade: ${property.scoreGrade}
-Est Rehab: ${fmt(property.rehabCost)} | Total Investment: ${fmt(property.totalInvested)}
-Est Net Profit: ${fmt(property.profit)} | ROI: ${property.roi.toFixed(1)}%
-70% Rule Max Offer: ${fmt(property.momsRule)} | ${property.underMoms ? 'PASSES 70% rule' : 'FAILS 70% rule'}
+  return `Analyze this VA/NC fix-and-flip opportunity as an SGC acquisitions analyst.
 
-Provide exactly 5 bullet points:
-• Deal summary & verdict
-• Key risks
-• Negotiation angle  
-• Recommended max offer
-• Best exit strategy`
+DEAL SNAPSHOT
+- Address: ${p.addr}, ${p.city}, ${p.state}
+- List: ${fmt(p.price)}   ARV: ${fmt(p.arv)}
+- Beds/Baths/Sqft: ${p.beds}/${p.baths}/${p.sqft || '?'}
+- Year built: ${p.yearBuilt || '?'}${age ? ` (${age} yrs)` : ''}   Type: ${p.propType}
+- DOM: ${p.dom ?? '?'}
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 1000,
-      messages: [{ role: 'user', content: prompt }]
-    })
+ECONOMICS
+- Rehab est: ${fmt(p.rehabCost)} (${rehabPerSqft} /sqft)
+- All-in: ${fmt(p.totalInvested)}
+- Net profit: ${fmt(p.profit)}   ROI: ${p.roi.toFixed(1)}%   Margin: ${margin}% of ARV
+- 70% rule max: ${fmt(p.momsRule)} → ${p.underMoms ? 'PASSES' : `FAILS by ${fmt(p.price - p.momsRule)}`}
+- Grade: ${p.scoreGrade} (${p.flipScore}/100)
+
+Return EXACTLY these 6 tight bullets, no preamble, no restatement of inputs:
+• VERDICT — Pursue / Negotiate / Pass, one sentence why, anchored to a number above.
+• RISK — the single biggest risk (structural age, thin margin, market, unknowns).
+• REHAB REALITY CHECK — is ${fmt(p.rehabCost)} realistic given age/sqft? Adjust up or down with a number.
+• NEGOTIATION ANGLE — specific leverage (DOM, condition, market comp) with a target concession in $.
+• MAX OFFER — a single number and how you got there (not just the 70% rule).
+• EXIT — flip / BRRRR / wholesale-assign, with the expected buyer profile.`
+}
+
+export async function getAIAnalysis(
+  property: AnalyzedProperty,
+  provider: AIProvider = 'gemini'
+): Promise<string> {
+  const { data, error } = await supabase.functions.invoke('ai-analysis', {
+    body: { prompt: buildPrompt(property), provider },
   })
-
-  if (!res.ok) throw new Error(`AI error ${res.status}`)
-  const data = await res.json()
-  return data.content?.[0]?.text || 'No analysis returned.'
+  if (error) throw new Error(error.message || 'AI request failed')
+  if (data?.error) throw new Error(data.error)
+  return data?.text || 'No analysis returned.'
 }
 
 export function generateQuickInsight(p: AnalyzedProperty): string {
