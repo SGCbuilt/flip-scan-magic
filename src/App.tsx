@@ -29,6 +29,7 @@ import DripSequences     from './components/DripSequences'
 import ProjectTracker    from './components/ProjectTracker'
 import NeighborhoodVelocity from './components/NeighborhoodVelocity'
 import Settings from './components/Settings'
+import PortalHub from './components/PortalHub'
 import ErrorBoundary from './components/ErrorBoundary'
 import ToastContainer from './components/ToastContainer'
 import Onboarding from './components/Onboarding'
@@ -44,7 +45,7 @@ import { analyzeProperty, sortResults } from './lib/scoring'
 export type AppState = 'idle' | 'loading' | 'results' | 'error'
 
 type TabId =
-  | 'home' | 'kpi'
+  | 'hub' | 'home' | 'kpi'
   | 'radar' | 'velocity' | 'stack' | 'drive'
   | 'pipeline' | 'tasks' | 'drip' | 'project' | 'pl'
   | 'deals' | 'hunt'
@@ -72,6 +73,7 @@ const NAV: NavSection[] = [
     section: 'Command',
     color:   'rgba(255,255,255,0.5)',
     items: [
+      { id: 'hub',  label: 'Portal Hub',     icon: '🏛️', tip: 'SGC-style command center — every tool in one grid' },
       { id: 'home', label: 'Morning Brief',  icon: '☀️', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Daily digest — leads, tasks, stale pipeline' },
       { id: 'kpi',  label: 'KPI Dashboard',  icon: '📊', tip: 'Business performance, accuracy, conversion rates' },
     ],
@@ -476,10 +478,10 @@ export default function App() {
     // Support PWA shortcuts via ?tab= URL parameter
     try {
       const param = new URLSearchParams(window.location.search).get('tab')
-      const valid: TabId[] = ['home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','wholesale','buyers','financial','market','analyzer','reference','settings']
+      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','wholesale','buyers','financial','market','analyzer','reference','settings']
       if (param && valid.includes(param as TabId)) return param as TabId
     } catch {}
-    return 'home'
+    return 'hub'
   })
   const [collapsed,       setCollapsed]       = useState(false)
   const [params,          setParams]          = useState<SearchParams>(DEFAULT_PARAMS)
@@ -790,6 +792,7 @@ export default function App() {
 
         {/* Content */}
         <main className="flex-1 overflow-hidden" style={{ background: '#F8FAFC' }}>
+          <ErrorBoundary label="Portal Hub">       {activeTab === 'hub'       && <PortalHub onNavigate={(t) => setActiveTab(t as TabId)} />} </ErrorBoundary>
           <ErrorBoundary label="Morning Brief">    {activeTab === 'home'      && <DailyDigest />}            </ErrorBoundary>
           <ErrorBoundary label="KPI Dashboard">    {activeTab === 'kpi'       && <KPIDashboard />}           </ErrorBoundary>
           <ErrorBoundary label="Lead Radar">       {activeTab === 'radar'     && <LeadRadar />}              </ErrorBoundary>
