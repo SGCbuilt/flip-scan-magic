@@ -40,6 +40,10 @@ interface DeepScanData {
       aiError?: string | null;
       note?: string | null;
       rawSample?: Array<{ title?: string; url?: string }>;
+      openData?: { available: boolean; domain?: string | null; dataset?: string | null; matched?: number; totalRowsScanned?: number; checkedDomains?: string[]; note?: string };
+      web?: any;
+      sources?: string[];
+      totalRecords?: number;
     };
   }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
