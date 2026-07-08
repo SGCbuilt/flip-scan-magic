@@ -871,6 +871,29 @@ export default function App() {
 
       <ToastContainer />
       {showOnboarding && <Onboarding onDismiss={() => setShowOnboarding(false)} />}
+
+      {/* Floating "Add Property" button — mobile-first D4D capture */}
+      <button
+        onClick={() => setShowAddProperty(true)}
+        aria-label="Add property"
+        className="fixed z-[90] rounded-full shadow-2xl border-none cursor-pointer text-white font-bold flex items-center justify-center bg-[#0F2460] hover:bg-[#1a3a8f] transition-colors"
+        style={{
+          bottom: 'calc(env(safe-area-inset-bottom) + 20px)',
+          right: '20px',
+          width: '56px',
+          height: '56px',
+          fontSize: '28px',
+        }}
+      >
+        +
+        {queueBadge > 0 && (
+          <span className="absolute -top-1 -right-1 bg-amber-500 text-white text-[10px] font-bold rounded-full min-w-[20px] h-5 flex items-center justify-center px-1">
+            {queueBadge}
+          </span>
+        )}
+      </button>
+
+      {showAddProperty && <AddPropertyMobile onClose={() => setShowAddProperty(false)} />}
     </div>
   )
 }
