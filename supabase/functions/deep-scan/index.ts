@@ -534,7 +534,7 @@ Deno.serve(async (req) => {
 
     // ── Per-step modes for client-side step-by-step UI ──────────────────
     if (body.mode === 'permits') {
-      const r = await fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '', body.ownerName, body.parcelId)
+      const r = await fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId)
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'distress') {
@@ -549,7 +549,7 @@ Deno.serve(async (req) => {
     // Run everything in parallel
     const [photos, permits, distress, variants] = await Promise.all([
       invoke('property-photos', { address: body.address, city, state, zip: body.zip }).catch(e => ({ error: String(e) })),
-      fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
+      fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
       fetchDistressSignals(fullAddr),
       body.deal
         ? invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }).catch(e => ({ error: String(e) }))
