@@ -71,6 +71,106 @@ async function invoke(fn: string, body: unknown): Promise<any> {
 }
 
 // ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
+// ── ARCGIS FEATURESERVER permit registries (verified endpoints) ───────────
+// Each entry is a FeatureServer layer that supports address-based queries.
+// Field names vary per city; we normalize at read time.
+const ARCGIS_PERMIT_LAYERS: Record<string, Array<{ url: string; streetNumberField: string; streetNameField: string; issuedDateField?: string; appliedDateField?: string; permitTypeField?: string; workDescField?: string; permitNumberField?: string; statusField?: string; contractorField?: string; costField?: string; label: string }>> = {
+  'raleigh': [
+    {
+      url: 'https://services.arcgis.com/v400IkDOw1ad7Yad/arcgis/rest/services/Building_Permits/FeatureServer/0',
+      streetNumberField: 'Street_Number',
+      streetNameField: 'Street_Name',
+      issuedDateField: 'Issued_Date',
+      appliedDateField: 'Applied_Date',
+      permitTypeField: 'Permit_Type_Mapped',
+      workDescField: 'Proposed_Work_Description',
+      permitNumberField: 'Permit_Number',
+      statusField: 'Current_Status',
+      contractorField: 'Contractor_Company_Name',
+      costField: 'Estimated_Project_Cost',
+      label: 'City of Raleigh Building Permits',
+    },
+  ],
+}
+
+async function fetchPermitsFromArcGIS(street: string, city: string) {
+  const cityKey = (city || '').toLowerCase().trim()
+  const layers = ARCGIS_PERMIT_LAYERS[cityKey]
+  if (!layers || layers.length === 0) return null
+
+  const streetOnly = (street || '').split(',')[0].trim()
+  const streetNumber = (streetOnly.match(/^\s*(\d+)/) || [])[1] || ''
+  const streetName = streetOnly.replace(/^\s*\d+\s*/, '').replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '').trim()
+  if (!streetNumber || !streetName) return null
+
+  for (const layer of layers) {
+    try {
+      const where = `UPPER(${layer.streetNameField}) LIKE '%${streetName.toUpperCase().replace(/'/g, "''")}%' AND ${layer.streetNumberField}=${Number(streetNumber)}`
+      const params = new URLSearchParams({
+        where,
+        outFields: '*',
+        f: 'json',
+        resultRecordCount: '100',
+        orderByFields: `${layer.issuedDateField || 'OBJECTID'} DESC`,
+      })
+      const res = await fetch(`${layer.url}/query?${params.toString()}`, { headers: { 'Accept': 'application/json' } })
+      if (!res.ok) continue
+      const data = await res.json()
+      const features: any[] = data?.features || []
+      if (features.length === 0) continue
+
+      const permits: any[] = []
+      const violations: any[] = []
+      for (const f of features) {
+        const a = f.attributes || {}
+        const issuedRaw = a[layer.issuedDateField || '']
+        const appliedRaw = a[layer.appliedDateField || '']
+        const toIso = (ms: any): string | null => {
+          if (ms == null) return null
+          const n = typeof ms === 'number' ? ms : Date.parse(String(ms))
+          if (!Number.isFinite(n)) return null
+          try { return new Date(n).toISOString().slice(0, 10) } catch { return null }
+        }
+        const date = toIso(issuedRaw) || toIso(appliedRaw)
+        const permitType = a[layer.permitTypeField || ''] || ''
+        const workDesc = a[layer.workDescField || ''] || ''
+        const permitNumber = a[layer.permitNumberField || ''] || ''
+        const status = a[layer.statusField || ''] || ''
+        const contractor = a[layer.contractorField || ''] || ''
+        const cost = a[layer.costField || ''] || ''
+        const isViolation = String(permitType).toLowerCase().includes('violation') || String(workDesc).toLowerCase().includes('violation')
+        const rec = {
+          title: [permitType, workDesc].filter(Boolean).join(' — ').slice(0, 180) || `Permit ${permitNumber}`,
+          description: [
+            permitNumber ? `# ${permitNumber}` : '',
+            status ? `Status: ${status}` : '',
+            contractor ? `Contractor: ${contractor}` : '',
+            cost && Number(cost) > 0 ? `Est. cost: $${Math.round(Number(cost)).toLocaleString()}` : '',
+            appliedRaw && toIso(appliedRaw) !== toIso(issuedRaw) ? `Applied ${toIso(appliedRaw)}` : '',
+          ].filter(Boolean).join(' · '),
+          url: `${layer.url}/query?where=${encodeURIComponent(where)}&outFields=*&f=html`,
+          date,
+          dateLabel: date,
+          permitType: permitType || classifyPermitType(workDesc),
+          confidence: 'high' as const,
+          matchReasons: ['Official ArcGIS registry', `# ${streetNumber}`, `Street ${streetName}`],
+          source: layer.label,
+          permitNumber: String(permitNumber || ''),
+          status: String(status || ''),
+          contractor: String(contractor || ''),
+          cost: cost ? String(cost) : '',
+        }
+        if (isViolation) violations.push(rec)
+        else permits.push(rec)
+      }
+      permits.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      violations.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+      return { permits, violations, domain: new URL(layer.url).hostname, dataset: layer.label, matched: features.length, totalRowsScanned: features.length, checked: [layer.url] }
+    } catch { /* try next layer */ }
+  }
+  return null
+}
+
 // ── OPEN DATA (Socrata) permit registry lookup ────────────────────────────
 // Maps VA/NC cities SGC works in to their open-data portal domain.
 // The dataset id is discovered dynamically via Socrata's Discovery API so
