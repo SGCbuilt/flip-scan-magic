@@ -3,28 +3,95 @@ import { useState, useEffect } from 'react'
 import { AnalyzedProperty, SearchParams } from '../types'
 import { fmt$ } from '../lib/utils'
 import { fetchComparables } from '../lib/rentcast'
-import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, runDeepScan, type DealVariants, type DeepScanResult } from '../lib/aiAnalysis'
+import { getAIAnalysis, generateQuickInsight, getDealVariants, getPropertyPhotos, runDeepScan, fetchDeepScanPermits, fetchDeepScanDistress, fetchDeepScanSummary, type DealVariants, type DeepScanResult } from '../lib/aiAnalysis'
 
 // ── DEEP SCAN TAB ─────────────────────────────────────────────────────────
+type StepKey = 'photos' | 'permits' | 'distress' | 'variants' | 'summary'
+type StepStatus = 'pending' | 'running' | 'done' | 'error'
+interface StepState { key: StepKey; label: string; etaSec: number; status: StepStatus; elapsedMs?: number; note?: string; error?: string }
+
+const INITIAL_STEPS: StepState[] = [
+  { key: 'photos',   label: 'Pull property photos',        etaSec: 5,  status: 'pending' },
+  { key: 'permits',  label: 'Search permits & violations', etaSec: 6,  status: 'pending' },
+  { key: 'distress', label: 'Scan distress signals',       etaSec: 6,  status: 'pending' },
+  { key: 'variants', label: 'AI strategy variants',        etaSec: 10, status: 'pending' },
+  { key: 'summary',  label: 'Executive summary',           etaSec: 8,  status: 'pending' },
+]
+
 function DeepScanTab({ p }: { p: AnalyzedProperty }) {
   const [data, setData] = useState<DeepScanResult | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [step, setStep] = useState('')
+  const [steps, setSteps] = useState<StepState[]>(INITIAL_STEPS)
+  const [tick, setTick] = useState(0)
+  const [startedAt, setStartedAt] = useState<number | null>(null)
+
+  // 1Hz tick while running so ETAs update live
+  useEffect(() => {
+    if (!loading) return
+    const iv = setInterval(() => setTick(t => t + 1), 500)
+    return () => clearInterval(iv)
+  }, [loading])
 
   const run = async () => {
-    setLoading(true); setError(''); setData(null)
-    const steps = ['Pulling photos…', 'Searching permits & violations…', 'Scanning distress signals…', 'Running AI strategy variants…', 'Generating executive summary…']
-    let i = 0
-    setStep(steps[0])
-    const iv = setInterval(() => { i = Math.min(i + 1, steps.length - 1); setStep(steps[i]) }, 2500)
+    setLoading(true); setError(''); setData(null); setStartedAt(Date.now())
+    setSteps(INITIAL_STEPS.map(s => ({ ...s })))
+
+    const mark = (key: StepKey, patch: Partial<StepState>) =>
+      setSteps(prev => prev.map(s => s.key === key ? { ...s, ...patch } : s))
+
+    const runStep = async <T,>(key: StepKey, fn: () => Promise<T>, noteFor: (r: T) => string): Promise<T | null> => {
+      const t0 = Date.now()
+      mark(key, { status: 'running' })
+      try {
+        const r = await fn()
+        mark(key, { status: 'done', elapsedMs: Date.now() - t0, note: noteFor(r) })
+        return r
+      } catch (e: any) {
+        mark(key, { status: 'error', elapsedMs: Date.now() - t0, error: e?.message || 'Failed' })
+        return null
+      }
+    }
+
     try {
-      const r = await runDeepScan(p)
-      setData(r)
+      const photos = await runStep('photos', () => getPropertyPhotos(p),
+        r => `${r.count} photos · ${r.source}`)
+      const permits = await runStep('permits', () => fetchDeepScanPermits(p),
+        r => `${r.permits.length} permits · ${r.violations.length} violations`)
+      const distress = await runStep('distress', () => fetchDeepScanDistress(p),
+        r => `${r.signals.length} signals`)
+      const variants = await runStep('variants', () => getDealVariants(p),
+        r => `Pick: ${r.recommendedStrategy.toUpperCase()}`)
+      const summary = await runStep('summary', () => fetchDeepScanSummary(p, {
+        deal: {
+          listPrice: p.price, arv: p.arv, rehab: p.rehabCost,
+          profit: p.profit, roi: p.roi, seventyPctMax: p.momsRule,
+        },
+        permitsFound: permits?.permits.length ?? 0,
+        violationsFound: permits?.violations.length ?? 0,
+        distressSignals: (distress?.signals || []).map(s => s.flags).flat(),
+        photosFound: photos?.count ?? 0,
+        recommendedStrategy: variants?.recommendedStrategy ?? null,
+        topRisk: variants?.topRisk ?? null,
+      }), r => r ? 'Ready' : 'Empty')
+
+      setData({
+        address: `${p.addr}, ${p.city}, ${p.state} ${p.zip}`,
+        generatedAt: new Date().toISOString(),
+        photos: { list: photos?.photos || [], source: photos?.source || 'none', count: photos?.count || 0 },
+        permits: {
+          permits: permits?.permits || [],
+          violations: permits?.violations || [],
+          source: permits?.source || 'none',
+        },
+        distress: { signals: distress?.signals || [], source: distress?.source || 'none' },
+        variants: variants || null,
+        summary: summary || '',
+      })
     } catch (e: any) {
-      setError(e.message || 'Deep scan failed')
+      setError(e?.message || 'Deep scan failed')
     } finally {
-      clearInterval(iv); setLoading(false); setStep('')
+      setLoading(false)
     }
   }
 
@@ -41,23 +108,94 @@ function DeepScanTab({ p }: { p: AnalyzedProperty }) {
           className="bg-[var(--sgc-navy)] hover:bg-[#1a3a8f] text-white text-xs font-bold tracking-widest uppercase px-6 py-3 rounded-xl cursor-pointer border-none shadow-lg">
           ⚡ Run Deep Scan
         </button>
-        <div className="text-[10px] text-[var(--sgc-gray-mid)] mt-3">Takes ~15-30 seconds · uses AI credits</div>
+        <div className="text-[10px] text-[var(--sgc-gray-mid)] mt-3">
+          Takes ~{INITIAL_STEPS.reduce((s, x) => s + x.etaSec, 0)}s · uses AI credits
+        </div>
       </div>
     )
   }
 
-  if (loading) return (
-    <div className="flex flex-col items-center justify-center py-12">
-      <div className="w-10 h-10 border-2 border-[var(--sgc-gray-border)] border-t-[var(--sgc-navy)] rounded-full spin mb-4" />
-      <div className="text-xs text-[var(--sgc-black)] font-semibold mb-1">Deep Scan in progress</div>
-      <div className="text-[11px] text-[var(--sgc-gray-mid)]">{step}</div>
+  // Progress panel (also shown alongside results after complete)
+  const totalEta = steps.reduce((s, x) => s + x.etaSec, 0)
+  const doneCount = steps.filter(s => s.status === 'done' || s.status === 'error').length
+  const runningIdx = steps.findIndex(s => s.status === 'running')
+  const elapsedSec = startedAt ? Math.floor((Date.now() - startedAt) / 1000) : 0
+  const remainingEta = steps
+    .filter(s => s.status === 'pending' || s.status === 'running')
+    .reduce((sum, s, i) => {
+      if (s.status === 'running') {
+        const usedSec = Math.floor(((Date.now() - (startedAt || Date.now())) / 1000)) - steps.slice(0, i).reduce((a, b) => a + Math.max(0, Math.round((b.elapsedMs || 0) / 1000)), 0)
+        return sum + Math.max(1, s.etaSec - Math.max(0, usedSec))
+      }
+      return sum + s.etaSec
+    }, 0)
+  void tick // reference so 500ms rerender uses it
+
+  const ProgressPanel = (
+    <div className="bg-[var(--sgc-gray-light)] border border-[var(--sgc-gray-border)] rounded-xl p-4 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div className="text-[10px] uppercase tracking-[2px] text-[var(--sgc-navy)] font-bold">
+          {loading ? 'Deep Scan in progress' : 'Deep Scan complete'}
+        </div>
+        <div className="text-[10px] text-[var(--sgc-gray-mid)] font-mono">
+          {loading
+            ? `${elapsedSec}s elapsed · ~${remainingEta}s left`
+            : `${doneCount}/${steps.length} done · ${elapsedSec}s total`}
+        </div>
+      </div>
+      <div className="h-1.5 bg-[var(--sgc-gray-border)] rounded-full overflow-hidden mb-4">
+        <div
+          className="h-full bg-[var(--sgc-navy)] transition-all duration-500"
+          style={{ width: `${Math.min(100, (doneCount / steps.length) * 100 + (runningIdx >= 0 ? (1 / steps.length) * 50 : 0))}%` }}
+        />
+      </div>
+      <ol className="space-y-2">
+        {steps.map((s, i) => (
+          <li key={s.key} className="flex items-center gap-3 text-[11px]">
+            <div className={`flex-shrink-0 w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
+              s.status === 'done' ? 'bg-[var(--sgc-success)] text-white'
+              : s.status === 'error' ? 'bg-[var(--sgc-danger)] text-white'
+              : s.status === 'running' ? 'bg-[var(--sgc-navy)] text-white' : 'bg-[var(--sgc-gray-border)] text-[var(--sgc-gray-mid)]'
+            }`}>
+              {s.status === 'done' ? '✓' : s.status === 'error' ? '!' : s.status === 'running'
+                ? <span className="w-2.5 h-2.5 border border-white border-t-transparent rounded-full spin" />
+                : i + 1}
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className={`font-semibold ${s.status === 'pending' ? 'text-[var(--sgc-gray-mid)]' : 'text-[var(--sgc-black)]'}`}>
+                {s.label}
+              </div>
+              {(s.note || s.error) && (
+                <div className={`text-[10px] ${s.error ? 'text-[var(--sgc-danger)]' : 'text-[var(--sgc-gray-mid)]'}`}>
+                  {s.error || s.note}
+                </div>
+              )}
+            </div>
+            <div className="text-[10px] text-[var(--sgc-gray-mid)] font-mono flex-shrink-0">
+              {s.status === 'done' || s.status === 'error'
+                ? `${((s.elapsedMs || 0) / 1000).toFixed(1)}s`
+                : s.status === 'running' ? `~${s.etaSec}s` : `~${s.etaSec}s`}
+            </div>
+          </li>
+        ))}
+      </ol>
+      {loading && (
+        <div className="text-[10px] text-[var(--sgc-gray-mid)] text-center mt-3">
+          Total estimate: ~{totalEta}s
+        </div>
+      )}
     </div>
   )
 
+  if (loading) return ProgressPanel
+
   if (error) return (
-    <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
-      <div className="text-xs text-[var(--sgc-danger)] mb-2">{error}</div>
-      <button onClick={run} className="text-[11px] px-3 py-1.5 bg-[var(--sgc-navy)] text-white rounded-lg cursor-pointer border-none">Retry</button>
+    <div>
+      {ProgressPanel}
+      <div className="p-4 bg-red-50 border border-red-200 rounded-xl">
+        <div className="text-xs text-[var(--sgc-danger)] mb-2">{error}</div>
+        <button onClick={run} className="text-[11px] px-3 py-1.5 bg-[var(--sgc-navy)] text-white rounded-lg cursor-pointer border-none">Retry</button>
+      </div>
     </div>
   )
 
@@ -66,6 +204,7 @@ function DeepScanTab({ p }: { p: AnalyzedProperty }) {
 
   return (
     <div className="space-y-4">
+      {ProgressPanel}
       {/* HEADER */}
       <div className="flex items-center justify-between">
         <div>
