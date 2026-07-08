@@ -107,13 +107,30 @@ function getAnthropicKey() {
   try { return localStorage.getItem('fscan_anthropic') || '' } catch { return '' }
 }
 
-async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) => void): Promise<DeepScanData> {
+async function runDeepScanForCapture(
+  capture: Capture,
+  onStep?: (step: string) => void,
+  opts?: { forceRefresh?: boolean }
+): Promise<DeepScanData> {
   const scan: DeepScanData = { errors: [] }
-  const base = { address: capture.address, city: capture.city, state: capture.state, zip: capture.zip }
+  // Cache-buster token — forwarded on every sub-call so any upstream cache
+  // (edge, CDN, function-level memoization) treats the request as unique.
+  const nonce = `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
+  const forceRefresh = !!opts?.forceRefresh
+  const base = {
+    address: capture.address,
+    city: capture.city,
+    state: capture.state,
+    zip: capture.zip,
+    ...(forceRefresh ? { forceRefresh: true, noCache: true, _ts: nonce } : {}),
+  }
+  const invokeOpts = forceRefresh
+    ? { headers: { 'Cache-Control': 'no-cache', 'x-refresh': nonce } }
+    : undefined
 
   onStep?.('photos · checking property imagery')
   try {
-    const { data, error } = await supabase.functions.invoke('property-photos', { body: base })
+    const { data, error } = await supabase.functions.invoke('property-photos', { body: base, ...(invokeOpts || {}) })
     if (error) throw error
     scan.photos = { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 }
   } catch (e: any) {
@@ -127,7 +144,7 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
     if (capture.trace?.owner?.name) permitBody.ownerName = capture.trace.owner.name
     const parcelId = (capture.trace?.property as any)?.parcelId || (capture.trace?.property as any)?.parcel
     if (parcelId) permitBody.parcelId = parcelId
-    const { data, error } = await supabase.functions.invoke('deep-scan', { body: permitBody })
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: permitBody, ...(invokeOpts || {}) })
     if (error) throw error
     permitsData = data || { permits: [], violations: [], source: 'none' }
     scan.permits = permitsData
@@ -139,7 +156,7 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
   onStep?.('distress · searching risk signals')
   let distressData: any = null
   try {
-    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' } })
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'distress' }, ...(invokeOpts || {}) })
     if (error) throw error
     distressData = data || { signals: [], source: 'none' }
     scan.distress = distressData
@@ -166,7 +183,7 @@ async function runDeepScanForCapture(capture: Capture, onStep?: (step: string) =
       recordsHeldForReview: [...(permitsData?.permits || []), ...(permitsData?.violations || [])].filter((r: PermitRecord) => !isSupportPermitRecord(r)).length,
       distress: (distressData?.signals || []).slice(0, 3),
     }
-    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context } })
+    const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
     if (error) throw error
     scan.summary = data?.summary || ''
   } catch (e: any) {
