@@ -506,6 +506,7 @@ export default function App() {
     return 'hub'
   })
   const [collapsed,       setCollapsed]       = useState(false)
+  const [sidebarHidden,   setSidebarHidden]   = useState(false)
   const [params,          setParams]          = useState<SearchParams>(DEFAULT_PARAMS)
   const [results,         setResults]         = useState<AnalyzedProperty[]>([])
   const [allAnalyzed,     setAllAnalyzed]     = useState<AnalyzedProperty[]>([])
@@ -611,12 +612,14 @@ export default function App() {
     <div className="flex h-screen overflow-hidden" style={{ background: '#F1F5F9' }}>
 
       {/* ── SIDEBAR NAV ── */}
-      <Sidebar
-        activeTab={activeTab}
-        onTab={setActiveTab}
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(c => !c)}
-      />
+      {!sidebarHidden && (
+        <Sidebar
+          activeTab={activeTab}
+          onTab={setActiveTab}
+          collapsed={collapsed}
+          onToggle={() => setCollapsed(c => !c)}
+        />
+      )}
 
       {/* ── MAIN CONTENT ── */}
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
@@ -628,6 +631,8 @@ export default function App() {
           handleSearch={handleSearch} activeStrategy={activeStrategy}
           setActiveStrategy={setActiveStrategy} strategyPills={strategyPills}
           showFilters={showFilters} setShowFilters={setShowFilters}
+          sidebarHidden={sidebarHidden}
+          onToggleSidebar={() => setSidebarHidden(h => !h)}
         />
 
         {/* Filter drawer — Deal Scanner only */}
