@@ -144,7 +144,11 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
           date: dateInfo?.iso || null,
           dateLabel: dateInfo?.label || null,
           permitType,
-          source: (portalSites.find(p => url.toLowerCase().includes(p)) || new URL(url).hostname).replace(/^www\./, ''),
+          source: (() => {
+            const portal = portalSites.find(p => url.toLowerCase().includes(p))
+            if (portal) return portal
+            try { return new URL(url).hostname.replace(/^www\./, '') } catch { return 'web' }
+          })(),
         }
         if (t.includes('violation') || t.includes('condemn') || t.includes('code enforcement') || t.includes('unsafe')) violations.push(item)
         else if (t.includes('permit') || t.includes('inspection') || t.includes('license') || portalHit) permits.push(item)
