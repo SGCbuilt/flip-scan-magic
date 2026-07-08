@@ -804,6 +804,12 @@ export default function PropertyModal({ property: p, params, onClose }: Props) {
                 {l.label} ↗
               </a>
             ))}
+            <button
+              onClick={() => setTab('deepscan')}
+              className="ml-auto text-[10px] font-bold uppercase tracking-wider px-3 py-1 rounded-lg border-none cursor-pointer bg-[var(--sgc-navy)] text-white hover:bg-[#1a3a8f] shadow"
+            >
+              ⚡ Deep Scan
+            </button>
           </div>
 
           {/* Quick numbers */}
