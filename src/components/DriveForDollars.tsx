@@ -525,7 +525,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                   </div>
                   {latest && (
                     <span className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
-                      Latest {new Date(latest).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}
+                      Latest {formatPermitDate(latest, latest)}
                     </span>
                   )}
                 </div>
@@ -584,11 +584,39 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                         </a>
                       )
                     })}
-                    {total > 3 && (
+                    {all.slice(3, 12).map((it, i) => {
+                      const isV = it.type === 'violation'
+                      const color = isV ? '#C0341D' : 'var(--sgc-navy)'
+                      const conf = it.confidence || 'low'
+                      const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
+                      const dateText = it.date ? formatPermitDate(it.date, it.dateLabel) : (it.dateLabel || 'undated')
+                      return (
+                        <a key={`more-${i}`} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-[11px] no-underline py-1 px-1.5 rounded-md hover:bg-black/5 transition-colors"
+                          style={{ color: 'var(--sgc-black)' }}>
+                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                          <span className="font-mono font-bold flex-shrink-0" style={{ color, minWidth: 78 }}>{dateText}</span>
+                          <span className="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase" style={{ background: '#EEF2FB', color }}>
+                            {isV ? 'Violation' : (it.permitType || 'Permit')}
+                          </span>
+                          <span className="truncate flex-1 font-semibold">{it.title || it.url || 'record'}</span>
+                          <span className="flex-shrink-0 text-[8px] font-black px-1 py-0.5 rounded uppercase text-white" style={{ background: confBg }}
+                            title={it.matchReasons?.join(' · ') || 'match confidence'}>
+                            {conf}
+                          </span>
+                        </a>
+                      )
+                    })}
+                    {total > 12 && (
                       <div className="text-[10px] pt-1 font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
-                        + {total - 3} more in full timeline below ↓
+                        + {total - 12} more records available from the source link.
                       </div>
                     )}
+                    <button onClick={runDeepScan} disabled={dsRunning}
+                      className="mt-2 w-full py-2 rounded-lg text-[10px] font-black uppercase tracking-wide border-none cursor-pointer"
+                      style={{ background: dsRunning ? '#EEF2FB' : '#0F2460', color: dsRunning ? 'var(--sgc-navy)' : 'white' }}>
+                      {dsRunning ? 'Refreshing permit history…' : 'Refresh live permit history'}
+                    </button>
                     {needsReview.length > 0 && (
                       <div className="text-[10px] pt-1 font-semibold" style={{ color: '#8A5700' }}>
                         {needsReview.length} low-confidence hit{needsReview.length === 1 ? '' : 's'} shown for review only — not used in the score.
@@ -901,7 +929,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                       </div>
                       {latest && (
                         <div className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
-                          Latest: {new Date(latest).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          Latest: {formatPermitDate(latest, latest)}
                         </div>
                       )}
                     </div>
