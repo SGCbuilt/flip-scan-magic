@@ -26,33 +26,80 @@ async function invoke(fn: string, body: unknown): Promise<any> {
   try { return JSON.parse(text) } catch { return { error: text } }
 }
 
-// ── PERMITS / VIOLATIONS via Firecrawl (best-effort) ──────────────────────
-async function fetchPermitsViaFirecrawl(fullAddr: string, city: string, state: string) {
+// ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
+async function fetchPermitsViaFirecrawl(street: string, city: string, state: string, zip: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { permits: [], violations: [], source: 'unavailable' as const }
+  if (!key) return { permits: [], violations: [], source: 'unavailable' as const, queriesRun: 0 }
 
-  const query = `${fullAddr} building permits OR code violations OR inspection history site:${city}.gov OR site:${state}.gov`
-  try {
-    const res = await fetch('https://api.firecrawl.dev/v2/search', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query, limit: 5 }),
-    })
-    if (!res.ok) return { permits: [], violations: [], source: 'error' as const, error: `Firecrawl ${res.status}` }
-    const data = await res.json()
-    const results = data?.data?.web || data?.data || []
-    const permits: any[] = []
-    const violations: any[] = []
-    for (const r of results) {
-      const item = { title: r.title, url: r.url, description: r.description }
-      const t = `${r.title || ''} ${r.description || ''}`.toLowerCase()
-      if (t.includes('violation') || t.includes('condemn') || t.includes('code enforcement')) violations.push(item)
-      else if (t.includes('permit') || t.includes('inspection')) permits.push(item)
-    }
-    return { permits, violations, source: 'firecrawl' as const }
-  } catch (e) {
-    return { permits: [], violations: [], source: 'error' as const, error: String(e) }
-  }
+  // Normalize street: strip unit and trailing state/zip if the caller passed a full string
+  const streetOnly = (street || '').split(',')[0].trim()
+  const streetNoSuffix = streetOnly.replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '').trim()
+  const cityLower = (city || '').toLowerCase().replace(/\s+/g, '')
+  const stateLower = (state || '').toLowerCase()
+
+  // Known permit portals in VA/NC + common national platforms
+  const portalSites = [
+    `${cityLower}.gov`,
+    `${cityLower}${stateLower}.gov`,
+    `city${cityLower}.gov`,
+    `${cityLower}va.gov`,
+    `${cityLower}nc.gov`,
+    `${stateLower}.gov`,
+    'accela.com',
+    'aca-prod.accela.com',
+    'energovweb.tylertech.com',
+    'viewpointcloud.com',
+    'opengov.com',
+    'permits.com',
+    'buildingeye.com',
+    'citizenserve.com',
+    'cloudpermit.com',
+    'openpermit.co',
+    'permitsearch.com',
+    'shovels.ai',
+    'bldrs.com',
+  ]
+  const siteFilter = portalSites.map(s => `site:${s}`).join(' OR ')
+
+  // Multi-query: portal-scoped, unscoped, violations-only
+  const queries = [
+    `"${streetOnly}" ${city} ${state} (permit OR inspection OR "building permit" OR "trade permit" OR "electrical permit" OR "mechanical permit" OR "plumbing permit") (${siteFilter})`,
+    `"${streetOnly}" ${city} ${state} permit history`,
+    `"${streetNoSuffix}" ${city} ${state} permit`,
+    `"${streetOnly}" ${zip || city} (violation OR "code enforcement" OR condemn OR "notice of violation" OR "unsafe structure")`,
+  ]
+
+  const permits: any[] = []
+  const violations: any[] = []
+  const seen = new Set<string>()
+
+  await Promise.all(queries.map(async q => {
+    try {
+      const res = await fetch('https://api.firecrawl.dev/v2/search', {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: q, limit: 8 }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const results = data?.data?.web || data?.data || []
+      for (const r of results) {
+        const url = r.url || ''
+        if (!url || seen.has(url)) continue
+        seen.add(url)
+        const t = `${r.title || ''} ${r.description || ''}`.toLowerCase()
+        // Loose relevance check: address token must appear somewhere OR result comes from a permit portal
+        const streetHit = streetNoSuffix && (t.includes(streetNoSuffix.toLowerCase()) || url.toLowerCase().includes(streetNoSuffix.toLowerCase().replace(/\s+/g, '')))
+        const portalHit = portalSites.some(p => url.toLowerCase().includes(p))
+        if (!streetHit && !portalHit) continue
+        const item = { title: r.title, url, description: r.description }
+        if (t.includes('violation') || t.includes('condemn') || t.includes('code enforcement') || t.includes('unsafe')) violations.push(item)
+        else if (t.includes('permit') || t.includes('inspection') || t.includes('license') || portalHit) permits.push(item)
+      }
+    } catch { /* swallow */ }
+  }))
+
+  return { permits: permits.slice(0, 12), violations: violations.slice(0, 8), source: 'firecrawl' as const, queriesRun: queries.length }
 }
 
 // ── DISTRESS SIGNALS via Firecrawl web search ─────────────────────────────
@@ -137,7 +184,7 @@ Deno.serve(async (req) => {
 
     // ── Per-step modes for client-side step-by-step UI ──────────────────
     if (body.mode === 'permits') {
-      const r = await fetchPermitsViaFirecrawl(fullAddr, city, state)
+      const r = await fetchPermitsViaFirecrawl(body.address, city, state, body.zip || '')
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'distress') {
@@ -152,7 +199,7 @@ Deno.serve(async (req) => {
     // Run everything in parallel
     const [photos, permits, distress, variants] = await Promise.all([
       invoke('property-photos', { address: body.address, city, state, zip: body.zip }).catch(e => ({ error: String(e) })),
-      fetchPermitsViaFirecrawl(fullAddr, city, state),
+      fetchPermitsViaFirecrawl(body.address, city, state, body.zip || ''),
       fetchDistressSignals(fullAddr),
       body.deal
         ? invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }).catch(e => ({ error: String(e) }))
