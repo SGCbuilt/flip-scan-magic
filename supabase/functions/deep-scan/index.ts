@@ -1085,7 +1085,7 @@ function sectionsToMarkdown(sections: EvalSection[]): string {
 async function execSummary(context: Record<string, unknown>): Promise<EvalResult> {
   const key = Deno.env.get('LOVABLE_API_KEY')
   if (!key) return { summary: '', sections: [] }
-  const system = `You are the senior acquisitions principal for SGC General Contractors (VA/NC). Produce an institutional-grade fix-and-flip evaluation for a driving-for-dollars deep scan. Numbers first, risk second, exit third. No hedging, no filler.
+  const system = `You are the senior acquisitions principal for SGC General Contractors (VA/NC). Produce an INSTITUTIONAL-GRADE, exhaustive fix-and-flip evaluation for a driving-for-dollars deep scan. Numbers first, risk second, exit third. No hedging, no filler, no generic advice — every sentence must tie back to specific data points, addresses, dollar figures, permit numbers, or observed condition from DATA.
 
 You MUST return STRICT JSON only (no markdown, no prose outside JSON). Each section has a priority the UI uses to color-code the paragraph:
 - "critical": deal-killer or must-act-now (bright red band)
@@ -1094,23 +1094,35 @@ You MUST return STRICT JSON only (no markdown, no prose outside JSON). Each sect
 - "low":      supporting evidence / operational detail (blue band)
 - "info":     neutral background (navy band)
 
-Every "body" is a single tight paragraph (2–5 sentences), specific to the DATA provided. Do NOT invent numbers, permits, ownership, or ARV that aren't in DATA.`
+Every "body" is a detailed paragraph of 4–8 sentences, cite specific numbers from DATA (ARV, rehab, ARV×0.70 − rehab, permit counts, distress signals, owner tenure, tax delinquency, days on market, comp $/sf, etc). NEVER invent numbers, permits, ownership, or ARV that aren't in DATA — if a field is missing, say it is missing and what to pull next.`
 
-  const prompt = `Return JSON exactly matching this schema:
+  const prompt = `Return JSON exactly matching this schema. Include ALL sections — do not omit any:
 {
-  "summary": "<one-sentence bottom-line verdict tied to the numbers>",
+  "summary": "<two-sentence bottom-line verdict tied to concrete numbers>",
   "sections": [
-    { "heading": "Bottom Line",           "priority": "critical|high|medium|low|info", "body": "<paragraph>" },
-    { "heading": "Deal Thesis",           "priority": "high",                          "body": "<paragraph>" },
-    { "heading": "Red Flags",             "priority": "critical|high",                 "body": "<paragraph>" },
-    { "heading": "Rehab & Scope Reality", "priority": "high|medium",                   "body": "<paragraph>" },
-    { "heading": "Recommended Play",      "priority": "high",                          "body": "<paragraph — flip / wholesale / BRRRR with target offer>" },
-    { "heading": "Seller Approach",       "priority": "medium",                        "body": "<3-4 sentences you would say at the door>" },
-    { "heading": "Data Confidence",       "priority": "low|info",                      "body": "<what is verified vs. what still needs verification>" }
+    { "heading": "Bottom Line",              "priority": "critical|high|medium|low|info", "body": "<verdict + max allowable offer + expected profit>" },
+    { "heading": "Deal Thesis",              "priority": "high",                          "body": "<why this deal works or doesn't, in market context>" },
+    { "heading": "Numbers Breakdown",        "priority": "high",                          "body": "<ARV, rehab, 70% rule math, projected profit, ROI, margin of safety>" },
+    { "heading": "Red Flags",                "priority": "critical|high",                 "body": "<title, liens, code, structural, environmental, market>" },
+    { "heading": "Rehab & Scope Reality",    "priority": "high|medium",                   "body": "<what the photos + age + permits imply about actual scope vs. estimator>" },
+    { "heading": "Permits & Violations",     "priority": "high|medium|low",               "body": "<what open/closed permits and violations mean for this deal>" },
+    { "heading": "Distress & Motivation",    "priority": "high|medium",                   "body": "<owner tenure, out-of-state, tax status, foreclosure, probate, vacancy cues>" },
+    { "heading": "Comparable Sales Read",    "priority": "medium",                        "body": "<how solid the ARV is: comp count, $/sf spread, recency, adjustments needed>" },
+    { "heading": "Neighborhood & Market",    "priority": "medium",                        "body": "<velocity, DOM, appreciation, buyer profile, rental demand>" },
+    { "heading": "Exit Strategy Matrix",     "priority": "high",                          "body": "<flip vs. wholesale vs. BRRRR vs. subject-to — pick primary + backup with numbers>" },
+    { "heading": "Recommended Play",         "priority": "high",                          "body": "<the ONE move: target offer, walk-away, financing, contractor sequencing>" },
+    { "heading": "Offer Structure",          "priority": "high",                          "body": "<price, EMD, inspection period, close date, seller concessions, contingencies>" },
+    { "heading": "Seller Approach",          "priority": "medium",                        "body": "<4-6 sentences of exact door-knock / call script tailored to distress signals>" },
+    { "heading": "Negotiation Levers",       "priority": "medium",                        "body": "<what to use as concession leverage: repairs, timeline, cash certainty>" },
+    { "heading": "Due Diligence Checklist",  "priority": "low",                           "body": "<title, survey, inspection, permits pull, comps refresh, contractor walk>" },
+    { "heading": "Data Confidence",          "priority": "low|info",                      "body": "<what is verified vs. estimated vs. missing; next data pulls to run>" }
   ]
 }
 
-Choose each priority based on what the DATA actually shows. A deal that fails the 70% rule, has open code violations, or has stale/unverified ARV should escalate "Red Flags" to "critical".
+Rules:
+- Escalate "Red Flags" to "critical" if the deal fails the 70% rule, has open code violations, stale/unverified ARV, active foreclosure/lis pendens, or structural cues in photos.
+- If a section legitimately has no data, still return it with priority "info" and body explaining what's missing and how to obtain it.
+- Do NOT compress paragraphs — each body should be thorough (4–8 sentences).
 
 DATA:
 ${JSON.stringify(context, null, 2)}`
@@ -1126,6 +1138,7 @@ ${JSON.stringify(context, null, 2)}`
           { role: 'user', content: prompt },
         ],
         response_format: { type: 'json_object' },
+        max_completion_tokens: 8000,
       }),
     })
     if (!res.ok) {
