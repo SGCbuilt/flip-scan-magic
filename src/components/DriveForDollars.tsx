@@ -71,6 +71,44 @@ const formatPermitDate = (date?: string | null, fallback?: string | null) => {
   return Number.isNaN(parsed.getTime()) ? (fallback || date) : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
+// ── Permit sort/filter helpers ────────────────────────────────────────────
+// Normalize wildly varying status strings into a small set of buckets we can
+// filter on (Issued/Finaled/Open/Pending/Expired/Other).
+const normalizeStatusBucket = (status?: string | null): string => {
+  const s = String(status || '').toLowerCase().trim()
+  if (!s) return 'Unknown'
+  if (/final|closed|complet/.test(s)) return 'Finaled'
+  if (/issued/.test(s)) return 'Issued'
+  if (/open|active/.test(s)) return 'Open'
+  if (/pending|applied|submit|review/.test(s)) return 'Pending'
+  if (/expire|void|withdrawn|cancel/.test(s)) return 'Expired'
+  if (/denied|reject/.test(s)) return 'Denied'
+  return 'Other'
+}
+
+type PermitListItem = PermitRecord & { type: 'permit' | 'violation' }
+
+function applyPermitControls(
+  items: PermitListItem[],
+  sort: 'newest' | 'oldest' | 'type',
+  typeFilter: 'all' | 'permit' | 'violation',
+  statusFilter: string,
+): PermitListItem[] {
+  let out = items
+  if (typeFilter !== 'all') out = out.filter(i => i.type === typeFilter)
+  if (statusFilter !== 'all') out = out.filter(i => normalizeStatusBucket(i.status) === statusFilter)
+  const byDate = (a: PermitListItem, b: PermitListItem) => {
+    if (!a.date && !b.date) return 0
+    if (!a.date) return 1
+    if (!b.date) return -1
+    return b.date.localeCompare(a.date)
+  }
+  if (sort === 'newest') out = [...out].sort(byDate)
+  else if (sort === 'oldest') out = [...out].sort((a, b) => -byDate(a, b))
+  else out = [...out].sort((a, b) => (a.permitType || '').localeCompare(b.permitType || '') || byDate(a, b))
+  return out
+}
+
 interface Capture {
   id:          string
   address:     string
