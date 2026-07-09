@@ -351,10 +351,23 @@ async function runDeepScanForCapture(
       motivationTier: capture.motivation?.tier,
       motivationScore: capture.motivation?.score,
       dataGuardrail: 'Use only provided fields. Do not invent dates, permit history, ARV, ownership, violations, or offer strategy. Low-confidence records are review-only.',
-      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 3),
-      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 3),
+      // Widen the evidence window the AI reasons over (was 3-of-each).
+      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 12),
+      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 12),
       recordsHeldForReview: [...(permitsData?.permits || []), ...(permitsData?.violations || [])].filter((r: PermitRecord) => !isSupportPermitRecord(r)).length,
-      distress: (distressData?.signals || []).slice(0, 3),
+      distress: (distressData?.signals || []).slice(0, 10),
+      permitsSource: permitsData?.source,
+      distressSource: distressData?.source,
+      photoCount: scan.photos?.count || 0,
+      photoSource: scan.photos?.source,
+      yearBuilt: (capture.trace?.property as any)?.yearBuilt,
+      sqft: (capture.trace?.property as any)?.squareFootage || (capture.trace?.property as any)?.sqft,
+      beds: (capture.trace?.property as any)?.bedrooms,
+      baths: (capture.trace?.property as any)?.bathrooms,
+      lastSalePrice: (capture.trace?.property as any)?.lastSalePrice,
+      lastSaleDate: (capture.trace?.property as any)?.lastSaleDate,
+      ownerMailingAddress: capture.trace?.owner?.mailingAddress,
+      phones: (capture.trace?.phones || []).slice(0, 4).map((p: any) => ({ type: p.type, dnc: p.dnc, litigator: p.litigator })),
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
     if (error) throw error
