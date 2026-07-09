@@ -51,29 +51,9 @@ function looksLikePerRecordUrl(url: string, streetNumber: string, streetName: st
   const path = u.pathname.toLowerCase()
   const search = u.search.toLowerCase()
 
-  // Hard-reject: social media, PDFs, dictionary/wiki, generic aggregators, parking meters.
-  const badHosts = ['facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com', 'linkedin.com', 'pinterest.com', 'parkopedia.com', 'yelp.com']
-  if (badHosts.some(h => host === h || host.endsWith('.' + h))) return false
+  if (isBlockedEvidenceUrl(url)) return false
   if (path.endsWith('.pdf')) return false
-
-  // Hard-reject: real-estate listing/portal sites — these are property listings,
-  // NOT permit or code-enforcement records. Compass/Zillow/Redfin/Realtor etc.
-  // must never surface as a "permit" result even if their page mentions permit history.
-  const listingHosts = [
-    'compass.com', 'zillow.com', 'redfin.com', 'realtor.com', 'trulia.com',
-    'homes.com', 'movoto.com', 'estately.com', 'point2homes.com', 'coldwellbanker.com',
-    'century21.com', 'remax.com', 'kw.com', 'sothebysrealty.com', 'berkshirehathawayhs.com',
-    'homesnap.com', 'har.com', 'ziprealty.com', 'weichert.com', 'howardhanna.com',
-    'realestate.com', 'openhouse.com', 'rockethomes.com', 'opendoor.com', 'offerpad.com',
-    'propertyshark.com', 'neighborhoodscout.com', 'niche.com', 'areavibes.com',
-    'rent.com', 'apartments.com', 'apartmentguide.com', 'hotpads.com', 'padmapper.com',
-    'loopnet.com', 'crexi.com', 'costar.com',
-  ]
-  if (listingHosts.some(h => host === h || host.endsWith('.' + h))) return false
-
-  // Hard-reject federal/registry documents that never contain per-property permits.
-  const federalHosts = ['sam.gov', 'federalregister.gov', 'govinfo.gov', 'uscg.mil', 'regulations.gov', 'congress.gov', 'law.cornell.edu']
-  if (federalHosts.some(h => host === h || host.endsWith('.' + h))) return false
+  if (!isTrustedPermitEvidenceHost(host)) return false
 
   // Landing-page reject: a bare city-gov page like "/code-enforcement" with no query
   // and no property-specific path segment is a landing page, not a record.
@@ -87,7 +67,55 @@ function looksLikePerRecordUrl(url: string, streetNumber: string, streetName: st
   const hasStreetNumInUrl = streetNumber && new RegExp(`(^|[\\/\\-_?&=])${streetNumber}([\\/\\-_?&=]|$)`).test(path + search)
   const hasStreetNameInUrl = streetName && streetName.length >= 3 && (path + search).includes(streetName.toLowerCase().replace(/\s+/g, '-')) 
 
-  return hasRecordId || hasStreetNumInUrl || hasStreetNameInUrl || (hasRecordSegment && !isBareLanding)
+  return hasRecordId || (hasRecordSegment && (hasStreetNumInUrl || hasStreetNameInUrl))
+}
+
+function hostMatches(host: string, needles: string[]) {
+  return needles.some(h => host === h || host.endsWith('.' + h))
+}
+
+function isBlockedEvidenceUrl(url: string): boolean {
+  if (!url) return true
+  let u: URL
+  try { u = new URL(url) } catch { return true }
+  const host = u.hostname.toLowerCase().replace(/^www\./, '')
+  const path = u.pathname.toLowerCase()
+
+  const badHosts = ['facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com', 'linkedin.com', 'pinterest.com', 'parkopedia.com', 'yelp.com', 'wikipedia.org']
+  if (hostMatches(host, badHosts)) return true
+
+  // Real-estate listings and people-search pages are not official evidence.
+  const listingHosts = [
+    'compass.com', 'zillow.com', 'redfin.com', 'realtor.com', 'trulia.com',
+    'homes.com', 'movoto.com', 'estately.com', 'point2homes.com', 'coldwellbanker.com',
+    'century21.com', 'remax.com', 'kw.com', 'sothebysrealty.com', 'berkshirehathawayhs.com',
+    'bhhs.com', 'homesnap.com', 'har.com', 'ziprealty.com', 'weichert.com', 'howardhanna.com',
+    'realestate.com', 'openhouse.com', 'rockethomes.com', 'opendoor.com', 'offerpad.com',
+    'orchard.com', 'homelight.com', 'houzeo.com', 'propertyshark.com', 'neighborwho.com',
+    'ownerly.com', 'beenverified.com', 'spokeo.com', 'truepeoplesearch.com', 'whitepages.com',
+    'fastpeoplesearch.com', 'neighborhoodscout.com', 'niche.com', 'areavibes.com',
+    'rent.com', 'apartments.com', 'apartmentguide.com', 'hotpads.com', 'padmapper.com',
+    'loopnet.com', 'crexi.com', 'costar.com', 'land.com', 'landwatch.com',
+  ]
+  if (hostMatches(host, listingHosts)) return true
+
+  const federalHosts = ['sam.gov', 'federalregister.gov', 'govinfo.gov', 'uscg.mil', 'regulations.gov', 'congress.gov', 'law.cornell.edu']
+  if (hostMatches(host, federalHosts)) return true
+  if (/\.(pdf|doc|docx|ppt|pptx)$/i.test(path)) return true
+  return false
+}
+
+function isTrustedPermitEvidenceHost(host: string): boolean {
+  const normalized = host.toLowerCase().replace(/^www\./, '')
+  if (normalized.endsWith('.gov') || normalized.endsWith('.us')) return true
+  const permitHosts = [
+    'accela.com', 'aca-prod.accela.com', 'energovweb.tylertech.com', 'tylerhost.net',
+    'viewpointcloud.com', 'opengov.com', 'iworq.net', 'citizenserve.com', 'cloudpermit.com',
+    'buildingeye.com', 'permitsearch.com', 'permits.com', 'arcgis.com', 'socrata.com',
+    'data.socrata.com', 'data.gov', 'openpermit.co', 'buildzoom.com', 'buildfax.com',
+    'shovels.ai', 'bldrs.com',
+  ]
+  return hostMatches(normalized, permitHosts)
 }
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
