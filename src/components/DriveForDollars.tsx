@@ -49,6 +49,10 @@ interface DeepScanData {
   }
   distress?: { signals: Array<{ title?: string; url?: string; description?: string; flags: string[] }>; source: string }
   summary?: string
+  evaluation?: {
+    summary: string
+    sections: Array<{ heading: string; priority: 'critical' | 'high' | 'medium' | 'low' | 'info'; body: string }>
+  }
   generatedAt?: string
   errors?: string[]
 }
