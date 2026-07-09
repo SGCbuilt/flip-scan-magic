@@ -260,9 +260,27 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
     (trace?.property?.equityPct || 0) >= 35,
   ].filter(Boolean).length
 
-  const rawScore = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (hasComps ? 8 : 0))
+  // Deterministic professional score: never use AI text/rating output here.
+  // Same address + same verified inputs must produce the same Deal Analysis score.
+  const equityPct = trace?.property?.equityPct || 0
+  const compConfidence = String(comps?.confidence || '').toLowerCase()
+  const deterministicParts = {
+    base: 35,
+    comps: hasComps ? (compConfidence.includes('high') ? 14 : compConfidence.includes('medium') ? 11 : 8) : 0,
+    owner: hasOwner ? 6 : 0,
+    equity: equityPct >= 50 ? 13 : equityPct >= 35 ? 10 : equityPct >= 20 ? 5 : 0,
+    absentee: trace?.property?.absenteeOwner ? 8 : 0,
+    vacant: trace?.property?.vacant ? 10 : 0,
+    tax: trace?.property?.taxStatus === 'delinquent' ? 9 : 0,
+    verifiedViolations: Math.min(12, verifiedViolations * 6),
+    distress: Math.min(8, distress * 4),
+    verifiedPermits: Math.min(4, verifiedPermits * 2),
+    photos: photos > 0 ? 2 : 0,
+    reviewPenalty: reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? -6 : 0,
+  }
+  const rawScore = Object.values(deterministicParts).reduce((sum, value) => sum + value, 0)
   const confidenceCap = !hasComps ? 58 : !hasOwner && !hasDeepScan ? 68 : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? 72 : 95
-  const score = Math.min(rawScore, confidenceCap)
+  const score = Math.max(20, Math.min(rawScore, confidenceCap))
   const tier = score >= 75 ? 'High Priority' : score >= 60 ? 'Worth Pursuing' : score >= 45 ? 'Research Further' : 'Low Signal'
   const confidence = hasComps && hasOwner && hasDeepScan ? 'Verified inputs' : hasComps && hasOwner ? 'Owner + comps' : hasComps ? 'Comps only' : 'Preliminary'
   const maxOffer = hasComps ? Math.round(comps!.arvSuggestion * 0.7) : 0
