@@ -141,6 +141,33 @@ export default function ChathamPermits() {
   const [fetching, setFetching] = useState(false)
   const [sourceUrl, setSourceUrl] = useState<string | null>(null)
 
+  // Address lookup state
+  const [addrQuery, setAddrQuery] = useState('')
+  const [addrLoading, setAddrLoading] = useState(false)
+  const [addrResults, setAddrResults] = useState<null | {
+    address: string
+    permits: Array<{ url: string; title: string; permitNum: string; date: string; value: number; type: string; snippet: string }>
+    sources: Array<{ url: string; title: string; snippet: string }>
+  }>(null)
+
+  const handleAddressLookup = async () => {
+    const q = addrQuery.trim()
+    if (!q) { toast.warning('Enter an address'); return }
+    setAddrLoading(true)
+    setAddrResults(null)
+    try {
+      const { data, error } = await supabase.functions.invoke('chatham-permits', { body: { address: q } })
+      if (error) throw new Error(error.message)
+      setAddrResults({ address: q, permits: data?.permits || [], sources: data?.sources || [] })
+      const n = (data?.permits || []).length
+      n ? toast.success(`Found ${n} permit-shaped record${n === 1 ? '' : 's'}`) : toast.warning('No permit records found — showing web sources')
+    } catch (e) {
+      toast.error(`Lookup failed: ${(e as Error).message}`)
+    } finally {
+      setAddrLoading(false)
+    }
+  }
+
   const handleFetchLatest = async () => {
     setFetching(true)
     try {
@@ -220,6 +247,77 @@ export default function ChathamPermits() {
       </div>
 
       <div className="p-6 max-w-4xl">
+        {/* Address lookup — always available */}
+        <div className="rounded-xl border bg-white p-4 mb-4" style={{ borderColor: '#E5E9F0' }}>
+          <div className="text-xs font-bold mb-2" style={{ color: NAVY }}>🔍 Lookup permits by address</div>
+          <div className="flex gap-2">
+            <input
+              value={addrQuery}
+              onChange={e => setAddrQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAddressLookup() }}
+              placeholder="e.g. 175 Brown Bear Ln, Pittsboro NC"
+              className="flex-1 rounded-lg border px-3 py-2 text-xs outline-none"
+              style={{ borderColor: '#D1D9E6' }}
+            />
+            <button onClick={handleAddressLookup} disabled={addrLoading}
+              className="px-4 py-2 rounded-lg text-xs font-bold text-white border-none cursor-pointer disabled:opacity-60"
+              style={{ background: NAVY }}>
+              {addrLoading ? 'Searching…' : 'Search'}
+            </button>
+          </div>
+          {/* Matches from loaded report */}
+          {permits.length > 0 && addrQuery.trim() && (() => {
+            const q = addrQuery.trim().toLowerCase()
+            const local = permits.filter(p => p.address.toLowerCase().includes(q))
+            return local.length > 0 ? (
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>From loaded report ({local.length})</div>
+                {local.slice(0, 5).map((p, i) => (
+                  <div key={i} className="text-xs py-1.5 border-b" style={{ borderColor: '#F1F5F9' }}>
+                    <div className="font-bold" style={{ color: NAVY }}>{p.address}</div>
+                    <div style={{ color: '#64748B' }}>{p.type}{p.permitNum !== '—' ? ` · #${p.permitNum}` : ''}{p.date ? ` · ${p.date}` : ''}{p.value > 0 ? ` · ${fmt(p.value)}` : ''}</div>
+                  </div>
+                ))}
+              </div>
+            ) : null
+          })()}
+          {/* Web/portal results */}
+          {addrResults && (
+            <div className="mt-3">
+              {addrResults.permits.length > 0 && (
+                <>
+                  <div className="text-[10px] font-bold uppercase tracking-wide mb-1" style={{ color: '#64748B' }}>Permit records found ({addrResults.permits.length})</div>
+                  {addrResults.permits.map((r, i) => (
+                    <a key={i} href={r.url} target="_blank" rel="noreferrer"
+                      className="block text-xs py-2 border-b hover:bg-slate-50" style={{ borderColor: '#F1F5F9', textDecoration: 'none' }}>
+                      <div className="font-bold truncate" style={{ color: NAVY }}>{r.title || r.url}</div>
+                      <div style={{ color: '#475569' }}>
+                        {r.type || 'Permit'}{r.permitNum ? ` · #${r.permitNum}` : ''}{r.date ? ` · ${r.date}` : ''}{r.value > 0 ? ` · ${fmt(r.value)}` : ''}
+                      </div>
+                      {r.snippet && <div className="mt-1 truncate" style={{ color: '#94A3B8' }}>{r.snippet}</div>}
+                    </a>
+                  ))}
+                </>
+              )}
+              {addrResults.sources.length > 0 && (
+                <details className="mt-2">
+                  <summary className="text-[11px] cursor-pointer" style={{ color: '#64748B' }}>All web sources ({addrResults.sources.length})</summary>
+                  <ul className="mt-1 pl-4 space-y-0.5">
+                    {addrResults.sources.map((s, i) => (
+                      <li key={i} className="text-[11px]">
+                        <a href={s.url} target="_blank" rel="noreferrer" style={{ color: NAVY }}>{s.title || s.url}</a>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
+              )}
+              {addrResults.permits.length === 0 && addrResults.sources.length === 0 && (
+                <div className="text-xs mt-2" style={{ color: '#94A3B8' }}>No results. Chatham publishes monthly reports (not a live database) — try Fetch latest report below.</div>
+              )}
+            </div>
+          )}
+        </div>
+
         {permits.length === 0 ? (
           <>
             <div className="rounded-xl p-4 mb-4" style={{ background: '#EEF2FB' }}>
