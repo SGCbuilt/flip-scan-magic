@@ -42,6 +42,50 @@ function pickReportLink(links: string[] = []): string | null {
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
   try {
+    // Address lookup mode: POST { address: "123 Main St, Pittsboro NC" }
+    // Searches Chatham County + permit portals for permit records at that address.
+    let payload: any = {};
+    try { payload = await req.json(); } catch { /* GET or empty body */ }
+    const address: string | undefined = payload?.address?.trim();
+
+    if (address) {
+      const q = `"${address}" Chatham County NC permit OR inspection OR violation site:chathamcountync.gov OR site:accela.com OR site:citizenserve.com`;
+      const search = await fc('/search', { query: q, limit: 8, scrapeOptions: { formats: ['markdown'] } });
+      const raw: any[] = search?.data?.web || search?.data || search?.web || [];
+      const hits = raw
+        .filter(r => r?.url)
+        .map(r => ({
+          url: r.url as string,
+          title: (r.title || '').toString(),
+          snippet: (r.description || r.snippet || '').toString(),
+          markdown: (r.markdown || '').toString().slice(0, 4000),
+        }));
+      // Extract permit-shaped tokens (permit #, date, dollar amounts, type words) from each hit body.
+      const permits = hits.flatMap(h => {
+        const body = `${h.title}\n${h.snippet}\n${h.markdown}`;
+        const dateM  = body.match(/\b(\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4})\b/);
+        const moneyM = body.match(/\$\s?([\d,]{4,})/);
+        const permM  = body.match(/\b(?:permit\s*#?\s*)?([A-Z]{1,4}[-\s]?\d{4,8}|\d{2,4}[-\/]\d{3,6})\b/i);
+        const typeM  = body.match(/(new single family|residential repair|fire damage|demolition|foundation|addition|renovation|remodel|deck|garage|pool|electrical|plumbing|mechanical|upfit)/i);
+        if (!dateM && !permM && !moneyM && !typeM) return [];
+        return [{
+          url: h.url,
+          title: h.title,
+          permitNum: permM?.[1] || '',
+          date: dateM?.[1] || '',
+          value: moneyM ? parseFloat(moneyM[1].replace(/,/g, '')) : 0,
+          type: typeM?.[1] || '',
+          snippet: h.snippet.slice(0, 300),
+        }];
+      });
+      return new Response(JSON.stringify({
+        mode: 'address',
+        address,
+        permits,
+        sources: hits.map(h => ({ url: h.url, title: h.title, snippet: h.snippet.slice(0, 300) })),
+      }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+    }
+
     // 1. Search for the county's monthly-permit-report landing page.
     const search = await fc('/search', {
       query: 'Chatham County NC central permitting monthly permit report',
