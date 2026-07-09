@@ -40,6 +40,41 @@ function classifyPermitType(text: string): string {
   return 'Building'
 }
 
+// ── URL sanity check: does this look like an actual per-property record? ──
+// Rejects generic landing pages, PDFs, social media, and directory pages that
+// have no chance of being a specific permit/violation record for our address.
+function looksLikePerRecordUrl(url: string, streetNumber: string, streetName: string): boolean {
+  if (!url) return false
+  let u: URL
+  try { u = new URL(url) } catch { return false }
+  const host = u.hostname.toLowerCase()
+  const path = u.pathname.toLowerCase()
+  const search = u.search.toLowerCase()
+
+  // Hard-reject: social media, PDFs, dictionary/wiki, generic aggregators, parking meters.
+  const badHosts = ['facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com', 'linkedin.com', 'pinterest.com', 'parkopedia.com', 'yelp.com']
+  if (badHosts.some(h => host === h || host.endsWith('.' + h))) return false
+  if (path.endsWith('.pdf')) return false
+
+  // Hard-reject federal/registry documents that never contain per-property permits.
+  const federalHosts = ['sam.gov', 'federalregister.gov', 'govinfo.gov', 'uscg.mil', 'regulations.gov', 'congress.gov', 'law.cornell.edu']
+  if (federalHosts.some(h => host === h || host.endsWith('.' + h))) return false
+
+  // Landing-page reject: a bare city-gov page like "/code-enforcement" with no query
+  // and no property-specific path segment is a landing page, not a record.
+  const landingPagePaths = ['/code-enforcement', '/permits', '/permit', '/building', '/inspections', '/planning', '/zoning']
+  const isBareLanding = landingPagePaths.some(p => path === p || path === p + '/' || path.endsWith(p))
+  if (isBareLanding && !search) return false
+
+  // Positive signals that this is a per-record page.
+  const hasRecordSegment = /(permit|inspection|violation|record|case|complaint|address|property|parcel|folio)[\/\-_=]/.test(path + search)
+  const hasRecordId = /(permit|case|folio|record|application|id|no)[=\/\-_]?([a-z0-9]{4,})/i.test(path + search)
+  const hasStreetNumInUrl = streetNumber && new RegExp(`(^|[\\/\\-_?&=])${streetNumber}([\\/\\-_?&=]|$)`).test(path + search)
+  const hasStreetNameInUrl = streetName && streetName.length >= 3 && (path + search).includes(streetName.toLowerCase().replace(/\s+/g, '-')) 
+
+  return hasRecordId || hasStreetNumInUrl || hasStreetNameInUrl || (hasRecordSegment && !isBareLanding)
+}
+
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 interface Body {
@@ -599,15 +634,26 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
   const fullAddr = [streetOnly, city, state, zip].filter(Boolean).join(', ')
   const ai = await extractPermitsWithAI(fullAddr, rawAll)
 
-  // Fallback heuristic pass (keeps low-conf portal hits so user sees something)
+  // Filter AI-extracted records to those whose URL looks like a real per-property record.
+  const aiPermits = (ai.permits || []).filter(r => looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix))
+  const aiViolations = (ai.violations || []).filter(r => looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix))
+  const aiRejected = (ai.permits.length + ai.violations.length) - (aiPermits.length + aiViolations.length)
+
+  // Heuristic pass — ONLY surface hits whose URL looks like a real record page.
+  // Landing pages, PDFs, and social media get held for manual review instead of shown as records.
   const heuristic: any[] = []
-  if (ai.permits.length + ai.violations.length === 0 && rawAll.length > 0) {
-    for (const r of rawAll.slice(0, 12)) {
+  const heldForReview: Array<{ title: string; url: string }> = []
+  if (aiPermits.length + aiViolations.length === 0 && rawAll.length > 0) {
+    for (const r of rawAll.slice(0, 20)) {
       const combined = `${r.title || ''} ${r.description || ''} ${r.url}`
-      const portalHit = portalSites.some(p => (r.url || '').toLowerCase().includes(p))
       const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
       const streetNameHit = streetNoSuffix.length >= 3 && combined.toLowerCase().includes(streetNoSuffix.toLowerCase())
-      if (!portalHit && !numberHit && !streetNameHit) continue
+      const perRecord = looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix)
+      if (!perRecord) {
+        if (numberHit && streetNameHit) heldForReview.push({ title: r.title || '', url: r.url || '' })
+        continue
+      }
+      if (!numberHit && !streetNameHit) continue
       const dateInfo = extractDate(combined)
       heuristic.push({
         title: r.title,
@@ -617,15 +663,15 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
         dateLabel: dateInfo?.label || null,
         permitType: classifyPermitType(combined),
         confidence: numberHit && streetNameHit ? 'medium' : 'low',
-        matchReasons: [portalHit ? 'Permit portal' : '', numberHit ? `Street # ${streetNumber}` : '', streetNameHit ? 'Street name' : ''].filter(Boolean),
+        matchReasons: [numberHit ? `Street # ${streetNumber}` : '', streetNameHit ? 'Street name' : '', 'Per-record URL'].filter(Boolean),
         source: (() => { try { return new URL(r.url).hostname.replace(/^www\./, '') } catch { return 'web' } })(),
       })
     }
   }
 
   const byDateDesc = (a: any, b: any) => (b.date || '').localeCompare(a.date || '')
-  const outPermits = [...ai.permits, ...heuristic.filter(h => h.permitType !== 'Violation')].sort(byDateDesc).slice(0, 15)
-  const outViolations = [...ai.violations, ...heuristic.filter(h => h.permitType === 'Violation')].sort(byDateDesc).slice(0, 10)
+  const outPermits = [...aiPermits, ...heuristic.filter(h => h.permitType !== 'Violation')].sort(byDateDesc).slice(0, 15)
+  const outViolations = [...aiViolations, ...heuristic.filter(h => h.permitType === 'Violation')].sort(byDateDesc).slice(0, 10)
 
   return {
     permits: outPermits,
@@ -637,11 +683,14 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
       rawHits: rawAll.length,
       aiUsed: ai.aiUsed,
       aiError: (ai as any).aiError || null,
+      aiRejected,
+      heldForReview: heldForReview.length,
       note: outPermits.length + outViolations.length === 0
-        ? (rawAll.length === 0 ? 'No web results returned. Portals may not be indexed publicly for this address.'
-                               : 'Web results found but none matched this address. Try the record links below.')
+        ? (rawAll.length === 0
+            ? 'No web results returned. This city may not publish permits online for this address.'
+            : `No per-property permit records found on the web. ${heldForReview.length} generic pages (landing pages, PDFs) were held back — they are not property records.`)
         : null,
-      rawSample: rawAll.slice(0, 5).map(r => ({ title: r.title, url: r.url })),
+      rawSample: heldForReview.slice(0, 4),
     },
   }
 }
@@ -692,7 +741,10 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
         totalRowsScanned: officialScanned,
         checkedDomains: [...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])],
         available: true,
-      } : { available: false, note: 'City not yet in official-registry map — using web sources' },
+      } : {
+        available: false,
+        note: `No official open-data permit registry available for ${city || 'this city'}${state ? ', ' + state : ''}. Small municipalities often keep permits in a paper or in-office system that isn't published online. Web search below is best-effort only — treat any hits as leads to verify manually.`,
+      },
       web: firecrawl?.debug || null,
       sources,
       totalRecords: permits.length + violations.length,
