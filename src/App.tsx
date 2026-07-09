@@ -12,6 +12,7 @@ import Dashboard         from './components/Dashboard'
 import PropertyModal     from './components/PropertyModal'
 import MarketPanel       from './components/MarketPanel'
 import DealHunter        from './components/DealHunter'
+import ChathamPermits    from './components/ChathamPermits'
 import ReferenceHub      from './components/ReferenceHub'
 import MarketAnalyzer    from './components/MarketAnalyzer'
 import FinancialTools    from './components/FinancialTools'
@@ -50,7 +51,7 @@ type TabId =
   | 'hub' | 'home' | 'kpi'
   | 'radar' | 'velocity' | 'stack' | 'drive'
   | 'pipeline' | 'tasks' | 'drip' | 'project' | 'pl'
-  | 'deals' | 'hunt'
+  | 'deals' | 'hunt' | 'chatham'
   | 'wholesale' | 'buyers'
   | 'financial' | 'market' | 'analyzer' | 'reference'
   | 'settings'
@@ -90,6 +91,7 @@ const NAV: NavSection[] = [
       { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
       { id: 'deals',    label: 'Deal Scanner',     icon: '🔍', tip: 'MLS + off-market search with flip scoring' },
       { id: 'hunt',     label: 'Deal Hunter',      icon: '🎰', tip: 'Advanced criteria-based property hunting' },
+      { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
   },
   {
@@ -329,7 +331,7 @@ function Topbar({
   const tabTitles: Partial<Record<TabId, string>> = {
     home:     'Morning Brief', kpi: 'KPI Dashboard',
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
-    drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter',
+    drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
     pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
@@ -502,7 +504,7 @@ export default function App() {
     // Support PWA shortcuts via ?tab= URL parameter
     try {
       const param = new URLSearchParams(window.location.search).get('tab')
-      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','wholesale','buyers','financial','market','analyzer','reference','settings']
+      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','chatham','wholesale','buyers','financial','market','analyzer','reference','settings']
       if (param && valid.includes(param as TabId)) return param as TabId
     } catch {}
     return 'hub'
@@ -850,6 +852,7 @@ export default function App() {
             )}
           </ErrorBoundary>
           <ErrorBoundary label="Deal Hunter">      {activeTab === 'hunt'      && <DealHunter />}             </ErrorBoundary>
+          <ErrorBoundary label="Chatham Permits">  {activeTab === 'chatham'   && <ChathamPermits />}         </ErrorBoundary>
           <ErrorBoundary label="Pipeline CRM">     {activeTab === 'pipeline'  && <Pipeline />}               </ErrorBoundary>
           <ErrorBoundary label="Tasks">            {activeTab === 'tasks'     && <Tasks />}                  </ErrorBoundary>
           <ErrorBoundary label="Drip Sequences">   {activeTab === 'drip'      && <DripSequences />}          </ErrorBoundary>
