@@ -109,6 +109,31 @@ function applyPermitControls(
   return out
 }
 
+function stablePermitRecordKey(record: PermitRecord) {
+  return [
+    record.date || '',
+    record.permitNumber || '',
+    record.status || '',
+    record.permitType || '',
+    record.title || '',
+    record.url || '',
+  ].join('|').toLowerCase()
+}
+
+function normalizeDeepScanData(scan: DeepScanData): DeepScanData {
+  if (!scan.permits) return scan
+  const byStableKey = (a: PermitRecord, b: PermitRecord) => stablePermitRecordKey(a).localeCompare(stablePermitRecordKey(b))
+  const byDateThenKey = (a: PermitRecord, b: PermitRecord) => (b.date || '').localeCompare(a.date || '') || byStableKey(a, b)
+  return {
+    ...scan,
+    permits: {
+      ...scan.permits,
+      permits: [...(scan.permits.permits || [])].sort(byDateThenKey),
+      violations: [...(scan.permits.violations || [])].sort(byDateThenKey),
+    },
+  }
+}
+
 interface Capture {
   id:          string
   address:     string
@@ -185,6 +210,7 @@ async function runDeepScanForCapture(
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: permitBody, ...(invokeOpts || {}) })
     if (error) throw error
     permitsData = data || { permits: [], violations: [], source: 'none' }
+    permitsData = normalizeDeepScanData({ permits: permitsData }).permits
     scan.permits = permitsData
   } catch (e: any) {
     scan.errors?.push(`Permits unavailable: ${e?.message || 'source failed'}`)
