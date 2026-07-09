@@ -1514,15 +1514,6 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 </div>
               )}
 
-              {/* AI Summary */}
-              {dsData?.summary && (
-                <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
-                <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: '#8A5700' }}>Review-only narrative — numbers above are authoritative</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
-                </div>
-              )}
-
               {!dsRunning && dsData?.errors?.length ? (
                 <div className="text-[10px] leading-relaxed p-2 rounded" style={{ background: '#FEF7EA', color: '#8A5700' }}>
                   Partial scan: {dsData.errors.slice(0, 2).join(' · ')}
