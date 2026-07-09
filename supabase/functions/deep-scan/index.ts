@@ -634,15 +634,26 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
   const fullAddr = [streetOnly, city, state, zip].filter(Boolean).join(', ')
   const ai = await extractPermitsWithAI(fullAddr, rawAll)
 
-  // Fallback heuristic pass (keeps low-conf portal hits so user sees something)
+  // Filter AI-extracted records to those whose URL looks like a real per-property record.
+  const aiPermits = (ai.permits || []).filter(r => looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix))
+  const aiViolations = (ai.violations || []).filter(r => looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix))
+  const aiRejected = (ai.permits.length + ai.violations.length) - (aiPermits.length + aiViolations.length)
+
+  // Heuristic pass — ONLY surface hits whose URL looks like a real record page.
+  // Landing pages, PDFs, and social media get held for manual review instead of shown as records.
   const heuristic: any[] = []
-  if (ai.permits.length + ai.violations.length === 0 && rawAll.length > 0) {
-    for (const r of rawAll.slice(0, 12)) {
+  const heldForReview: Array<{ title: string; url: string }> = []
+  if (aiPermits.length + aiViolations.length === 0 && rawAll.length > 0) {
+    for (const r of rawAll.slice(0, 20)) {
       const combined = `${r.title || ''} ${r.description || ''} ${r.url}`
-      const portalHit = portalSites.some(p => (r.url || '').toLowerCase().includes(p))
       const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
       const streetNameHit = streetNoSuffix.length >= 3 && combined.toLowerCase().includes(streetNoSuffix.toLowerCase())
-      if (!portalHit && !numberHit && !streetNameHit) continue
+      const perRecord = looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix)
+      if (!perRecord) {
+        if (numberHit && streetNameHit) heldForReview.push({ title: r.title || '', url: r.url || '' })
+        continue
+      }
+      if (!numberHit && !streetNameHit) continue
       const dateInfo = extractDate(combined)
       heuristic.push({
         title: r.title,
@@ -652,15 +663,15 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
         dateLabel: dateInfo?.label || null,
         permitType: classifyPermitType(combined),
         confidence: numberHit && streetNameHit ? 'medium' : 'low',
-        matchReasons: [portalHit ? 'Permit portal' : '', numberHit ? `Street # ${streetNumber}` : '', streetNameHit ? 'Street name' : ''].filter(Boolean),
+        matchReasons: [numberHit ? `Street # ${streetNumber}` : '', streetNameHit ? 'Street name' : '', 'Per-record URL'].filter(Boolean),
         source: (() => { try { return new URL(r.url).hostname.replace(/^www\./, '') } catch { return 'web' } })(),
       })
     }
   }
 
   const byDateDesc = (a: any, b: any) => (b.date || '').localeCompare(a.date || '')
-  const outPermits = [...ai.permits, ...heuristic.filter(h => h.permitType !== 'Violation')].sort(byDateDesc).slice(0, 15)
-  const outViolations = [...ai.violations, ...heuristic.filter(h => h.permitType === 'Violation')].sort(byDateDesc).slice(0, 10)
+  const outPermits = [...aiPermits, ...heuristic.filter(h => h.permitType !== 'Violation')].sort(byDateDesc).slice(0, 15)
+  const outViolations = [...aiViolations, ...heuristic.filter(h => h.permitType === 'Violation')].sort(byDateDesc).slice(0, 10)
 
   return {
     permits: outPermits,
@@ -672,11 +683,14 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
       rawHits: rawAll.length,
       aiUsed: ai.aiUsed,
       aiError: (ai as any).aiError || null,
+      aiRejected,
+      heldForReview: heldForReview.length,
       note: outPermits.length + outViolations.length === 0
-        ? (rawAll.length === 0 ? 'No web results returned. Portals may not be indexed publicly for this address.'
-                               : 'Web results found but none matched this address. Try the record links below.')
+        ? (rawAll.length === 0
+            ? 'No web results returned. This city may not publish permits online for this address.'
+            : `No per-property permit records found on the web. ${heldForReview.length} generic pages (landing pages, PDFs) were held back — they are not property records.`)
         : null,
-      rawSample: rawAll.slice(0, 5).map(r => ({ title: r.title, url: r.url })),
+      rawSample: heldForReview.slice(0, 4),
     },
   }
 }
