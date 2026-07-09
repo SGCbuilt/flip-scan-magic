@@ -20,6 +20,7 @@ import { toast } from '../lib/toast'
  */
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
+import { lookupOwner } from '../lib/ownerLookup'
 import { pullComps, CompResult } from '../lib/compPull'
 import type { MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
