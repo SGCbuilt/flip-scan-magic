@@ -366,7 +366,7 @@ async function runDeepScanForCapture(
       baths: (capture.trace?.property as any)?.bathrooms,
       lastSalePrice: (capture.trace?.property as any)?.lastSalePrice,
       lastSaleDate: (capture.trace?.property as any)?.lastSaleDate,
-      ownerMailingAddress: capture.trace?.owner?.mailingAddress,
+      ownerMailingAddress: capture.trace?.owner?.mailingAddr,
       phones: (capture.trace?.phones || []).slice(0, 4).map((p: any) => ({ type: p.type, dnc: p.dnc, litigator: p.litigator })),
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
