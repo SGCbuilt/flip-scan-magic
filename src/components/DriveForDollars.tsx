@@ -163,6 +163,22 @@ function saveCaptures(c: Capture[]) {
   } catch {}
 }
 
+function canonicalAddressKey(address: string, city: string, state: string, zip: string) {
+  return [address, city, state, zip]
+    .map(part => String(part || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' '))
+    .join('|')
+}
+
+function cloneCaptureAnalysis(source: Capture): Partial<Capture> {
+  return JSON.parse(JSON.stringify({
+    trace: source.trace,
+    comps: source.comps,
+    motivation: source.motivation,
+    deepScan: source.deepScan ? normalizeDeepScanData(source.deepScan) : source.deepScan,
+    inPipeline: source.inPipeline,
+  }))
+}
+
 function getTracerKey() {
   try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' }
 }
@@ -1416,6 +1432,24 @@ export default function DriveForDollars() {
       notes,
       capturedAt: new Date().toISOString(),
       inPipeline: false,
+    }
+
+    const addressKey = canonicalAddressKey(address, city, state, zip)
+    const allBeforeLookup = loadCaptures()
+    const prior = allBeforeLookup.find(c =>
+      canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
+      (c.trace || c.comps || c.motivation || c.deepScan)
+    )
+    if (prior) {
+      Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
+      setProgress(['✓ Reused saved analysis for this address. Use Refresh live permit history for a new permit pull.'])
+      const updated = [newCapture, ...allBeforeLookup]
+      saveAndRefresh(updated)
+      setAnalyzing(false)
+      setProgress([])
+      setNotes('')
+      setView('history')
+      return
     }
 
     // Run skip trace + comps in parallel
