@@ -201,6 +201,141 @@ const OPEN_DATA_DOMAINS: Record<string, string[]> = {
   'prince william':   ['data.pwcva.gov'],
 }
 
+// ── Explicit known Socrata datasets (bypasses fragile Discovery API) ──────
+// Each entry is a permit OR inspection/violation registry with its real field names.
+// Verified live against the provider's API — do not rename fields without re-verifying.
+interface SocrataDataset {
+  domain: string
+  id: string
+  label: string
+  kind: 'permit' | 'violation'
+  addressField: string
+  issuedDateField?: string
+  appliedDateField?: string
+  permitNumberField?: string
+  permitTypeField?: string
+  workDescField?: string
+  statusField?: string
+  contractorField?: string
+  costField?: string
+}
+const KNOWN_SOCRATA_DATASETS: Record<string, SocrataDataset[]> = {
+  'norfolk': [
+    {
+      domain: 'data.norfolk.gov', id: 'fahm-yuh4', label: 'City of Norfolk Permits',
+      kind: 'permit', addressField: 'address',
+      issuedDateField: 'issue_date', appliedDateField: 'application_date',
+      permitNumberField: 'permit_number', permitTypeField: 'type',
+      workDescField: 'work_type', statusField: 'status', costField: 'total_balance',
+    },
+    {
+      domain: 'data.norfolk.gov', id: 'bnrb-u445', label: 'City of Norfolk Inspections & Code Enforcement',
+      kind: 'violation', addressField: 'permit_address',
+      permitNumberField: 'inspection_number', permitTypeField: 'inspection_type',
+      workDescField: 'inspection_group', statusField: 'inspection_status',
+    },
+  ],
+}
+
+// Build a human-browsable Socrata dataset URL (data lens view, not JSON).
+function socrataViewerUrl(domain: string, datasetId: string): string {
+  return `https://${domain}/d/${datasetId}`
+}
+
+async function fetchPermitsFromKnownSocrata(street: string, city: string) {
+  const cityKey = (city || '').toLowerCase().trim()
+  const datasets = KNOWN_SOCRATA_DATASETS[cityKey]
+  if (!datasets || datasets.length === 0) return null
+
+  const streetOnly = (street || '').split(',')[0].trim()
+  const streetNumber = (streetOnly.match(/^\s*(\d+)/) || [])[1] || ''
+  const streetNameToken = streetOnly.replace(/^\s*\d+\s*/, '').replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '').trim()
+  if (!streetNumber || !streetNameToken) return null
+
+  const permits: any[] = []
+  const violations: any[] = []
+  let anyMatched = 0
+  let anyScanned = 0
+  const checked: string[] = []
+
+  await Promise.all(datasets.map(async ds => {
+    try {
+      // Socrata SoQL: filter server-side on the address field (upper() LIKE)
+      const like = `%25${streetNumber}%20${streetNameToken.toUpperCase().replace(/ /g, '%20')}%25`
+      const where = `upper(${ds.addressField}) like '${decodeURIComponent(like)}'`
+      const orderField = ds.issuedDateField || ds.appliedDateField
+      const url = `https://${ds.domain}/resource/${ds.id}.json?$where=${encodeURIComponent(where)}${orderField ? `&$order=${orderField}%20DESC` : ''}&$limit=50`
+      checked.push(url)
+      const res = await fetch(url, { headers: { 'Accept': 'application/json' } })
+      if (!res.ok) return
+      const rows: any[] = await res.json()
+      if (!Array.isArray(rows) || rows.length === 0) return
+      anyScanned += rows.length
+      const nameLower = streetNameToken.toLowerCase()
+      const matched = rows.filter(row => {
+        const addr = String(row[ds.addressField] || '').toLowerCase()
+        return addr.includes(streetNumber) && addr.includes(nameLower)
+      })
+      anyMatched += matched.length
+
+      const toIso = (s: any): string | null => {
+        if (!s) return null
+        const d = new Date(String(s))
+        return isNaN(d.getTime()) ? null : d.toISOString().slice(0, 10)
+      }
+
+      const viewer = socrataViewerUrl(ds.domain, ds.id)
+      for (const row of matched) {
+        const issued = toIso(row[ds.issuedDateField || ''])
+        const applied = toIso(row[ds.appliedDateField || ''])
+        const date = issued || applied
+        const permitType = row[ds.permitTypeField || ''] || ''
+        const workDesc = row[ds.workDescField || ''] || ''
+        const permitNumber = row[ds.permitNumberField || ''] || ''
+        const status = row[ds.statusField || ''] || ''
+        const contractor = ds.contractorField ? (row[ds.contractorField] || '') : ''
+        const cost = ds.costField ? (row[ds.costField] || '') : ''
+        const addr = row[ds.addressField] || ''
+        const rec = {
+          title: [permitType, workDesc].filter(Boolean).join(' — ').slice(0, 180) || `${ds.kind === 'violation' ? 'Inspection' : 'Permit'} ${permitNumber}`,
+          description: [
+            addr ? `📍 ${addr}` : '',
+            permitNumber ? `# ${permitNumber}` : '',
+            status ? `Status: ${status}` : '',
+            contractor ? `Contractor: ${contractor}` : '',
+            cost && Number(cost) > 0 ? `Est. cost: $${Math.round(Number(cost)).toLocaleString()}` : '',
+            applied && applied !== issued ? `Applied ${applied}` : '',
+          ].filter(Boolean).join(' · '),
+          url: viewer,
+          date,
+          dateLabel: date,
+          permitType: String(permitType) || classifyPermitType(String(workDesc)),
+          confidence: 'high' as const,
+          matchReasons: ['Official city registry', `# ${streetNumber}`, `Street ${streetNameToken}`],
+          source: ds.label,
+          permitNumber: String(permitNumber || ''),
+          status: String(status || ''),
+          contractor: String(contractor || ''),
+          cost: cost ? String(cost) : '',
+        }
+        if (ds.kind === 'violation') violations.push(rec)
+        else permits.push(rec)
+      }
+    } catch { /* try next dataset */ }
+  }))
+
+  permits.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  violations.sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+  return {
+    permits, violations,
+    domain: datasets[0].domain,
+    dataset: datasets.map(d => d.label).join(' + '),
+    matched: anyMatched,
+    totalRowsScanned: anyScanned,
+    checked,
+  }
+}
+
 async function socrataDiscoverDataset(domain: string): Promise<string | null> {
   try {
     const res = await fetch(`https://api.us.socrata.com/api/catalog/v1?domains=${encodeURIComponent(domain)}&q=${encodeURIComponent('building permits issued')}&limit=6`)
