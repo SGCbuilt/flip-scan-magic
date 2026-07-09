@@ -568,11 +568,13 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             const all = [
               ...v.map(x => ({ ...x, type: 'violation' as const })),
               ...p.map(x => ({ ...x, type: 'permit' as const })),
-            ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            ] as PermitListItem[]
             const verified = all.filter(isVerifiedPermitRecord)
             const needsReview = all.filter(x => !isSupportPermitRecord(x))
-            const latest = all.find(i => i.date)?.date
+            const latest = [...all].sort((a, b) => (b.date || '').localeCompare(a.date || '')).find(i => i.date)?.date
             const total = all.length
+            const statusBuckets = Array.from(new Set(all.map(i => normalizeStatusBucket(i.status)))).filter(s => s !== 'Unknown')
+            const filtered = applyPermitControls(all, permitSort, permitTypeFilter, permitStatusFilter)
             return (
               <div className="border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                 <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: '#F7F9FC' }}>
