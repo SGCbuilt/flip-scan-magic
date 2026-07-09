@@ -889,6 +889,9 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
       for (const r of results) {
         const url = r.url || ''
         if (isBlockedEvidenceUrl(url)) continue
+        let host = ''
+        try { host = new URL(url).hostname.toLowerCase() } catch { continue }
+        if (!isTrustedPermitEvidenceHost(host)) continue
         if (!url || seen.has(url)) continue
         seen.add(url)
         rawAll.push({ title: r.title || '', description: r.description || '', url })
@@ -917,7 +920,9 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
       const streetNameHit = streetNoSuffix.length >= 3 && combined.toLowerCase().includes(streetNoSuffix.toLowerCase())
       const perRecord = looksLikePerRecordUrl(r.url || '', streetNumber, streetNoSuffix)
       if (!perRecord) {
-        if (numberHit && streetNameHit) heldForReview.push({ title: r.title || '', url: r.url || '' })
+        let host = ''
+        try { host = new URL(r.url || '').hostname.toLowerCase() } catch { host = '' }
+        if (numberHit && streetNameHit && isTrustedPermitEvidenceHost(host)) heldForReview.push({ title: r.title || '', url: r.url || '' })
         continue
       }
       if (!numberHit && !streetNameHit) continue
