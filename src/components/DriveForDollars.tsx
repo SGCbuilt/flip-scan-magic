@@ -1064,18 +1064,11 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 const items = [
                   ...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
                   ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const })),
-                ]
-                // Sort by date desc, undated last
-                items.sort((a, b) => {
-                  if (!a.date && !b.date) return 0
-                  if (!a.date) return 1
-                  if (!b.date) return -1
-                  return b.date.localeCompare(a.date)
-                })
-                const dated = items.filter(i => i.date)
-                const undated = items.filter(i => !i.date)
+                ] as PermitListItem[]
                 const total = items.length
-                const latest = dated[0]?.date
+                const latest = [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).find(i => i.date)?.date
+                const statusBuckets = Array.from(new Set(items.map(i => normalizeStatusBucket(i.status)))).filter(s => s !== 'Unknown')
+                const filtered = applyPermitControls(items, permitSort, permitTypeFilter, permitStatusFilter)
                 return (
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1096,10 +1089,65 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     )}
 
                     {total > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-2 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                        <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Sort</span>
+                        <select value={permitSort} onChange={e => setPermitSort(e.target.value as any)}
+                          className="text-[10px] font-bold rounded px-1.5 py-0.5 border cursor-pointer"
+                          style={{ borderColor: 'var(--sgc-gray-border)', background: 'white', color: 'var(--sgc-navy)' }}>
+                          <option value="newest">Newest issue date</option>
+                          <option value="oldest">Oldest first</option>
+                          <option value="type">Type A–Z</option>
+                        </select>
+                        <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Show</span>
+                        {(['all', 'permit', 'violation'] as const).map(t => (
+                          <button key={t} onClick={() => setPermitTypeFilter(t)}
+                            className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                            style={{
+                              borderColor: permitTypeFilter === t ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                              background: permitTypeFilter === t ? 'var(--sgc-navy)' : 'white',
+                              color: permitTypeFilter === t ? 'white' : 'var(--sgc-navy)',
+                            }}>
+                            {t === 'all' ? 'All' : t === 'permit' ? 'Permits' : 'Violations'}
+                          </button>
+                        ))}
+                        {statusBuckets.length > 0 && (
+                          <>
+                            <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Status</span>
+                            <button onClick={() => setPermitStatusFilter('all')}
+                              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                              style={{
+                                borderColor: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                background: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'white',
+                                color: permitStatusFilter === 'all' ? 'white' : 'var(--sgc-navy)',
+                              }}>Any</button>
+                            {statusBuckets.map(s => (
+                              <button key={s} onClick={() => setPermitStatusFilter(permitStatusFilter === s ? 'all' : s)}
+                                className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                                style={{
+                                  borderColor: permitStatusFilter === s ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                  background: permitStatusFilter === s ? 'var(--sgc-navy)' : 'white',
+                                  color: permitStatusFilter === s ? 'white' : 'var(--sgc-navy)',
+                                }}>{s}</button>
+                            ))}
+                          </>
+                        )}
+                        <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          {filtered.length} of {total}
+                        </span>
+                      </div>
+                    )}
+
+                    {total > 0 && filtered.length === 0 && (
+                      <div className="text-[11px] p-3 rounded-lg text-center" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                        No records match the current filters.
+                      </div>
+                    )}
+
+                    {filtered.length > 0 && (
                       <div className="relative pl-4">
                         {/* Vertical rail */}
                         <div className="absolute left-1.5 top-1 bottom-1 w-px" style={{ background: 'var(--sgc-gray-border)' }} />
-                        {items.slice(0, 8).map((it, i) => {
+                        {filtered.slice(0, 8).map((it, i) => {
                           const isViolation = it.type === 'violation'
                           const dotColor = isViolation ? '#C0341D' : 'var(--sgc-navy)'
                           const bgColor = isViolation ? '#FEF0ED' : '#EEF2FB'
