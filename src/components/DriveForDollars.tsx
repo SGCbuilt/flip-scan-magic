@@ -359,6 +359,7 @@ async function runDeepScanForCapture(
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
     if (error) throw error
     scan.summary = data?.summary || ''
+    if (data?.evaluation) scan.evaluation = data.evaluation
   } catch (e: any) {
     scan.errors?.push(`AI summary unavailable: ${e?.message || 'source failed'}`)
   }
@@ -1213,18 +1214,52 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           )
         })()}
 
-        {/* AI Summary — promoted */}
-        {dsData?.summary && (
-          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--sgc-navy)33' }}>
-            <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, var(--sgc-navy), #1B3A8C)' }}>
-              <span className="text-[11px] font-black uppercase tracking-wider text-white">🧠 AI Investor Brief</span>
+        {/* AI Evaluation — priority-coded paragraphs */}
+        {(dsData?.evaluation?.sections?.length || dsData?.summary) && (
+          <div className="rounded-2xl border overflow-hidden shadow-sm" style={{ borderColor: 'var(--sgc-navy)33', background: 'white' }}>
+            <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0F2460, #1B3A8C)' }}>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] font-black uppercase tracking-wider text-white">🧠 AI Investor Evaluation</span>
+                <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/15 text-white">GPT-5.5 · institutional</span>
+              </div>
               <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#FEF7EA', color: '#8A5700' }}>
-                Review-only · numbers above are authoritative
+                Review-only
               </span>
             </div>
-            <div className="p-3 text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)', background: 'white' }}>
-              {dsData.summary}
-            </div>
+            {dsData?.evaluation?.summary && (
+              <div className="px-4 py-3 border-b text-[13px] font-semibold leading-snug" style={{ borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-black)', background: '#F7F9FE' }}>
+                {dsData.evaluation.summary}
+              </div>
+            )}
+            {dsData?.evaluation?.sections?.length ? (
+              <div className="p-3 space-y-2">
+                {dsData.evaluation.sections.map((sec, i) => {
+                  const palette: Record<string, { bg: string; border: string; label: string; accent: string; badgeBg: string; badgeText: string }> = {
+                    critical: { bg: '#FEF0ED', border: '#C0341D', label: 'CRITICAL',  accent: '#C0341D', badgeBg: '#C0341D', badgeText: '#FFFFFF' },
+                    high:     { bg: '#FEF3EA', border: '#C45E1A', label: 'HIGH',      accent: '#C45E1A', badgeBg: '#C45E1A', badgeText: '#FFFFFF' },
+                    medium:   { bg: '#FEF7EA', border: '#8A5700', label: 'MEDIUM',    accent: '#8A5700', badgeBg: '#F4D68A', badgeText: '#6B4300' },
+                    low:      { bg: '#EEF4FE', border: '#1B3A8C', label: 'SUPPORT',   accent: '#1B3A8C', badgeBg: '#C5D0EF', badgeText: '#0F2460' },
+                    info:     { bg: '#F4F5F7', border: '#8B8F9A', label: 'INFO',      accent: '#4A4E58', badgeBg: '#E2E4E9', badgeText: '#4A4E58' },
+                  }
+                  const p = palette[sec.priority] || palette.info
+                  return (
+                    <div key={i} className="rounded-lg overflow-hidden border-l-4" style={{ background: p.bg, borderLeftColor: p.border }}>
+                      <div className="flex items-center justify-between px-3 pt-2">
+                        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: p.accent }}>{sec.heading}</span>
+                        <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ background: p.badgeBg, color: p.badgeText }}>{p.label}</span>
+                      </div>
+                      <div className="px-3 pb-2 pt-1 text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--sgc-black)' }}>
+                        {sec.body}
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <div className="p-3 text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>
+                {dsData.summary}
+              </div>
+            )}
           </div>
         )}
 
