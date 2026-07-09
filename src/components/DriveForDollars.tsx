@@ -59,6 +59,40 @@ interface DeepScanData {
 
 const fmt$ = (n: number) => n > 0 ? '$' + Math.round(n).toLocaleString() : '—'
 
+type EvalPriority = 'critical' | 'high' | 'medium' | 'low' | 'info'
+
+const PRIORITY_ORDER: EvalPriority[] = ['critical', 'high', 'medium', 'low', 'info']
+const PRIORITY_META: Record<EvalPriority, { color: string; label: string; bg: string }> = {
+  critical: { color: '#C0341D', label: 'CRITICAL', bg: '#FEF0ED' },
+  high:     { color: '#C45E1A', label: 'HIGH', bg: '#FFF5E5' },
+  medium:   { color: '#8A5700', label: 'MEDIUM', bg: '#FFFDF8' },
+  low:      { color: '#1B3A8C', label: 'SUPPORT', bg: '#EEF2FB' },
+  info:     { color: '#5C6473', label: 'CONTEXT', bg: '#F7F9FC' },
+}
+
+function normalizePriority(value?: string): EvalPriority {
+  return PRIORITY_ORDER.includes(value as EvalPriority) ? value as EvalPriority : 'info'
+}
+
+function extractFullAiMemo(dsData?: DeepScanData | null) {
+  const structured = (dsData?.evaluation?.sections || [])
+    .filter(sec => sec?.heading && sec?.body)
+    .map(sec => ({ heading: sec.heading, priority: normalizePriority(sec.priority), body: sec.body }))
+  if (structured.length) {
+    return structured.slice().sort((a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority))
+  }
+
+  const raw = String(dsData?.summary || '').trim()
+  if (!raw) return []
+  const chunks = raw.split(/\n{2,}/).map(chunk => chunk.trim()).filter(Boolean)
+  return chunks.map((chunk, i) => {
+    const match = chunk.match(/^\*\*(.*?)\*\*\s*\n?([\s\S]*)$/)
+    const heading = match?.[1]?.trim() || (i === 0 ? 'Executive Summary' : `Analysis Note ${i + 1}`)
+    const body = (match?.[2] || chunk).replace(/^[-•]\s*/gm, '').trim()
+    return { heading, priority: (i === 0 ? 'high' : 'info') as EvalPriority, body }
+  })
+}
+
 type PermitRecord = NonNullable<DeepScanData['permits']>['permits'][number]
 
 const isOfficialPermitRecord = (record: PermitRecord) => {
@@ -342,14 +376,29 @@ async function runDeepScanForCapture(
   try {
     const context = {
       ownerName: capture.trace?.owner?.name,
+        ownerSource: (capture.trace?.owner as any)?.source,
       equityPct: capture.trace?.property?.equityPct,
       taxStatus: capture.trace?.property?.taxStatus,
       estValue: capture.trace?.property?.estimatedValue,
+        assessedValue: (capture.trace?.property as any)?.assessedValue,
+        propertyUse: (capture.trace?.property as any)?.propertyUse,
       vacant: capture.trace?.property?.vacant,
       absentee: capture.trace?.property?.absenteeOwner,
       arvSuggestion: capture.comps?.arvSuggestion,
+        compConfidence: capture.comps?.confidence,
+        comparableSales: (capture.comps?.comps || []).slice(0, 8).map((c: any) => ({
+          address: c.address,
+          price: c.price,
+          soldDate: c.soldDate || c.saleDate,
+          beds: c.beds || c.bedrooms,
+          baths: c.baths || c.bathrooms,
+          sqft: c.sqft || c.squareFootage,
+          distance: c.distance,
+        })),
       motivationTier: capture.motivation?.tier,
       motivationScore: capture.motivation?.score,
+        motivationDrivers: capture.motivation?.greenFlags,
+        motivationRisks: capture.motivation?.redFlags,
       dataGuardrail: 'Use only provided fields. Do not invent dates, permit history, ARV, ownership, violations, or offer strategy. Low-confidence records are review-only.',
       // Widen the evidence window the AI reasons over (was 3-of-each).
       permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 12),
@@ -368,6 +417,7 @@ async function runDeepScanForCapture(
       lastSaleDate: (capture.trace?.property as any)?.lastSaleDate,
       ownerMailingAddress: capture.trace?.owner?.mailingAddr,
       phones: (capture.trace?.phones || []).slice(0, 4).map((p: any) => ({ type: p.type, dnc: p.dnc, litigator: p.litigator })),
+        fieldNotes: capture.notes,
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
     if (error) throw error
