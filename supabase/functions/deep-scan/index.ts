@@ -644,14 +644,15 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
 
 // ── ORCHESTRATOR: Official open-data first, Firecrawl fallback ────────────
 async function fetchPermits(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
-  const [arcgis, socrata, firecrawl] = await Promise.all([
+  const [arcgis, knownSocrata, socrata, firecrawl] = await Promise.all([
     fetchPermitsFromArcGIS(street, city).catch(() => null),
+    fetchPermitsFromKnownSocrata(street, city).catch(() => null),
     fetchPermitsFromSocrata(street, city, state, zip).catch(() => null),
     fetchPermitsViaFirecrawl(street, city, state, zip, ownerName, parcelId).catch(() => null),
   ])
 
-  const officialPermits = [...(arcgis?.permits || []), ...(socrata?.permits || [])]
-  const officialViolations = [...(arcgis?.violations || []), ...(socrata?.violations || [])]
+  const officialPermits = [...(arcgis?.permits || []), ...(knownSocrata?.permits || []), ...(socrata?.permits || [])]
+  const officialViolations = [...(arcgis?.violations || []), ...(knownSocrata?.violations || []), ...(socrata?.violations || [])]
   const webPermits = firecrawl?.permits || []
   const webViolations = firecrawl?.violations || []
 
@@ -666,13 +667,14 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
 
   const sources: string[] = []
   if (arcgis?.domain) sources.push(`Official (ArcGIS): ${arcgis.dataset}`)
+  if (knownSocrata?.domain) sources.push(`Official: ${knownSocrata.dataset}`)
   if (socrata?.domain) sources.push(`Official (Socrata): ${socrata.domain}`)
   if (firecrawl?.debug?.rawHits) sources.push(`Web: ${firecrawl.debug.rawHits} hits`)
 
-  const officialDomain = arcgis?.domain || socrata?.domain || null
-  const officialLabel = arcgis?.dataset || socrata?.domain || null
-  const officialMatched = (arcgis?.matched || 0) + (socrata?.matched || 0)
-  const officialScanned = (arcgis?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
+  const officialDomain = arcgis?.domain || knownSocrata?.domain || socrata?.domain || null
+  const officialLabel = arcgis?.dataset || knownSocrata?.dataset || socrata?.domain || null
+  const officialMatched = (arcgis?.matched || 0) + (knownSocrata?.matched || 0) + (socrata?.matched || 0)
+  const officialScanned = (arcgis?.totalRowsScanned || 0) + (knownSocrata?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
 
   return {
     permits,
@@ -684,7 +686,7 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
         dataset: officialLabel,
         matched: officialMatched,
         totalRowsScanned: officialScanned,
-        checkedDomains: [...(arcgis?.checked || []), ...(socrata?.checked || [])],
+        checkedDomains: [...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])],
         available: true,
       } : { available: false, note: 'City not yet in official-registry map — using web sources' },
       web: firecrawl?.debug || null,
