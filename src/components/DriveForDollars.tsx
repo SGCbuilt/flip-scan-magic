@@ -21,7 +21,7 @@ import { toast } from '../lib/toast'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
-import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
+import type { MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
 import { supabase } from '@/integrations/supabase/client'
 
@@ -109,6 +109,31 @@ function applyPermitControls(
   return out
 }
 
+function stablePermitRecordKey(record: PermitRecord) {
+  return [
+    record.date || '',
+    record.permitNumber || '',
+    record.status || '',
+    record.permitType || '',
+    record.title || '',
+    record.url || '',
+  ].join('|').toLowerCase()
+}
+
+function normalizeDeepScanData(scan: DeepScanData): DeepScanData {
+  if (!scan.permits) return scan
+  const byStableKey = (a: PermitRecord, b: PermitRecord) => stablePermitRecordKey(a).localeCompare(stablePermitRecordKey(b))
+  const byDateThenKey = (a: PermitRecord, b: PermitRecord) => (b.date || '').localeCompare(a.date || '') || byStableKey(a, b)
+  return {
+    ...scan,
+    permits: {
+      ...scan.permits,
+      permits: [...(scan.permits.permits || [])].sort(byDateThenKey),
+      violations: [...(scan.permits.violations || [])].sort(byDateThenKey),
+    },
+  }
+}
+
 interface Capture {
   id:          string
   address:     string
@@ -138,11 +163,74 @@ function saveCaptures(c: Capture[]) {
   } catch {}
 }
 
+function canonicalAddressKey(address: string, city: string, state: string, zip: string) {
+  return [address, city, state, zip]
+    .map(part => String(part || '').toLowerCase().trim().replace(/[^a-z0-9]+/g, ' ').replace(/\s+/g, ' '))
+    .join('|')
+}
+
+function cloneCaptureAnalysis(source: Capture): Partial<Capture> {
+  const deterministicMotivation = computeDriveMotivationScore(source.trace, source.comps, source.notes)
+  return JSON.parse(JSON.stringify({
+    trace: source.trace,
+    comps: source.comps,
+    motivation: deterministicMotivation || source.motivation,
+    deepScan: source.deepScan ? normalizeDeepScanData(source.deepScan) : source.deepScan,
+    inPipeline: source.inPipeline,
+  }))
+}
+
 function getTracerKey() {
   try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' }
 }
-function getAnthropicKey() {
-  try { return localStorage.getItem('fscan_anthropic') || '' } catch { return '' }
+
+function computeDriveMotivationScore(trace?: SkipTraceResult | null, comps?: CompResult | null, visualNotes?: string): MotivationScore | null {
+  if (!trace?.hit && !comps?.arvSuggestion && !visualNotes?.trim()) return null
+  const equityPct = trace?.property?.equityPct || 0
+  const notes = String(visualNotes || '').toLowerCase()
+  const visualDistress = /(board|tarp|overgrown|vacant|abandon|damage|fire|trash|mail|broken|roof|window|condemn|neglect)/.test(notes)
+  const compConfidence = String(comps?.confidence || '').toLowerCase()
+  const scoreParts = {
+    base: 32,
+    owner: trace?.hit ? 7 : 0,
+    phone: (trace?.phones || []).some(p => !p.dnc && !p.litigator) ? 5 : 0,
+    comps: comps?.arvSuggestion ? (compConfidence.includes('high') ? 10 : compConfidence.includes('medium') ? 8 : 5) : 0,
+    equity: equityPct >= 50 ? 13 : equityPct >= 35 ? 10 : equityPct >= 20 ? 5 : 0,
+    absentee: trace?.property?.absenteeOwner ? 9 : 0,
+    vacant: trace?.property?.vacant ? 12 : 0,
+    tax: trace?.property?.taxStatus === 'delinquent' ? 12 : 0,
+    visual: visualDistress ? 10 : 0,
+  }
+  const score = Math.max(20, Math.min(95, Object.values(scoreParts).reduce((sum, value) => sum + value, 0)))
+  const tier: MotivationScore['tier'] = score >= 82 ? 'critical' : score >= 68 ? 'hot' : score >= 50 ? 'warm' : 'cold'
+  const urgency: MotivationScore['urgency'] = tier === 'critical' ? 'immediate' : tier === 'hot' ? 'this_week' : tier === 'warm' ? 'this_month' : 'low'
+  const greenFlags = [
+    trace?.property?.absenteeOwner ? 'Absentee owner' : '',
+    trace?.property?.vacant ? 'Vacant property' : '',
+    trace?.property?.taxStatus === 'delinquent' ? 'Tax delinquency' : '',
+    equityPct >= 35 ? `${Math.round(equityPct)}% estimated equity` : '',
+    comps?.arvSuggestion ? 'ARV support found' : '',
+    visualDistress ? 'Visual distress noted' : '',
+  ].filter(Boolean)
+  const redFlags = [
+    !comps?.arvSuggestion ? 'ARV not verified' : '',
+    !trace?.hit ? 'Owner/contact not verified' : '',
+    trace?.phones?.some(p => p.dnc) ? 'Some phone records are DNC' : '',
+  ].filter(Boolean)
+  const primaryDriver = greenFlags[0] || (comps?.arvSuggestion ? 'Comparable-value support found' : 'Field capture needs verification')
+  return {
+    score,
+    tier,
+    primaryDriver,
+    explanation: `Deterministic score from verified owner, equity, tax/vacancy, comp, and field-note signals. It does not use AI, so the same inputs produce the same rating every search.`,
+    recommendedAction: score >= 68 ? 'Verify condition and contact the owner before underwriting an offer.' : 'Save only if additional distress, equity, or contact evidence is confirmed.',
+    bestCallTime: 'Weekday morning 8–10am',
+    redFlags,
+    greenFlags,
+    suggestedOffer: comps?.arvSuggestion ? 'Underwrite from 70% ARV minus repairs and margin' : 'Do not set offer range until ARV is verified',
+    urgency,
+    computedAt: 'deterministic',
+  }
 }
 
 async function runDeepScanForCapture(
@@ -185,6 +273,7 @@ async function runDeepScanForCapture(
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: permitBody, ...(invokeOpts || {}) })
     if (error) throw error
     permitsData = data || { permits: [], violations: [], source: 'none' }
+    permitsData = normalizeDeepScanData({ permits: permitsData }).permits
     scan.permits = permitsData
   } catch (e: any) {
     scan.errors?.push(`Permits unavailable: ${e?.message || 'source failed'}`)
@@ -235,7 +324,6 @@ async function runDeepScanForCapture(
 function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   const comps = capture.comps
   const trace = capture.trace
-  const motiv = capture.motivation
   const permitRecords = deepScan?.permits?.permits || []
   const violationRecords = deepScan?.permits?.violations || []
   const verifiedPermits = permitRecords.filter(isVerifiedPermitRecord).length
@@ -260,9 +348,27 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
     (trace?.property?.equityPct || 0) >= 35,
   ].filter(Boolean).length
 
-  const rawScore = motiv?.score || Math.min(95, 45 + leadSignals * 9 + (hasComps ? 8 : 0))
+  // Deterministic professional score: never use AI text/rating output here.
+  // Same address + same verified inputs must produce the same Deal Analysis score.
+  const equityPct = trace?.property?.equityPct || 0
+  const compConfidence = String(comps?.confidence || '').toLowerCase()
+  const deterministicParts = {
+    base: 35,
+    comps: hasComps ? (compConfidence.includes('high') ? 14 : compConfidence.includes('medium') ? 11 : 8) : 0,
+    owner: hasOwner ? 6 : 0,
+    equity: equityPct >= 50 ? 13 : equityPct >= 35 ? 10 : equityPct >= 20 ? 5 : 0,
+    absentee: trace?.property?.absenteeOwner ? 8 : 0,
+    vacant: trace?.property?.vacant ? 10 : 0,
+    tax: trace?.property?.taxStatus === 'delinquent' ? 9 : 0,
+    verifiedViolations: Math.min(12, verifiedViolations * 6),
+    distress: Math.min(8, distress * 4),
+    verifiedPermits: Math.min(4, verifiedPermits * 2),
+    photos: photos > 0 ? 2 : 0,
+    reviewPenalty: reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? -6 : 0,
+  }
+  const rawScore = Object.values(deterministicParts).reduce((sum, value) => sum + value, 0)
   const confidenceCap = !hasComps ? 58 : !hasOwner && !hasDeepScan ? 68 : reviewRecords > 0 && verifiedPermits + verifiedViolations === 0 ? 72 : 95
-  const score = Math.min(rawScore, confidenceCap)
+  const score = Math.max(20, Math.min(rawScore, confidenceCap))
   const tier = score >= 75 ? 'High Priority' : score >= 60 ? 'Worth Pursuing' : score >= 45 ? 'Research Further' : 'Low Signal'
   const confidence = hasComps && hasOwner && hasDeepScan ? 'Verified inputs' : hasComps && hasOwner ? 'Owner + comps' : hasComps ? 'Comps only' : 'Preliminary'
   const maxOffer = hasComps ? Math.round(comps!.arvSuggestion * 0.7) : 0
@@ -511,7 +617,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           {/* Header band */}
           <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: 'var(--sgc-navy)' }}>
             <span className="text-[11px] font-black text-white uppercase tracking-wider">📊 Deal Analysis</span>
-            <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">{analysis.confidence}</span>
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">Deterministic · {analysis.confidence}</span>
           </div>
 
           {/* Hero rating */}
@@ -867,7 +973,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               style={{ background: motivColor }}>
               <div className="flex items-center gap-2">
                 <span className="text-sm">🧠</span>
-                <span className="text-xs font-bold text-white uppercase tracking-wide">AI Motivation Score</span>
+                <span className="text-xs font-bold text-white uppercase tracking-wide">Motivation Score</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-black text-white">{motiv.score}</span>
@@ -1319,7 +1425,6 @@ export default function DriveForDollars() {
     setProgress(['🔍 Looking up property...'])
 
     const tracerKey   = getTracerKey()
-    const anthropicKey= getAnthropicKey()
     const captureId   = `d4d-${Date.now()}`
 
     const newCapture: Capture = {
@@ -1328,6 +1433,24 @@ export default function DriveForDollars() {
       notes,
       capturedAt: new Date().toISOString(),
       inPipeline: false,
+    }
+
+    const addressKey = canonicalAddressKey(address, city, state, zip)
+    const allBeforeLookup = loadCaptures()
+    const prior = allBeforeLookup.find(c =>
+      canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
+      (c.trace || c.comps || c.motivation || c.deepScan)
+    )
+    if (prior) {
+      Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
+      setProgress(['✓ Reused saved analysis for this address. Use Refresh live permit history for a new permit pull.'])
+      const updated = [newCapture, ...allBeforeLookup]
+      saveAndRefresh(updated)
+      setAnalyzing(false)
+      setProgress([])
+      setNotes('')
+      setView('history')
+      return
     }
 
     // Run skip trace + comps in parallel
@@ -1346,30 +1469,9 @@ export default function DriveForDollars() {
     if (trace) newCapture.trace = trace
     if (comps) newCapture.comps = comps
 
-    // AI motivation score
-    if (anthropicKey && (trace?.hit || comps)) {
-      setProgress(p => [...p, '🧠 Computing motivation score...'])
-      // Build a synthetic lead for motivation scoring
-      const syntheticLead = {
-        id:           captureId,
-        address, city, state, zip,
-        county:       '',
-        lat:          null, lng: null,
-        signalType:   'code_violation' as any,
-        signalLabel:  'Drive for Dollars — Field Capture',
-        description:  notes || 'Property flagged while driving — visual distress signals observed',
-        caseNumber:   '',
-        status:       'Open',
-        filedDate:    new Date().toISOString().split('T')[0],
-        severity:     'medium' as any,
-        source:       'Drive for Dollars',
-        sourceUrl:    '',
-        rawData:      null,
-        investorScore: 50,
-      }
-      const motivation = await computeMotivationScore(syntheticLead, trace)
-      if (motivation) newCapture.motivation = motivation
-    }
+    setProgress(p => [...p, '🧠 Computing deterministic motivation score...'])
+    const motivation = computeDriveMotivationScore(trace, comps, notes)
+    if (motivation) newCapture.motivation = motivation
 
     setProgress(p => [...p, '⚡ Deep Scan: photos · checking property imagery'])
     try {
