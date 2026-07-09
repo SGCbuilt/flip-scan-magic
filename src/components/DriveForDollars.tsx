@@ -411,6 +411,10 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   const [dsData, setDsData] = useState<DeepScanData | null>(capture.deepScan || null)
   const [dsError, setDsError] = useState<string | null>(null)
   const [dsStep, setDsStep] = useState<string>('')
+  // Permit list controls — shared between compact card strip and modal timeline
+  const [permitSort, setPermitSort] = useState<'newest' | 'oldest' | 'type'>('newest')
+  const [permitTypeFilter, setPermitTypeFilter] = useState<'all' | 'permit' | 'violation'>('all')
+  const [permitStatusFilter, setPermitStatusFilter] = useState<string>('all')
   const analysis = buildAnalysis(capture, dsData)
 
   const runDeepScan = async () => {
