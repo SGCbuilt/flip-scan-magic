@@ -41,6 +41,7 @@ const sections: Section[] = [
       { tab: 'drive',    title: 'Drive for Dollars', description: 'Mobile capture with instant skip-trace and curb-appeal notes.',      icon: Car },
       { tab: 'deals',    title: 'Deal Scanner',      description: 'MLS + off-market search with GC-calibrated flip scoring.',            icon: Scan },
       { tab: 'hunt',     title: 'Deal Hunter',       description: 'Advanced criteria-based property hunting across sources.',            icon: FileSearch },
+      { tab: 'chatham',  title: 'Chatham Permits',   description: 'Organize official monthly permit reports without fake web matches.',   icon: Building2 },
     ],
   },
   {
