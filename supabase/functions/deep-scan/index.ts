@@ -56,6 +56,21 @@ function looksLikePerRecordUrl(url: string, streetNumber: string, streetName: st
   if (badHosts.some(h => host === h || host.endsWith('.' + h))) return false
   if (path.endsWith('.pdf')) return false
 
+  // Hard-reject: real-estate listing/portal sites — these are property listings,
+  // NOT permit or code-enforcement records. Compass/Zillow/Redfin/Realtor etc.
+  // must never surface as a "permit" result even if their page mentions permit history.
+  const listingHosts = [
+    'compass.com', 'zillow.com', 'redfin.com', 'realtor.com', 'trulia.com',
+    'homes.com', 'movoto.com', 'estately.com', 'point2homes.com', 'coldwellbanker.com',
+    'century21.com', 'remax.com', 'kw.com', 'sothebysrealty.com', 'berkshirehathawayhs.com',
+    'homesnap.com', 'har.com', 'ziprealty.com', 'weichert.com', 'howardhanna.com',
+    'realestate.com', 'openhouse.com', 'rockethomes.com', 'opendoor.com', 'offerpad.com',
+    'propertyshark.com', 'neighborhoodscout.com', 'niche.com', 'areavibes.com',
+    'rent.com', 'apartments.com', 'apartmentguide.com', 'hotpads.com', 'padmapper.com',
+    'loopnet.com', 'crexi.com', 'costar.com',
+  ]
+  if (listingHosts.some(h => host === h || host.endsWith('.' + h))) return false
+
   // Hard-reject federal/registry documents that never contain per-property permits.
   const federalHosts = ['sam.gov', 'federalregister.gov', 'govinfo.gov', 'uscg.mil', 'regulations.gov', 'congress.gov', 'law.cornell.edu']
   if (federalHosts.some(h => host === h || host.endsWith('.' + h))) return false
