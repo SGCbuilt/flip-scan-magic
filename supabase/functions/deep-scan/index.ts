@@ -741,7 +741,10 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
         totalRowsScanned: officialScanned,
         checkedDomains: [...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])],
         available: true,
-      } : { available: false, note: 'City not yet in official-registry map — using web sources' },
+      } : {
+        available: false,
+        note: `No official open-data permit registry available for ${city || 'this city'}${state ? ', ' + state : ''}. Small municipalities often keep permits in a paper or in-office system that isn't published online. Web search below is best-effort only — treat any hits as leads to verify manually.`,
+      },
       web: firecrawl?.debug || null,
       sources,
       totalRecords: permits.length + violations.length,
