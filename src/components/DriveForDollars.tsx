@@ -1317,25 +1317,15 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
 
         {/* AI Evaluation — research-memo layout, priority-ordered */}
         {(dsData?.evaluation?.sections?.length || dsData?.summary) && (() => {
-          const PRIORITY_ORDER: Array<'critical' | 'high' | 'medium' | 'low' | 'info'> = ['critical', 'high', 'medium', 'low', 'info']
-          const PRIORITY_META: Record<string, { color: string; label: string }> = {
-            critical: { color: '#C0341D', label: 'CRITICAL' },
-            high:     { color: '#C45E1A', label: 'HIGH' },
-            medium:   { color: '#8A5700', label: 'MEDIUM' },
-            low:      { color: '#1B3A8C', label: 'SUPPORT' },
-            info:     { color: '#8B8F9A', label: 'CONTEXT' },
-          }
-          const sections = (dsData?.evaluation?.sections || []).slice().sort(
-            (a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority)
-          )
+          const sections = extractFullAiMemo(dsData)
           const bottomLine = dsData?.evaluation?.summary
           return (
-            <div className="rounded-2xl overflow-hidden border" style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
+            <div className="rounded-2xl overflow-hidden border shadow-sm" style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
               {/* Header bar */}
               <div className="px-4 py-3 flex items-center justify-between border-b" style={{ background: 'var(--sgc-navy)', borderColor: 'var(--sgc-gray-border)' }}>
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-[11px] font-black uppercase tracking-wider text-white">AI Investor Evaluation</span>
-                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white/90" style={{ background: 'rgba(255,255,255,0.12)' }}>GPT-5.5</span>
+                  <span className="text-[11px] font-black uppercase tracking-wider text-white">Complete AI Investor Analysis</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white/90" style={{ background: 'rgba(255,255,255,0.12)' }}>Most powerful model</span>
                 </div>
                 <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white/90" style={{ background: 'rgba(255,255,255,0.12)' }}>Review-only</span>
               </div>
@@ -1348,24 +1338,41 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 </div>
               )}
 
-              {/* Sections grid — 1 col on mobile, 2 cols from md */}
+              <div className="grid grid-cols-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                <div className="p-2.5 text-center border-r" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                  <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Records searched</div>
+                  <div className="text-sm font-black mt-0.5" style={{ color: 'var(--sgc-navy)' }}>{(dsData?.permits?.permits?.length || 0) + (dsData?.permits?.violations?.length || 0)}</div>
+                </div>
+                <div className="p-2.5 text-center border-r" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                  <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Distress hits</div>
+                  <div className="text-sm font-black mt-0.5" style={{ color: '#C45E1A' }}>{dsData?.distress?.signals?.length || 0}</div>
+                </div>
+                <div className="p-2.5 text-center">
+                  <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Photos</div>
+                  <div className="text-sm font-black mt-0.5" style={{ color: '#1A7A4A' }}>{dsData?.photos?.count || 0}</div>
+                </div>
+              </div>
+
+              {/* Full memo — all AI sections rendered as priority-marked paragraphs */}
               {sections.length ? (
-                <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                <div className="p-3 space-y-2.5">
                   {sections.map((sec, i) => {
-                    const meta = PRIORITY_META[sec.priority] || PRIORITY_META.info
+                    const meta = PRIORITY_META[normalizePriority(sec.priority)]
                     return (
-                      <div key={i} className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
-                        <div className="flex-shrink-0" style={{ width: 3, background: meta.color }} />
-                        <div className="p-3 min-w-0 flex-1">
-                          <div className="flex items-center gap-2 mb-1.5">
-                            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ color: meta.color, background: `${meta.color}12` }}>{meta.label}</span>
-                            <span className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: 'var(--sgc-black)' }}>{sec.heading}</span>
-                          </div>
-                          <div className="text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--sgc-black)' }}>
-                            {sec.body}
+                      <article key={i} className="rounded-lg border overflow-hidden" style={{ borderColor: `${meta.color}55`, background: 'white' }}>
+                        <div className="flex">
+                          <div className="flex-shrink-0" style={{ width: 4, background: meta.color }} />
+                          <div className="min-w-0 flex-1">
+                            <div className="px-3 py-2 flex items-center gap-2 border-b" style={{ borderColor: `${meta.color}25`, background: meta.bg }}>
+                              <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ color: meta.color, background: 'white' }}>{meta.label}</span>
+                              <h4 className="text-[12px] font-black uppercase tracking-wide m-0" style={{ color: 'var(--sgc-black)' }}>{sec.heading}</h4>
+                            </div>
+                            <p className="px-3 py-2.5 text-[12px] leading-relaxed whitespace-pre-wrap m-0" style={{ color: 'var(--sgc-black)' }}>
+                              {sec.body}
+                            </p>
                           </div>
                         </div>
-                      </div>
+                      </article>
                     )
                   })}
                 </div>
