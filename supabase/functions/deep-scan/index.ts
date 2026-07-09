@@ -919,15 +919,16 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
 
 // ── ORCHESTRATOR: Official open-data first, Firecrawl fallback ────────────
 async function fetchPermits(street: string, city: string, state: string, zip: string, ownerName?: string, parcelId?: string) {
-  const [arcgis, knownSocrata, socrata, firecrawl] = await Promise.all([
+  const [officialPortals, arcgis, knownSocrata, socrata, firecrawl] = await Promise.all([
+    fetchPermitsFromOfficialPortals(street, city).catch(() => null),
     fetchPermitsFromArcGIS(street, city).catch(() => null),
     fetchPermitsFromKnownSocrata(street, city).catch(() => null),
     fetchPermitsFromSocrata(street, city, state, zip).catch(() => null),
     fetchPermitsViaFirecrawl(street, city, state, zip, ownerName, parcelId).catch(() => null),
   ])
 
-  const officialPermits = [...(arcgis?.permits || []), ...(knownSocrata?.permits || []), ...(socrata?.permits || [])]
-  const officialViolations = [...(arcgis?.violations || []), ...(knownSocrata?.violations || []), ...(socrata?.violations || [])]
+  const officialPermits = [...(officialPortals?.permits || []), ...(arcgis?.permits || []), ...(knownSocrata?.permits || []), ...(socrata?.permits || [])]
+  const officialViolations = [...(officialPortals?.violations || []), ...(arcgis?.violations || []), ...(knownSocrata?.violations || []), ...(socrata?.violations || [])]
   const webPermits = firecrawl?.permits || []
   const webViolations = firecrawl?.violations || []
 
@@ -941,15 +942,19 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
   const violations = [...officialViolations, ...filteredWebV].sort(byDateDesc).slice(0, 15)
 
   const sources: string[] = []
+  if (officialPortals?.domain) sources.push(`Official portal: ${officialPortals.dataset}`)
   if (arcgis?.domain) sources.push(`Official (ArcGIS): ${arcgis.dataset}`)
   if (knownSocrata?.domain) sources.push(`Official: ${knownSocrata.dataset}`)
   if (socrata?.domain) sources.push(`Official (Socrata): ${socrata.domain}`)
   if (firecrawl?.debug?.rawHits) sources.push(`Web: ${firecrawl.debug.rawHits} hits`)
 
-  const officialDomain = arcgis?.domain || knownSocrata?.domain || socrata?.domain || null
-  const officialLabel = arcgis?.dataset || knownSocrata?.dataset || socrata?.domain || null
-  const officialMatched = (arcgis?.matched || 0) + (knownSocrata?.matched || 0) + (socrata?.matched || 0)
-  const officialScanned = (arcgis?.totalRowsScanned || 0) + (knownSocrata?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
+  const officialDomain = officialPortals?.domain || arcgis?.domain || knownSocrata?.domain || socrata?.domain || null
+  const officialLabel = officialPortals?.dataset || arcgis?.dataset || knownSocrata?.dataset || socrata?.domain || null
+  const officialMatched = (officialPortals?.matched || 0) + (arcgis?.matched || 0) + (knownSocrata?.matched || 0) + (socrata?.matched || 0)
+  const officialScanned = (officialPortals?.totalRowsScanned || 0) + (arcgis?.totalRowsScanned || 0) + (knownSocrata?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
+  const officialChecked = [...(officialPortals?.checked || []), ...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])]
+  const manualSources = [...(officialPortals?.manualSources || []), ...(firecrawl?.debug?.rawSample || [])]
+  const scanNote = officialPortals?.note || (permits.length + violations.length === 0 ? firecrawl?.debug?.note : null)
 
   return {
     permits,
@@ -961,7 +966,7 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
         dataset: officialLabel,
         matched: officialMatched,
         totalRowsScanned: officialScanned,
-        checkedDomains: [...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])],
+        checkedDomains: officialChecked,
         available: true,
       } : {
         available: false,
@@ -970,6 +975,12 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
       web: firecrawl?.debug || null,
       sources,
       totalRecords: permits.length + violations.length,
+      note: scanNote,
+      rawSample: manualSources.slice(0, 4),
+      queriesRun: firecrawl?.debug?.queriesRun || 0,
+      queriesOk: firecrawl?.debug?.queriesOk || 0,
+      rawHits: firecrawl?.debug?.rawHits || 0,
+      aiUsed: firecrawl?.debug?.aiUsed || false,
     },
   }
 }
