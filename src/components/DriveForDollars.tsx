@@ -1045,86 +1045,147 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           </div>
         )}
 
-        {/* Owner research */}
-        <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-          <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#F7F9FC' }}>
-            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>👤 Owner Research</span>
-            <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full"
-              style={{ background: ownerResearch.confidence === 'Contact-ready' ? '#EDFAF3' : '#FEF7EA', color: ownerResearch.confidence === 'Contact-ready' ? '#1A7A4A' : '#8A5700' }}>
-              {ownerResearch.confidence}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-px" style={{ background: 'var(--sgc-gray-border)' }}>
-            {ownerResearch.facts.map(f => {
-              const color = f.status === 'verified' ? '#1A7A4A' : f.status === 'warning' ? '#C45E1A' : 'var(--sgc-gray-mid)'
-              return (
-                <div key={f.label} className="bg-white p-2.5 min-w-0">
-                  <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--sgc-gray-mid)' }}>{f.label}</div>
-                  <div className="text-[11px] font-black truncate" style={{ color }} title={f.value}>{f.value}</div>
+        {/* ─────────── Ownership & Contacts (unified) ─────────── */}
+        {(() => {
+          const owner = trace?.owner
+          const property = trace?.property
+          const phones = trace?.phones || []
+          const safePhones = phones.filter(p => !p.dnc && !p.litigator)
+          const restrictedPhones = phones.filter(p => p.dnc || p.litigator)
+          const emails = trace?.emails || []
+          const confBg = ownerResearch.confidence === 'Contact-ready' ? '#EDFAF3'
+            : ownerResearch.confidence.startsWith('Owner') ? '#FEF7EA' : '#F1F3F7'
+          const confFg = ownerResearch.confidence === 'Contact-ready' ? '#1A7A4A'
+            : ownerResearch.confidence.startsWith('Owner') ? '#8A5700' : '#5C6473'
+          return (
+            <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              {/* Header */}
+              <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'var(--sgc-navy)' }}>
+                <span className="text-[11px] font-black uppercase tracking-wider text-white">🧑‍💼 Ownership &amp; Contacts</span>
+                <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full"
+                  style={{ background: confBg, color: confFg }}>{ownerResearch.confidence}</span>
+              </div>
+
+              {/* Owner identity strip */}
+              <div className="px-3 py-2.5 flex items-center gap-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)', background: 'var(--sgc-navy-pale)' }}>
+                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                  style={{ background: 'var(--sgc-navy)', color: 'white', fontWeight: 900 }}>
+                  {(owner?.name || '?').trim().charAt(0).toUpperCase()}
                 </div>
-              )
-            })}
-          </div>
-          {ownerResearch.nextSteps.length > 0 && (
-            <div className="px-3 py-2 space-y-1" style={{ background: '#FFFDF8' }}>
-              {ownerResearch.nextSteps.map((step, i) => (
-                <div key={i} className="text-[10px] font-semibold leading-snug" style={{ color: '#8A5700' }}>• {step}</div>
-              ))}
-            </div>
-          )}
-        </div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Owner of record</div>
+                  <div className="text-sm font-black truncate" style={{ color: 'var(--sgc-black)' }}>
+                    {owner?.name || 'Not verified — confirm via county GIS / Register of Deeds'}
+                  </div>
+                  {owner?.mailingAddr && (
+                    <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--sgc-gray-mid)' }} title={owner.mailingAddr}>
+                      📬 {owner.mailingAddr}
+                    </div>
+                  )}
+                </div>
+              </div>
 
-        {/* Owner contact */}
-        {trace?.hit && trace.owner && (
-          <div className="rounded-xl border p-3" style={{ background: 'var(--sgc-navy-pale)', borderColor: 'var(--sgc-navy)20' }}>
-            <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>Owner Contact</div>
-            <div className="font-bold text-sm mb-2" style={{ color: 'var(--sgc-black)' }}>
-              👤 {trace.owner.name || 'Name not found'}
-            </div>
-            {trace.phones.filter(p => !p.litigator).map((p, i) => (
-              <div key={i} className="flex items-center gap-2 mb-1.5">
-                <a href={`tel:${p.number}`}
-                  onClick={e => { if (p.dnc) { e.preventDefault(); toast.warning('⛔ DNC — Do Not Call. TCPA violation risk.') } }}
-                  className="flex items-center gap-2 px-3 py-2 rounded-xl flex-1 no-underline"
-                  style={{ background: p.dnc ? '#FEF0ED' : '#EDFAF3', color: p.dnc ? '#C0341D' : '#1A7A4A' }}>
-                  <span className="text-base">{p.dnc ? '⛔' : '📞'}</span>
-                  <span className="font-mono font-bold text-sm">{p.number}</span>
-                  <span className="text-[10px] capitalize">{p.type}</span>
-                  {p.dnc && <span className="text-[10px] font-black ml-auto">DNC</span>}
-                </a>
-              </div>
-            ))}
-            {trace.emails.slice(0, 2).map((e, i) => (
-              <a key={i} href={`mailto:${e.address}`}
-                className="flex items-center gap-2 px-3 py-2 rounded-xl mb-1 no-underline"
-                style={{ background: '#EEF2FB', color: 'var(--sgc-navy)' }}>
-                <span>✉️</span>
-                <span className="text-sm">{e.address}</span>
-              </a>
-            ))}
-            {trace.owner.mailingAddr && (
-              <div className="text-xs mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                📬 {trace.owner.mailingAddr}
-              </div>
-            )}
-          </div>
-        )}
+              {/* Possible contacts */}
+              <div className="p-3 space-y-2 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                <div className="flex items-center justify-between">
+                  <div className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>
+                    ☎️ Possible contacts
+                  </div>
+                  <div className="text-[9px] font-bold" style={{ color: 'var(--sgc-gray-mid)' }}>
+                    {safePhones.length} safe · {restrictedPhones.length} restricted · {emails.length} email
+                  </div>
+                </div>
 
-        {trace?.hit && trace.property && (
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { l: 'Est. Value', v: fmt$(trace.property.estimatedValue), c: 'var(--sgc-navy)' },
-              { l: 'Equity', v: safePct(trace.property.equityPct), c: '#1A7A4A' },
-              { l: 'Tax Status', v: trace.property.taxStatus || '—', c: trace.property.taxStatus === 'delinquent' ? '#C0341D' : '#1A7A4A' },
-              { l: 'Last Sale', v: trace.property.lastSalePrice > 0 ? fmt$(trace.property.lastSalePrice) : '—', c: 'var(--sgc-black)' },
-              { l: 'Absentee', v: trace.property.absenteeOwner ? 'Yes 🎯' : 'No', c: trace.property.absenteeOwner ? '#C45E1A' : 'var(--sgc-gray-mid)' },
-              { l: 'Vacant', v: trace.property.vacant ? 'Yes 🏚️' : 'No', c: trace.property.vacant ? '#C0341D' : 'var(--sgc-gray-mid)' },
-            ].map(m => (
-              <div key={m.l} className="text-center p-2.5 rounded-xl" style={{ background: 'var(--sgc-gray-light)' }}>
-                <div className="text-[9px] uppercase tracking-wide mb-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>{m.l}</div>
-                <div className="text-sm font-bold" style={{ color: m.c }}>{m.v}</div>
+                {phones.length === 0 && emails.length === 0 && (
+                  <div className="text-[11px] p-2.5 rounded-lg text-center" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                    No contact records returned — try mail or door-knock while waiting on skip trace.
+                  </div>
+                )}
+
+                {phones.filter(p => !p.litigator).map((p, i) => (
+                  <a key={`ph${i}`} href={`tel:${p.number}`}
+                    onClick={e => { if (p.dnc) { e.preventDefault(); toast.warning('⛔ DNC — Do Not Call. TCPA violation risk.') } }}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl no-underline"
+                    style={{ background: p.dnc ? '#FEF0ED' : '#EDFAF3', color: p.dnc ? '#C0341D' : '#1A7A4A' }}>
+                    <span className="text-base">{p.dnc ? '⛔' : '📞'}</span>
+                    <span className="font-mono font-bold text-sm flex-1">{p.number}</span>
+                    <span className="text-[10px] capitalize opacity-80">{p.type}</span>
+                    {p.dnc && <span className="text-[9px] font-black px-1.5 py-0.5 rounded-full" style={{ background: 'white', color: '#C0341D' }}>DNC</span>}
+                  </a>
+                ))}
+
+                {emails.slice(0, 3).map((e, i) => (
+                  <a key={`em${i}`} href={`mailto:${e.address}`}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl no-underline"
+                    style={{ background: '#EEF2FB', color: 'var(--sgc-navy)' }}>
+                    <span>✉️</span>
+                    <span className="text-sm font-semibold truncate">{e.address}</span>
+                  </a>
+                ))}
               </div>
-            ))}
+
+              {/* Property signals */}
+              {trace?.hit && property && (
+                <div className="grid grid-cols-3 gap-px border-b" style={{ background: 'var(--sgc-gray-border)', borderColor: 'var(--sgc-gray-border)' }}>
+                  {[
+                    { l: 'Est. Value', v: fmt$(property.estimatedValue), c: 'var(--sgc-navy)' },
+                    { l: 'Equity', v: safePct(property.equityPct), c: '#1A7A4A' },
+                    { l: 'Tax Status', v: property.taxStatus || '—', c: property.taxStatus === 'delinquent' ? '#C0341D' : '#1A7A4A' },
+                    { l: 'Last Sale', v: property.lastSalePrice > 0 ? fmt$(property.lastSalePrice) : '—', c: 'var(--sgc-black)' },
+                    { l: 'Absentee', v: property.absenteeOwner ? 'Yes 🎯' : 'No', c: property.absenteeOwner ? '#C45E1A' : 'var(--sgc-gray-mid)' },
+                    { l: 'Vacant', v: property.vacant ? 'Yes 🏚️' : 'No', c: property.vacant ? '#C0341D' : 'var(--sgc-gray-mid)' },
+                  ].map(m => (
+                    <div key={m.l} className="bg-white p-2 text-center">
+                      <div className="text-[9px] uppercase tracking-wide" style={{ color: 'var(--sgc-gray-mid)' }}>{m.l}</div>
+                      <div className="text-[12px] font-black mt-0.5" style={{ color: m.c }}>{m.v}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Research facts (compact) */}
+              <details className="group">
+                <summary className="px-3 py-2 text-[10px] font-black uppercase tracking-wider cursor-pointer select-none flex items-center justify-between"
+                  style={{ color: 'var(--sgc-gray-mid)', background: '#F7F9FC' }}>
+                  <span>📇 Research checklist</span>
+                  <span className="text-[9px] font-bold group-open:hidden">Show</span>
+                  <span className="text-[9px] font-bold hidden group-open:inline">Hide</span>
+                </summary>
+                <div className="grid grid-cols-2 gap-px" style={{ background: 'var(--sgc-gray-border)' }}>
+                  {ownerResearch.facts.map(f => {
+                    const color = f.status === 'verified' ? '#1A7A4A' : f.status === 'warning' ? '#C45E1A' : 'var(--sgc-gray-mid)'
+                    return (
+                      <div key={f.label} className="bg-white p-2 min-w-0">
+                        <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--sgc-gray-mid)' }}>{f.label}</div>
+                        <div className="text-[11px] font-black truncate" style={{ color }} title={f.value}>{f.value}</div>
+                      </div>
+                    )
+                  })}
+                </div>
+                {ownerResearch.nextSteps.length > 0 && (
+                  <div className="px-3 py-2 space-y-1" style={{ background: '#FFFDF8' }}>
+                    {ownerResearch.nextSteps.map((step, i) => (
+                      <div key={i} className="text-[10px] font-semibold leading-snug" style={{ color: '#8A5700' }}>• {step}</div>
+                    ))}
+                  </div>
+                )}
+              </details>
+            </div>
+          )
+        })()}
+
+        {/* AI Summary — promoted */}
+        {dsData?.summary && (
+          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--sgc-navy)33' }}>
+            <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, var(--sgc-navy), #1B3A8C)' }}>
+              <span className="text-[11px] font-black uppercase tracking-wider text-white">🧠 AI Investor Brief</span>
+              <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#FEF7EA', color: '#8A5700' }}>
+                Review-only · numbers above are authoritative
+              </span>
+            </div>
+            <div className="p-3 text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)', background: 'white' }}>
+              {dsData.summary}
+            </div>
           </div>
         )}
 
@@ -1465,15 +1526,6 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                   {dsData.distress.signals.length === 0 && (
                     <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>No distress signals detected</div>
                   )}
-                </div>
-              )}
-
-              {/* AI Summary */}
-              {dsData?.summary && (
-                <div className="rounded-lg p-2.5" style={{ background: '#EEF2FB' }}>
-                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>🧠 AI Summary</div>
-                <div className="text-[9px] font-black uppercase tracking-wider mb-1" style={{ color: '#8A5700' }}>Review-only narrative — numbers above are authoritative</div>
-                <div className="text-xs whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>{dsData.summary}</div>
                 </div>
               )}
 
