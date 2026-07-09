@@ -630,7 +630,59 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                   </div>
                 ) : (
                   <div className="px-3 py-2 space-y-1.5">
-                    {all.slice(0, 12).map((it, i) => {
+                    {/* Sort + filter toolbar */}
+                    <div className="flex flex-wrap items-center gap-1.5 pb-1.5 mb-1 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Sort</span>
+                      <select value={permitSort} onChange={e => setPermitSort(e.target.value as any)}
+                        className="text-[10px] font-bold rounded px-1.5 py-0.5 border cursor-pointer"
+                        style={{ borderColor: 'var(--sgc-gray-border)', background: 'white', color: 'var(--sgc-navy)' }}>
+                        <option value="newest">Newest issue date</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="type">Type A–Z</option>
+                      </select>
+                      <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Show</span>
+                      {(['all', 'permit', 'violation'] as const).map(t => (
+                        <button key={t} onClick={() => setPermitTypeFilter(t)}
+                          className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                          style={{
+                            borderColor: permitTypeFilter === t ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                            background: permitTypeFilter === t ? 'var(--sgc-navy)' : 'white',
+                            color: permitTypeFilter === t ? 'white' : 'var(--sgc-navy)',
+                          }}>
+                          {t === 'all' ? 'All' : t === 'permit' ? 'Permits' : 'Violations'}
+                        </button>
+                      ))}
+                      {statusBuckets.length > 0 && (
+                        <>
+                          <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Status</span>
+                          <button onClick={() => setPermitStatusFilter('all')}
+                            className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                            style={{
+                              borderColor: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                              background: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'white',
+                              color: permitStatusFilter === 'all' ? 'white' : 'var(--sgc-navy)',
+                            }}>Any</button>
+                          {statusBuckets.map(s => (
+                            <button key={s} onClick={() => setPermitStatusFilter(permitStatusFilter === s ? 'all' : s)}
+                              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                              style={{
+                                borderColor: permitStatusFilter === s ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                background: permitStatusFilter === s ? 'var(--sgc-navy)' : 'white',
+                                color: permitStatusFilter === s ? 'white' : 'var(--sgc-navy)',
+                              }}>{s}</button>
+                          ))}
+                        </>
+                      )}
+                      <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        {filtered.length} of {total}
+                      </span>
+                    </div>
+                    {filtered.length === 0 && (
+                      <div className="text-[10px] font-semibold text-center py-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        No records match the current filters.
+                      </div>
+                    )}
+                    {filtered.slice(0, 12).map((it, i) => {
                       const isV = it.type === 'violation'
                       const color = isV ? '#C0341D' : 'var(--sgc-navy)'
                       const conf = it.confidence || 'low'
@@ -710,9 +762,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                         </div>
                       )
                     })}
-                    {total > 12 && (
+                    {filtered.length > 12 && (
                       <div className="text-[10px] pt-1 font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
-                        + {total - 12} more records available from the source link.
+                        + {filtered.length - 12} more records match. Refine filters or open the source link.
                       </div>
                     )}
                     <button onClick={runDeepScan} disabled={dsRunning}
