@@ -962,7 +962,7 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
             ? 'No web results returned. This city may not publish permits online for this address.'
             : `No per-property permit records found on the web. ${heldForReview.length} generic pages (landing pages, PDFs) were held back — they are not property records.`)
         : null,
-      rawSample: heldForReview.slice(0, 4),
+      rawSample: [],
     },
   }
 }
@@ -1003,7 +1003,7 @@ async function fetchPermits(street: string, city: string, state: string, zip: st
   const officialMatched = (officialPortals?.matched || 0) + (arcgis?.matched || 0) + (knownSocrata?.matched || 0) + (socrata?.matched || 0)
   const officialScanned = (officialPortals?.totalRowsScanned || 0) + (arcgis?.totalRowsScanned || 0) + (knownSocrata?.totalRowsScanned || 0) + (socrata?.totalRowsScanned || 0)
   const officialChecked = [...(officialPortals?.checked || []), ...(arcgis?.checked || []), ...(knownSocrata?.checked || []), ...(socrata?.checked || [])]
-  const manualSources = [...(officialPortals?.manualSources || []), ...(firecrawl?.debug?.rawSample || [])]
+  const manualSources = [...(officialPortals?.manualSources || [])]
   const scanNote = officialPortals?.note || (permits.length + violations.length === 0 ? firecrawl?.debug?.note : null)
 
   return {
