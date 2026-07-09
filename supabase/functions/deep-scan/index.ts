@@ -272,9 +272,13 @@ async function fetchPermitsFromKnownSocrata(street: string, city: string) {
       if (!Array.isArray(rows) || rows.length === 0) return
       anyScanned += rows.length
       const nameLower = streetNameToken.toLowerCase()
+      const numRe = new RegExp(`(^|\\D)${streetNumber}(\\D|$)`)
       const matched = rows.filter(row => {
-        const addr = String(row[ds.addressField] || '').toLowerCase()
-        return addr.includes(streetNumber) && addr.includes(nameLower)
+        const addr = String(row[ds.addressField] || '').toLowerCase().trim()
+        // Require the address to START with the exact street number, then contain the street name.
+        // This rejects "4200 GRANBY" when searching for "200 GRANBY".
+        const startsWithNum = addr.startsWith(streetNumber + ' ') || addr.startsWith(streetNumber + '-')
+        return startsWithNum && addr.includes(nameLower) && numRe.test(addr)
       })
       anyMatched += matched.length
 
