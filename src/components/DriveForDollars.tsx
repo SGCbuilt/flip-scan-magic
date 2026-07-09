@@ -1612,7 +1612,7 @@ export default function DriveForDollars() {
     const allBeforeLookup = loadCaptures()
     const prior = allBeforeLookup.find(c =>
       canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
-      (c.trace || c.comps || c.motivation || c.deepScan)
+      c.trace?.owner?.name
     )
     if (prior) {
       Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
@@ -1843,7 +1843,7 @@ export default function DriveForDollars() {
                   ))}
                   {!getTracerKey() && (
                     <div className="text-[10px] mt-2 p-2 rounded-lg" style={{ background: '#FEF7EA', color: '#8A5700' }}>
-                      ⚠ Add your Tracerfy key in Lead Radar settings to enable owner lookup
+                      ⚠ Add your Tracerfy key in Lead Radar settings to enable phone/email skip tracing
                     </div>
                   )}
                 </div>
