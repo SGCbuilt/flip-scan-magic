@@ -18,7 +18,7 @@ import { toast } from '../lib/toast'
  *   - RentCast AVM → estimated value + comps
  *   - AI Motivation Score → should you call this one first?
  */
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
 import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
@@ -69,6 +69,44 @@ const formatPermitDate = (date?: string | null, fallback?: string | null) => {
   if (!date) return fallback || 'Date not verified'
   const parsed = new Date(`${date}T00:00:00`)
   return Number.isNaN(parsed.getTime()) ? (fallback || date) : parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
+
+// ── Permit sort/filter helpers ────────────────────────────────────────────
+// Normalize wildly varying status strings into a small set of buckets we can
+// filter on (Issued/Finaled/Open/Pending/Expired/Other).
+const normalizeStatusBucket = (status?: string | null): string => {
+  const s = String(status || '').toLowerCase().trim()
+  if (!s) return 'Unknown'
+  if (/final|closed|complet/.test(s)) return 'Finaled'
+  if (/issued/.test(s)) return 'Issued'
+  if (/open|active/.test(s)) return 'Open'
+  if (/pending|applied|submit|review/.test(s)) return 'Pending'
+  if (/expire|void|withdrawn|cancel/.test(s)) return 'Expired'
+  if (/denied|reject/.test(s)) return 'Denied'
+  return 'Other'
+}
+
+type PermitListItem = PermitRecord & { type: 'permit' | 'violation' }
+
+function applyPermitControls(
+  items: PermitListItem[],
+  sort: 'newest' | 'oldest' | 'type',
+  typeFilter: 'all' | 'permit' | 'violation',
+  statusFilter: string,
+): PermitListItem[] {
+  let out = items
+  if (typeFilter !== 'all') out = out.filter(i => i.type === typeFilter)
+  if (statusFilter !== 'all') out = out.filter(i => normalizeStatusBucket(i.status) === statusFilter)
+  const byDate = (a: PermitListItem, b: PermitListItem) => {
+    if (!a.date && !b.date) return 0
+    if (!a.date) return 1
+    if (!b.date) return -1
+    return b.date.localeCompare(a.date)
+  }
+  if (sort === 'newest') out = [...out].sort(byDate)
+  else if (sort === 'oldest') out = [...out].sort((a, b) => -byDate(a, b))
+  else out = [...out].sort((a, b) => (a.permitType || '').localeCompare(b.permitType || '') || byDate(a, b))
+  return out
 }
 
 interface Capture {
@@ -411,6 +449,10 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   const [dsData, setDsData] = useState<DeepScanData | null>(capture.deepScan || null)
   const [dsError, setDsError] = useState<string | null>(null)
   const [dsStep, setDsStep] = useState<string>('')
+  // Permit list controls — shared between compact card strip and modal timeline
+  const [permitSort, setPermitSort] = useState<'newest' | 'oldest' | 'type'>('newest')
+  const [permitTypeFilter, setPermitTypeFilter] = useState<'all' | 'permit' | 'violation'>('all')
+  const [permitStatusFilter, setPermitStatusFilter] = useState<string>('all')
   const analysis = buildAnalysis(capture, dsData)
 
   const runDeepScan = async () => {
@@ -526,11 +568,13 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             const all = [
               ...v.map(x => ({ ...x, type: 'violation' as const })),
               ...p.map(x => ({ ...x, type: 'permit' as const })),
-            ].sort((a, b) => (b.date || '').localeCompare(a.date || ''))
+            ] as PermitListItem[]
             const verified = all.filter(isVerifiedPermitRecord)
             const needsReview = all.filter(x => !isSupportPermitRecord(x))
-            const latest = all.find(i => i.date)?.date
+            const latest = [...all].sort((a, b) => (b.date || '').localeCompare(a.date || '')).find(i => i.date)?.date
             const total = all.length
+            const statusBuckets = Array.from(new Set(all.map(i => normalizeStatusBucket(i.status)))).filter(s => s !== 'Unknown')
+            const filtered = applyPermitControls(all, permitSort, permitTypeFilter, permitStatusFilter)
             return (
               <div className="border-t" style={{ borderColor: 'var(--sgc-gray-border)' }}>
                 <div className="px-3 py-2.5 flex items-center justify-between" style={{ background: '#F7F9FC' }}>
@@ -586,7 +630,59 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                   </div>
                 ) : (
                   <div className="px-3 py-2 space-y-1.5">
-                    {all.slice(0, 12).map((it, i) => {
+                    {/* Sort + filter toolbar */}
+                    <div className="flex flex-wrap items-center gap-1.5 pb-1.5 mb-1 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                      <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Sort</span>
+                      <select value={permitSort} onChange={e => setPermitSort(e.target.value as any)}
+                        className="text-[10px] font-bold rounded px-1.5 py-0.5 border cursor-pointer"
+                        style={{ borderColor: 'var(--sgc-gray-border)', background: 'white', color: 'var(--sgc-navy)' }}>
+                        <option value="newest">Newest issue date</option>
+                        <option value="oldest">Oldest first</option>
+                        <option value="type">Type A–Z</option>
+                      </select>
+                      <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Show</span>
+                      {(['all', 'permit', 'violation'] as const).map(t => (
+                        <button key={t} onClick={() => setPermitTypeFilter(t)}
+                          className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                          style={{
+                            borderColor: permitTypeFilter === t ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                            background: permitTypeFilter === t ? 'var(--sgc-navy)' : 'white',
+                            color: permitTypeFilter === t ? 'white' : 'var(--sgc-navy)',
+                          }}>
+                          {t === 'all' ? 'All' : t === 'permit' ? 'Permits' : 'Violations'}
+                        </button>
+                      ))}
+                      {statusBuckets.length > 0 && (
+                        <>
+                          <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Status</span>
+                          <button onClick={() => setPermitStatusFilter('all')}
+                            className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                            style={{
+                              borderColor: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                              background: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'white',
+                              color: permitStatusFilter === 'all' ? 'white' : 'var(--sgc-navy)',
+                            }}>Any</button>
+                          {statusBuckets.map(s => (
+                            <button key={s} onClick={() => setPermitStatusFilter(permitStatusFilter === s ? 'all' : s)}
+                              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                              style={{
+                                borderColor: permitStatusFilter === s ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                background: permitStatusFilter === s ? 'var(--sgc-navy)' : 'white',
+                                color: permitStatusFilter === s ? 'white' : 'var(--sgc-navy)',
+                              }}>{s}</button>
+                          ))}
+                        </>
+                      )}
+                      <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        {filtered.length} of {total}
+                      </span>
+                    </div>
+                    {filtered.length === 0 && (
+                      <div className="text-[10px] font-semibold text-center py-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                        No records match the current filters.
+                      </div>
+                    )}
+                    {filtered.slice(0, 12).map((it, i) => {
                       const isV = it.type === 'violation'
                       const color = isV ? '#C0341D' : 'var(--sgc-navy)'
                       const conf = it.confidence || 'low'
@@ -666,9 +762,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                         </div>
                       )
                     })}
-                    {total > 12 && (
+                    {filtered.length > 12 && (
                       <div className="text-[10px] pt-1 font-semibold" style={{ color: 'var(--sgc-gray-mid)' }}>
-                        + {total - 12} more records available from the source link.
+                        + {filtered.length - 12} more records match. Refine filters or open the source link.
                       </div>
                     )}
                     <button onClick={runDeepScan} disabled={dsRunning}
@@ -968,18 +1064,11 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 const items = [
                   ...dsData.permits.violations.map(v => ({ ...v, type: 'violation' as const })),
                   ...dsData.permits.permits.map(p => ({ ...p, type: 'permit' as const })),
-                ]
-                // Sort by date desc, undated last
-                items.sort((a, b) => {
-                  if (!a.date && !b.date) return 0
-                  if (!a.date) return 1
-                  if (!b.date) return -1
-                  return b.date.localeCompare(a.date)
-                })
-                const dated = items.filter(i => i.date)
-                const undated = items.filter(i => !i.date)
+                ] as PermitListItem[]
                 const total = items.length
-                const latest = dated[0]?.date
+                const latest = [...items].sort((a, b) => (b.date || '').localeCompare(a.date || '')).find(i => i.date)?.date
+                const statusBuckets = Array.from(new Set(items.map(i => normalizeStatusBucket(i.status)))).filter(s => s !== 'Unknown')
+                const filtered = applyPermitControls(items, permitSort, permitTypeFilter, permitStatusFilter)
                 return (
                   <div>
                     <div className="flex items-center justify-between mb-2">
@@ -1000,10 +1089,65 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                     )}
 
                     {total > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mb-2 pb-2 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+                        <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Sort</span>
+                        <select value={permitSort} onChange={e => setPermitSort(e.target.value as any)}
+                          className="text-[10px] font-bold rounded px-1.5 py-0.5 border cursor-pointer"
+                          style={{ borderColor: 'var(--sgc-gray-border)', background: 'white', color: 'var(--sgc-navy)' }}>
+                          <option value="newest">Newest issue date</option>
+                          <option value="oldest">Oldest first</option>
+                          <option value="type">Type A–Z</option>
+                        </select>
+                        <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Show</span>
+                        {(['all', 'permit', 'violation'] as const).map(t => (
+                          <button key={t} onClick={() => setPermitTypeFilter(t)}
+                            className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                            style={{
+                              borderColor: permitTypeFilter === t ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                              background: permitTypeFilter === t ? 'var(--sgc-navy)' : 'white',
+                              color: permitTypeFilter === t ? 'white' : 'var(--sgc-navy)',
+                            }}>
+                            {t === 'all' ? 'All' : t === 'permit' ? 'Permits' : 'Violations'}
+                          </button>
+                        ))}
+                        {statusBuckets.length > 0 && (
+                          <>
+                            <span className="text-[9px] font-black uppercase tracking-wider ml-1" style={{ color: 'var(--sgc-gray-mid)' }}>Status</span>
+                            <button onClick={() => setPermitStatusFilter('all')}
+                              className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                              style={{
+                                borderColor: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                background: permitStatusFilter === 'all' ? 'var(--sgc-navy)' : 'white',
+                                color: permitStatusFilter === 'all' ? 'white' : 'var(--sgc-navy)',
+                              }}>Any</button>
+                            {statusBuckets.map(s => (
+                              <button key={s} onClick={() => setPermitStatusFilter(permitStatusFilter === s ? 'all' : s)}
+                                className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full border cursor-pointer"
+                                style={{
+                                  borderColor: permitStatusFilter === s ? 'var(--sgc-navy)' : 'var(--sgc-gray-border)',
+                                  background: permitStatusFilter === s ? 'var(--sgc-navy)' : 'white',
+                                  color: permitStatusFilter === s ? 'white' : 'var(--sgc-navy)',
+                                }}>{s}</button>
+                            ))}
+                          </>
+                        )}
+                        <span className="text-[9px] font-bold ml-auto" style={{ color: 'var(--sgc-gray-mid)' }}>
+                          {filtered.length} of {total}
+                        </span>
+                      </div>
+                    )}
+
+                    {total > 0 && filtered.length === 0 && (
+                      <div className="text-[11px] p-3 rounded-lg text-center" style={{ background: 'var(--sgc-gray-light)', color: 'var(--sgc-gray-mid)' }}>
+                        No records match the current filters.
+                      </div>
+                    )}
+
+                    {filtered.length > 0 && (
                       <div className="relative pl-4">
                         {/* Vertical rail */}
                         <div className="absolute left-1.5 top-1 bottom-1 w-px" style={{ background: 'var(--sgc-gray-border)' }} />
-                        {items.slice(0, 8).map((it, i) => {
+                        {filtered.slice(0, 8).map((it, i) => {
                           const isViolation = it.type === 'violation'
                           const dotColor = isViolation ? '#C0341D' : 'var(--sgc-navy)'
                           const bgColor = isViolation ? '#FEF0ED' : '#EEF2FB'
@@ -1102,9 +1246,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                             </div>
                           )
                         })}
-                        {undated.length > 0 && dated.length > 0 && (
+                        {filtered.length > 8 && (
                           <div className="text-[9px] mt-1 pl-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                            {undated.length} additional record{undated.length === 1 ? '' : 's'} without dates
+                            + {filtered.length - 8} more matching record{filtered.length - 8 === 1 ? '' : 's'} — refine filters to narrow.
                           </div>
                         )}
                       </div>
