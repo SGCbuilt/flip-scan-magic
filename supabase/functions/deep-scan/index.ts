@@ -272,6 +272,228 @@ const KNOWN_SOCRATA_DATASETS: Record<string, SocrataDataset[]> = {
   ],
 }
 
+type OfficialPortalResult = {
+  permits: any[]
+  violations: any[]
+  domain: string
+  dataset: string
+  matched: number
+  totalRowsScanned: number
+  checked: string[]
+  note?: string
+  manualSources?: Array<{ title: string; url: string }>
+}
+
+function permitAddressParts(street: string) {
+  const streetOnly = (street || '').split(',')[0].trim()
+  const streetNumber = (streetOnly.match(/^\s*(\d+)/) || [])[1] || ''
+  const streetName = streetOnly
+    .replace(/^\s*\d+\s*/, '')
+    .replace(/\b(north|south|east|west)\b/ig, m => ({ north: 'n', south: 's', east: 'e', west: 'w' }[m.toLowerCase()] || m))
+    .replace(/\s+(st|street|rd|road|ave|avenue|dr|drive|ln|lane|ct|court|blvd|way|pl|place|ter|terrace|cir|circle|hwy|highway|pkwy|parkway)\.?$/i, '')
+    .trim()
+  return { streetOnly, streetNumber, streetName }
+}
+
+function textMatchesPermitAddress(text: string, streetNumber: string, streetName: string): boolean {
+  const t = String(text || '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
+  const nameTokens = streetName.toLowerCase().replace(/[^a-z0-9]+/g, ' ').split(/\s+/).filter(Boolean)
+  if (!streetNumber || nameTokens.length === 0) return false
+  const hasExactNumber = new RegExp(`(^|\\D)${streetNumber}(\\D|$)`).test(t)
+  const hasStreetName = nameTokens.every(tok => t.includes(tok))
+  return hasExactNumber && hasStreetName
+}
+
+function extractPortalStatus(text: string): string {
+  const m = String(text || '').match(/\b(issued|approved|active|open|pending|submitted|in review|under review|finaled|final|complete|closed|expired|void|withdrawn|cancelled|denied|rejected)\b/i)
+  return m ? m[1].replace(/^\w/, c => c.toUpperCase()) : ''
+}
+
+function normalizeSearchResultRows(data: any): any[] {
+  if (Array.isArray(data)) return data
+  if (Array.isArray(data?.data)) return data.data.map((r: any) => ({ ...(r.attributes || {}), id: r.id, type: r.type }))
+  if (Array.isArray(data?.search_results)) return data.search_results
+  if (Array.isArray(data?.results)) return data.results
+  return []
+}
+
+async function fetchElizabethCityOpenGov(street: string): Promise<OfficialPortalResult> {
+  const { streetOnly, streetNumber, streetName } = permitAddressParts(street)
+  const domain = 'elizabethcitync.portal.opengov.com'
+  const portalUrl = `https://${domain}/search`
+  const apiBase = 'https://api-east.viewpointcloud.com/v2/elizabethcitync'
+  const checked: string[] = [portalUrl]
+  const permits: any[] = []
+  let scanned = 0
+  let blocked = false
+
+  const searchKeys = Array.from(new Set([
+    streetOnly,
+    `${streetNumber} ${streetName}`.trim(),
+    streetName,
+  ].filter(k => k && k.length >= 2)))
+
+  for (const key of searchKeys) {
+    const url = `${apiBase}/search_results?criteria=record&key=${encodeURIComponent(key)}&timeStamp=${Date.now()}&ignoreCommunity=true`
+    checked.push(url)
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'sourceApp': 'storefront',
+          'Referer': portalUrl,
+          'Origin': `https://${domain}`,
+          'User-Agent': 'Mozilla/5.0 (compatible; FlipScanPro/1.0; permit-verification)',
+        },
+      })
+      if (res.status === 403 || res.status === 429) {
+        blocked = true
+        continue
+      }
+      if (!res.ok) continue
+      const text = await res.text()
+      let parsed: any = null
+      try { parsed = JSON.parse(text) } catch { continue }
+      const rows = normalizeSearchResultRows(parsed)
+      scanned += rows.length
+      for (const row of rows) {
+        const attrs = row.attributes || row
+        const title = String(attrs.resultText || attrs.result_text || attrs.name || attrs.title || '').trim()
+        const secondary = String(attrs.resultText2 || attrs.result_text2 || attrs.secondaryText || attrs.secondary_text || attrs.additionalInfo || attrs.additional_info || '').trim()
+        const blob = [title, secondary, attrs.entityType, attrs.externalKey, attrs.secondaryKey].filter(Boolean).join(' · ')
+        if (!textMatchesPermitAddress(blob, streetNumber, streetName)) continue
+        const dateInfo = extractDate(blob)
+        const entityId = attrs.entityID || attrs.entity_id || attrs.searchResultID || attrs.search_result_id || row.id
+        const url = entityId ? `https://${domain}/records/${entityId}` : portalUrl
+        permits.push({
+          title: title || `OpenGov permit record for ${streetOnly}`,
+          description: secondary || `Official public record search match for ${streetOnly}`,
+          url,
+          date: dateInfo?.iso || null,
+          dateLabel: dateInfo?.label || null,
+          permitType: classifyPermitType(blob),
+          confidence: 'high' as const,
+          matchReasons: ['Official OpenGov portal', `# ${streetNumber}`, `Street ${streetName}`],
+          source: 'City of Elizabeth City OpenGov Permit Portal',
+          permitNumber: String(attrs.externalKey || attrs.secondaryKey || entityId || ''),
+          status: extractPortalStatus(blob),
+          department: 'Building Inspections Department',
+        })
+      }
+    } catch { /* portal may block server-side extraction */ }
+  }
+
+  permits.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(a.permitNumber || '').localeCompare(String(b.permitNumber || '')))
+  const note = permits.length > 0
+    ? undefined
+    : blocked
+      ? 'Official Elizabeth City OpenGov permit portal found, but it blocks automated record extraction. Open the official portal and search this address manually for the latest permits.'
+      : 'Official Elizabeth City OpenGov permit portal found, but no address-specific records were returned to the automated scan. Verify manually in the portal.'
+
+  return {
+    permits,
+    violations: [],
+    domain,
+    dataset: 'City of Elizabeth City OpenGov Permit Portal',
+    matched: permits.length,
+    totalRowsScanned: scanned,
+    checked,
+    note,
+    manualSources: [{ title: 'Open official Elizabeth City permit search', url: portalUrl }],
+  }
+}
+
+async function fetchPasquotankIworq(street: string): Promise<OfficialPortalResult> {
+  const { streetOnly, streetNumber, streetName } = permitAddressParts(street)
+  const domain = 'pasquotank.portal.iworq.net'
+  const portalUrl = `https://${domain}/PASQUOTANK/permits/600`
+  const checked: string[] = [portalUrl]
+  const permits: any[] = []
+  let scanned = 0
+  try {
+    const url = `${portalUrl}?searchField=propertyaddress&search=${encodeURIComponent(streetOnly)}`
+    checked.push(url)
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'text/html,application/xhtml+xml,application/xml',
+        'User-Agent': 'Mozilla/5.0 (compatible; FlipScanPro/1.0; permit-verification)',
+      },
+    })
+    if (res.ok) {
+      const html = await res.text()
+      const rowRe = /<tr[\s\S]*?<\/tr>/gi
+      const rows = html.match(rowRe) || []
+      for (const row of rows) {
+        const cells = Array.from(row.matchAll(/<t[dh][^>]*>([\s\S]*?)<\/t[dh]>/gi)).map(m => String(m[1]).replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ').trim())
+        if (cells.length < 6 || /permit\s*#/i.test(cells[0])) continue
+        scanned++
+        const blob = cells.join(' · ')
+        if (!textMatchesPermitAddress(blob, streetNumber, streetName)) continue
+        const dateInfo = extractDate(cells[1] || blob)
+        const linkMatch = row.match(/href=["']([^"']*(?:permit|inspection)[^"']*)["']/i)
+        const href = linkMatch?.[1] || ''
+        const recordUrl = href ? (href.startsWith('http') ? href : `https://${domain}${href.startsWith('/') ? '' : '/'}${href}`) : portalUrl
+        permits.push({
+          title: cells[4] || `Permit ${cells[0] || ''}`.trim(),
+          description: [`📍 ${cells[2] || streetOnly}`, cells[3] ? `Applicant: ${cells[3]}` : '', cells[5] ? `Status: ${cells[5]}` : ''].filter(Boolean).join(' · '),
+          url: recordUrl,
+          date: dateInfo?.iso || null,
+          dateLabel: dateInfo?.label || null,
+          permitType: cells[4] || classifyPermitType(blob),
+          confidence: 'high' as const,
+          matchReasons: ['Official iWorQ county portal', `# ${streetNumber}`, `Street ${streetName}`],
+          source: 'Pasquotank County iWorQ Permit Portal',
+          permitNumber: cells[0] || '',
+          status: cells[5] || '',
+          department: 'Pasquotank County Planning & Inspections',
+        })
+      }
+    }
+  } catch { /* portal may require CAPTCHA/manual lookup */ }
+
+  permits.sort((a, b) => (b.date || '').localeCompare(a.date || '') || String(a.permitNumber || '').localeCompare(String(b.permitNumber || '')))
+  return {
+    permits,
+    violations: [],
+    domain,
+    dataset: 'Pasquotank County iWorQ Permit Portal',
+    matched: permits.length,
+    totalRowsScanned: scanned,
+    checked,
+    note: permits.length > 0 ? undefined : 'Official Pasquotank County iWorQ permit portal found. If records are missing, the portal requires manual search/CAPTCHA verification for this address.',
+    manualSources: [{ title: 'Open official Pasquotank County permit search', url: portalUrl }],
+  }
+}
+
+async function fetchPermitsFromOfficialPortals(street: string, city: string): Promise<OfficialPortalResult | null> {
+  const cityKey = (city || '').toLowerCase().trim()
+  const portals: Promise<OfficialPortalResult>[] = []
+  if (cityKey === 'elizabeth city') {
+    portals.push(fetchElizabethCityOpenGov(street))
+    portals.push(fetchPasquotankIworq(street))
+  }
+  if (cityKey === 'pasquotank county') portals.push(fetchPasquotankIworq(street))
+  if (portals.length === 0) return null
+
+  const results = await Promise.all(portals.map(p => p.catch(() => null)))
+  const valid = results.filter(Boolean) as OfficialPortalResult[]
+  if (valid.length === 0) return null
+  const permits = valid.flatMap(r => r.permits)
+  const violations = valid.flatMap(r => r.violations)
+  const note = valid.find(r => r.note)?.note
+  return {
+    permits,
+    violations,
+    domain: valid.map(r => r.domain).join(' + '),
+    dataset: valid.map(r => r.dataset).join(' + '),
+    matched: valid.reduce((sum, r) => sum + r.matched, 0),
+    totalRowsScanned: valid.reduce((sum, r) => sum + r.totalRowsScanned, 0),
+    checked: valid.flatMap(r => r.checked),
+    note,
+    manualSources: valid.flatMap(r => r.manualSources || []),
+  }
+}
+
 // Build a human-browsable Socrata dataset URL (data lens view, not JSON).
 function socrataViewerUrl(domain: string, datasetId: string): string {
   return `https://${domain}/d/${datasetId}`
