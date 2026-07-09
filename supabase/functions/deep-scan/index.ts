@@ -888,6 +888,7 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
       const results = data?.data?.web || data?.data || []
       for (const r of results) {
         const url = r.url || ''
+        if (isBlockedEvidenceUrl(url)) continue
         if (!url || seen.has(url)) continue
         seen.add(url)
         rawAll.push({ title: r.title || '', description: r.description || '', url })
@@ -910,6 +911,7 @@ async function fetchPermitsViaFirecrawl(street: string, city: string, state: str
   const heldForReview: Array<{ title: string; url: string }> = []
   if (aiPermits.length + aiViolations.length === 0 && rawAll.length > 0) {
     for (const r of rawAll.slice(0, 20)) {
+      if (isBlockedEvidenceUrl(r.url || '')) continue
       const combined = `${r.title || ''} ${r.description || ''} ${r.url}`
       const numberHit = streetNumber && new RegExp(`\\b${streetNumber}\\b`).test(combined)
       const streetNameHit = streetNoSuffix.length >= 3 && combined.toLowerCase().includes(streetNoSuffix.toLowerCase())
@@ -1043,6 +1045,7 @@ async function fetchDistressSignals(fullAddr: string) {
     const data = await res.json()
     const results = data?.data?.web || data?.data || []
     const signals = results.map((r: any) => {
+      if (isBlockedEvidenceUrl(r.url || '')) return null
       const t = `${r.title || ''} ${r.description || ''}`.toLowerCase()
       const flags: string[] = []
       if (t.includes('foreclos')) flags.push('foreclosure')
@@ -1051,7 +1054,7 @@ async function fetchDistressSignals(fullAddr: string) {
       if (t.includes('lis pendens')) flags.push('lis-pendens')
       if (t.includes('evict')) flags.push('eviction')
       return { title: r.title, url: r.url, description: r.description, flags }
-    }).filter((s: any) => s.flags.length > 0)
+    }).filter((s: any) => s && s.flags.length > 0)
     return { signals, source: 'firecrawl' as const }
   } catch {
     return { signals: [], source: 'error' as const }

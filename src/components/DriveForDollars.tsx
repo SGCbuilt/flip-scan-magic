@@ -427,6 +427,40 @@ function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   return { score, grade, gradeColor, tier, confidence, maxOffer, leadSignals, reasons, nextAction, strengths, redFlags, dataQuality, evidence: { hasComps, hasOwner, hasDeepScan, verifiedPermits, verifiedViolations, reviewRecords } }
 }
 
+function buildOwnerResearch(trace?: SkipTraceResult | null, deepScan?: DeepScanData | null) {
+  const ownerName = trace?.owner?.name?.trim() || ''
+  const mailingAddr = trace?.owner?.mailingAddr?.trim() || ''
+  const property = trace?.property
+  const usablePhones = (trace?.phones || []).filter(p => !p.dnc && !p.litigator)
+  const restrictedPhones = (trace?.phones || []).filter(p => p.dnc || p.litigator)
+  const emails = trace?.emails || []
+  const verifiedPermits = (deepScan?.permits?.permits || []).filter(isVerifiedPermitRecord).length
+  const verifiedViolations = (deepScan?.permits?.violations || []).filter(isVerifiedPermitRecord).length
+  const facts = [
+    ownerName ? { label: 'Owner', value: ownerName, status: 'verified' } : { label: 'Owner', value: 'Not verified', status: 'missing' },
+    mailingAddr ? { label: 'Mailing address', value: mailingAddr, status: 'verified' } : { label: 'Mailing address', value: 'Not returned', status: 'missing' },
+    { label: 'Safe phones', value: `${usablePhones.length}`, status: usablePhones.length ? 'verified' : 'missing' },
+    { label: 'Restricted phones', value: `${restrictedPhones.length}`, status: restrictedPhones.length ? 'warning' : 'verified' },
+    { label: 'Emails', value: `${emails.length}`, status: emails.length ? 'verified' : 'missing' },
+    property?.absenteeOwner != null ? { label: 'Absentee owner', value: property.absenteeOwner ? 'Yes' : 'No', status: property.absenteeOwner ? 'warning' : 'verified' } : { label: 'Absentee owner', value: 'Not verified', status: 'missing' },
+    property?.vacant != null ? { label: 'Vacancy flag', value: property.vacant ? 'Yes' : 'No', status: property.vacant ? 'warning' : 'verified' } : { label: 'Vacancy flag', value: 'Not verified', status: 'missing' },
+    property?.taxStatus ? { label: 'Tax status', value: property.taxStatus, status: property.taxStatus === 'delinquent' ? 'warning' : 'verified' } : { label: 'Tax status', value: 'Not verified', status: 'missing' },
+    { label: 'Official records', value: `${verifiedPermits} permits · ${verifiedViolations} violations`, status: verifiedPermits || verifiedViolations ? 'verified' : 'missing' },
+  ]
+  const nextSteps = [
+    !ownerName ? 'Confirm owner in county GIS/register of deeds before contact.' : '',
+    usablePhones.length === 0 ? 'No safe phone number returned — use mail/door knock until contact data is verified.' : '',
+    restrictedPhones.length > 0 ? 'Do not call DNC/litigator-flagged numbers.' : '',
+    !deepScan?.generatedAt ? 'Run Deep Scan before using permits, violations, or distress in the offer decision.' : '',
+  ].filter(Boolean)
+  const confidence = ownerName && mailingAddr && (usablePhones.length || emails.length)
+    ? 'Contact-ready'
+    : ownerName
+      ? 'Owner found · contact needs verification'
+      : 'Research only'
+  return { facts, nextSteps, confidence }
+}
+
 // ── Address input with speech recognition ─────────────────────────────────────
 function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, state: string, zip: string) => void }) {
   const [raw,       setRaw]       = useState('')
@@ -567,6 +601,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   const [permitTypeFilter, setPermitTypeFilter] = useState<'all' | 'permit' | 'violation'>('all')
   const [permitStatusFilter, setPermitStatusFilter] = useState<string>('all')
   const analysis = buildAnalysis(capture, dsData)
+  const ownerResearch = buildOwnerResearch(trace, dsData)
 
   const runDeepScan = async () => {
     // Wipe any locally cached scan so the UI can't fall back to stale state
@@ -1009,6 +1044,35 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
             </div>
           </div>
         )}
+
+        {/* Owner research */}
+        <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+          <div className="px-3 py-2 flex items-center justify-between" style={{ background: '#F7F9FC' }}>
+            <span className="text-[10px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-navy)' }}>👤 Owner Research</span>
+            <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+              style={{ background: ownerResearch.confidence === 'Contact-ready' ? '#EDFAF3' : '#FEF7EA', color: ownerResearch.confidence === 'Contact-ready' ? '#1A7A4A' : '#8A5700' }}>
+              {ownerResearch.confidence}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 gap-px" style={{ background: 'var(--sgc-gray-border)' }}>
+            {ownerResearch.facts.map(f => {
+              const color = f.status === 'verified' ? '#1A7A4A' : f.status === 'warning' ? '#C45E1A' : 'var(--sgc-gray-mid)'
+              return (
+                <div key={f.label} className="bg-white p-2.5 min-w-0">
+                  <div className="text-[9px] font-bold uppercase tracking-wide" style={{ color: 'var(--sgc-gray-mid)' }}>{f.label}</div>
+                  <div className="text-[11px] font-black truncate" style={{ color }} title={f.value}>{f.value}</div>
+                </div>
+              )
+            })}
+          </div>
+          {ownerResearch.nextSteps.length > 0 && (
+            <div className="px-3 py-2 space-y-1" style={{ background: '#FFFDF8' }}>
+              {ownerResearch.nextSteps.map((step, i) => (
+                <div key={i} className="text-[10px] font-semibold leading-snug" style={{ color: '#8A5700' }}>• {step}</div>
+              ))}
+            </div>
+          )}
+        </div>
 
         {/* Owner contact */}
         {trace?.hit && trace.owner && (
@@ -1654,7 +1718,7 @@ export default function DriveForDollars() {
                     { icon: '👤', t: 'Owner name + phone + email (Tracerfy)' },
                     { icon: '🏠', t: 'Estimated value + 3 sold comps (RentCast)' },
                     { icon: '💰', t: 'Equity %, tax status, absentee flag' },
-                    { icon: '🧠', t: 'AI Motivation Score — call this one first?' },
+                    { icon: '🧠', t: 'Deterministic motivation score — same inputs, same rating' },
                     { icon: '⚡', t: 'Deep Scan — photos, permits, distress, investor summary' },
                     { icon: '🎯', t: 'One tap to add to your Pipeline CRM' },
                   ].map(s => (
