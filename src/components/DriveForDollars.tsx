@@ -1044,8 +1044,36 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                                   </div>
                                 )}
                                 {it.description && (
-                                  <div className="text-[10px] leading-snug mt-0.5 line-clamp-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                                  <div className="text-[10px] leading-snug mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
                                     {it.description}
+                                  </div>
+                                )}
+                                {(it.permitNumber || it.status || it.contractor || it.department || it.inspector || (it.cost != null && Number(it.cost) > 0)) && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {it.permitNumber && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded font-mono"
+                                        style={{ background: 'white', color: dotColor }} title="Permit number">#{it.permitNumber}</span>
+                                    )}
+                                    {it.status && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide"
+                                        style={{ background: confMeta.dotBg, color: confMeta.text }} title="Status">{it.status}</span>
+                                    )}
+                                    {it.department && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Department">🏛 {it.department}</span>
+                                    )}
+                                    {it.inspector && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Inspector">👤 {it.inspector}</span>
+                                    )}
+                                    {it.contractor && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Contractor">🔧 {it.contractor}</span>
+                                    )}
+                                    {it.cost != null && Number(it.cost) > 0 && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: dotColor }} title="Estimated project cost">${Math.round(Number(it.cost)).toLocaleString()}</span>
+                                    )}
                                   </div>
                                 )}
                                 {it.matchReasons && it.matchReasons.length > 0 && (
