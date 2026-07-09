@@ -185,6 +185,40 @@ function getTracerKey() {
   try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' }
 }
 
+const STATE_ABBR = new Set([
+  'AL','AK','AZ','AR','CA','CO','CT','DE','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY','DC',
+])
+
+function normalizeCapturedAddress(raw: string, city: string, state: string, zip: string) {
+  const address = raw.trim().replace(/\s+/g, ' ')
+  const enteredCity = city.trim()
+  const enteredZip = zip.trim()
+  const zipFromAddress = address.match(/\b\d{5}(?:-\d{4})?\b/)?.[0].slice(0, 5) || ''
+  const stateFromAddress = [...address.matchAll(/\b([A-Z]{2})\b/gi)]
+    .map(m => m[1].toUpperCase())
+    .filter(s => STATE_ABBR.has(s))
+    .pop() || ''
+
+  if (!enteredCity && address.includes(',')) {
+    const parts = address.split(',').map(part => part.trim()).filter(Boolean)
+    const street = parts[0] || address
+    const cityPart = parts[1]?.replace(/\b[A-Z]{2}\b/ig, '').replace(/\b\d{5}(?:-\d{4})?\b/g, '').trim() || ''
+    return {
+      address: street,
+      city: cityPart,
+      state: stateFromAddress || state.trim(),
+      zip: enteredZip || zipFromAddress,
+    }
+  }
+
+  return {
+    address,
+    city: enteredCity,
+    state: stateFromAddress || (enteredCity || enteredZip ? state.trim() : ''),
+    zip: enteredZip || zipFromAddress,
+  }
+}
+
 function computeDriveMotivationScore(trace?: SkipTraceResult | null, comps?: CompResult | null, visualNotes?: string): MotivationScore | null {
   if (!trace?.hit && !comps?.arvSuggestion && !visualNotes?.trim()) return null
   const equityPct = trace?.property?.equityPct || 0
@@ -496,9 +530,9 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
   }
 
   const handleSearch = () => {
-    const addr = raw.trim()
-    if (!addr) return
-    onSearch(addr, city.trim(), state.trim(), zip.trim())
+    const parsed = normalizeCapturedAddress(raw, city, state, zip)
+    if (!parsed.address) return
+    onSearch(parsed.address, parsed.city, parsed.state, parsed.zip)
   }
 
   return (
@@ -1578,7 +1612,7 @@ export default function DriveForDollars() {
     const allBeforeLookup = loadCaptures()
     const prior = allBeforeLookup.find(c =>
       canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
-      (c.trace || c.comps || c.motivation || c.deepScan)
+      c.trace?.owner?.name
     )
     if (prior) {
       Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
@@ -1809,7 +1843,7 @@ export default function DriveForDollars() {
                   ))}
                   {!getTracerKey() && (
                     <div className="text-[10px] mt-2 p-2 rounded-lg" style={{ background: '#FEF7EA', color: '#8A5700' }}>
-                      ⚠ Add your Tracerfy key in Lead Radar settings to enable owner lookup
+                      ⚠ Add your Tracerfy key in Lead Radar settings to enable phone/email skip tracing
                     </div>
                   )}
                 </div>
