@@ -29,8 +29,8 @@ import { supabase } from '@/integrations/supabase/client'
 interface DeepScanData {
   photos?: { list: string[]; source: string; count: number }
   permits?: {
-    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
-    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number }>;
+    permits: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number; permitNumber?: string | null; status?: string | null; contractor?: string | null; cost?: string | number | null; department?: string | null; inspector?: string | null }>;
+    violations: Array<{ title?: string; url?: string; description?: string; date?: string | null; dateLabel?: string | null; permitType?: string; source?: string; confidence?: 'high' | 'medium' | 'low'; matchReasons?: string[]; matchScore?: number; permitNumber?: string | null; status?: string | null; contractor?: string | null; cost?: string | number | null; department?: string | null; inspector?: string | null }>;
     source: string;
     debug?: {
       queriesRun?: number;
@@ -586,52 +586,84 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                   </div>
                 ) : (
                   <div className="px-3 py-2 space-y-1.5">
-                    {all.slice(0, 3).map((it, i) => {
-                      const isV = it.type === 'violation'
-                      const color = isV ? '#C0341D' : 'var(--sgc-navy)'
-                      const conf = it.confidence || 'low'
-                      const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
-                      const dateText = it.date
-                        ? formatPermitDate(it.date, it.dateLabel)
-                        : (it.dateLabel || 'undated')
-                      return (
-                        <a key={i} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-[11px] no-underline py-1 px-1.5 rounded-md hover:bg-black/5 transition-colors"
-                          style={{ color: 'var(--sgc-black)' }}>
-                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-                          <span className="font-mono font-bold flex-shrink-0" style={{ color, minWidth: 78 }}>{dateText}</span>
-                          <span className="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase" style={{ background: '#EEF2FB', color }}>
-                            {isV ? 'Violation' : (it.permitType || 'Permit')}
-                          </span>
-                          <span className="truncate flex-1 font-semibold">{it.title || it.url || 'record'}</span>
-                          <span className="flex-shrink-0 text-[8px] font-black px-1 py-0.5 rounded uppercase text-white" style={{ background: confBg }}
-                            title={it.matchReasons?.join(' · ') || 'match confidence'}>
-                            {conf}
-                          </span>
-                        </a>
-                      )
-                    })}
-                    {all.slice(3, 12).map((it, i) => {
+                    {all.slice(0, 12).map((it, i) => {
                       const isV = it.type === 'violation'
                       const color = isV ? '#C0341D' : 'var(--sgc-navy)'
                       const conf = it.confidence || 'low'
                       const confBg = conf === 'high' ? '#1A7A4A' : conf === 'medium' ? '#C45E1A' : '#8892A6'
                       const dateText = it.date ? formatPermitDate(it.date, it.dateLabel) : (it.dateLabel || 'undated')
+                      const costNum = it.cost != null && String(it.cost).trim() !== '' ? Number(it.cost) : NaN
+                      const costText = Number.isFinite(costNum) && costNum > 0 ? '$' + Math.round(costNum).toLocaleString() : ''
+                      const statusLower = String(it.status || '').toLowerCase()
+                      const statusBg = /final|closed|complet|issued/.test(statusLower) ? '#E7F4EC'
+                        : /open|active|pending|applied|submitted/.test(statusLower) ? '#FFF5E5'
+                        : /expire|void|denied|reject/.test(statusLower) ? '#FBE9E7' : '#EEF2FB'
+                      const statusFg = /final|closed|complet|issued/.test(statusLower) ? '#1A7A4A'
+                        : /open|active|pending|applied|submitted/.test(statusLower) ? '#C45E1A'
+                        : /expire|void|denied|reject/.test(statusLower) ? '#C0341D' : color
                       return (
-                        <a key={`more-${i}`} href={it.url} target={it.url ? '_blank' : undefined} rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-[11px] no-underline py-1 px-1.5 rounded-md hover:bg-black/5 transition-colors"
-                          style={{ color: 'var(--sgc-black)' }}>
-                          <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: color }} />
-                          <span className="font-mono font-bold flex-shrink-0" style={{ color, minWidth: 78 }}>{dateText}</span>
-                          <span className="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase" style={{ background: '#EEF2FB', color }}>
-                            {isV ? 'Violation' : (it.permitType || 'Permit')}
-                          </span>
-                          <span className="truncate flex-1 font-semibold">{it.title || it.url || 'record'}</span>
-                          <span className="flex-shrink-0 text-[8px] font-black px-1 py-0.5 rounded uppercase text-white" style={{ background: confBg }}
-                            title={it.matchReasons?.join(' · ') || 'match confidence'}>
-                            {conf}
-                          </span>
-                        </a>
+                        <div key={i} className="rounded-md border py-1.5 px-2"
+                          style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
+                          <div className="flex items-center gap-2 text-[11px]" style={{ color: 'var(--sgc-black)' }}>
+                            <span className="flex-shrink-0 w-1.5 h-1.5 rounded-full" style={{ background: color }} />
+                            <span className="font-mono font-bold flex-shrink-0" style={{ color, minWidth: 78 }}>{dateText}</span>
+                            <span className="flex-shrink-0 text-[9px] font-black px-1.5 py-0.5 rounded-full uppercase" style={{ background: '#EEF2FB', color }}>
+                              {isV ? 'Violation' : (it.permitType || 'Permit')}
+                            </span>
+                            <span className="truncate flex-1 font-semibold">{it.title || it.url || 'record'}</span>
+                            <span className="flex-shrink-0 text-[8px] font-black px-1 py-0.5 rounded uppercase text-white" style={{ background: confBg }}
+                              title={it.matchReasons?.join(' · ') || 'match confidence'}>
+                              {conf}
+                            </span>
+                          </div>
+                          {(it.permitNumber || it.status || it.contractor || costText || it.department || it.inspector || it.url) && (
+                            <div className="flex flex-wrap items-center gap-1 mt-1 pl-[86px]">
+                              {it.permitNumber && (
+                                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded font-mono"
+                                  style={{ background: '#F3F5FA', color: 'var(--sgc-navy)' }} title="Permit number">
+                                  #{it.permitNumber}
+                                </span>
+                              )}
+                              {it.status && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide"
+                                  style={{ background: statusBg, color: statusFg }} title="Status">
+                                  {it.status}
+                                </span>
+                              )}
+                              {it.department && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{ background: '#F3F5FA', color: 'var(--sgc-gray-mid)' }} title="Department">
+                                  🏛 {it.department}
+                                </span>
+                              )}
+                              {it.inspector && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                  style={{ background: '#F3F5FA', color: 'var(--sgc-gray-mid)' }} title="Inspector">
+                                  👤 {it.inspector}
+                                </span>
+                              )}
+                              {it.contractor && (
+                                <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded truncate max-w-[180px]"
+                                  style={{ background: '#F3F5FA', color: 'var(--sgc-gray-mid)' }} title={`Contractor: ${it.contractor}`}>
+                                  🔧 {it.contractor}
+                                </span>
+                              )}
+                              {costText && (
+                                <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                                  style={{ background: '#F3F5FA', color: 'var(--sgc-navy)' }} title="Estimated project cost">
+                                  {costText}
+                                </span>
+                              )}
+                              {it.url && (
+                                <a href={it.url} target="_blank" rel="noopener noreferrer"
+                                  className="text-[9px] font-black no-underline ml-auto px-1.5 py-0.5 rounded"
+                                  style={{ background: color, color: 'white' }}>
+                                  Open record →
+                                </a>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       )
                     })}
                     {total > 12 && (
@@ -1012,8 +1044,36 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                                   </div>
                                 )}
                                 {it.description && (
-                                  <div className="text-[10px] leading-snug mt-0.5 line-clamp-2" style={{ color: 'var(--sgc-gray-mid)' }}>
+                                  <div className="text-[10px] leading-snug mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
                                     {it.description}
+                                  </div>
+                                )}
+                                {(it.permitNumber || it.status || it.contractor || it.department || it.inspector || (it.cost != null && Number(it.cost) > 0)) && (
+                                  <div className="flex flex-wrap gap-1 mt-1.5">
+                                    {it.permitNumber && (
+                                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded font-mono"
+                                        style={{ background: 'white', color: dotColor }} title="Permit number">#{it.permitNumber}</span>
+                                    )}
+                                    {it.status && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase tracking-wide"
+                                        style={{ background: confMeta.dotBg, color: confMeta.text }} title="Status">{it.status}</span>
+                                    )}
+                                    {it.department && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Department">🏛 {it.department}</span>
+                                    )}
+                                    {it.inspector && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Inspector">👤 {it.inspector}</span>
+                                    )}
+                                    {it.contractor && (
+                                      <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: 'var(--sgc-gray-mid)' }} title="Contractor">🔧 {it.contractor}</span>
+                                    )}
+                                    {it.cost != null && Number(it.cost) > 0 && (
+                                      <span className="text-[9px] font-black px-1.5 py-0.5 rounded"
+                                        style={{ background: 'white', color: dotColor }} title="Estimated project cost">${Math.round(Number(it.cost)).toLocaleString()}</span>
+                                    )}
                                   </div>
                                 )}
                                 {it.matchReasons && it.matchReasons.length > 0 && (
