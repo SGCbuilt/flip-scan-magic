@@ -1174,6 +1174,21 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           )
         })()}
 
+        {/* AI Summary — promoted */}
+        {dsData?.summary && (
+          <div className="rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--sgc-navy)33' }}>
+            <div className="px-3 py-2 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, var(--sgc-navy), #1B3A8C)' }}>
+              <span className="text-[11px] font-black uppercase tracking-wider text-white">🧠 AI Investor Brief</span>
+              <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#FEF7EA', color: '#8A5700' }}>
+                Review-only · numbers above are authoritative
+              </span>
+            </div>
+            <div className="p-3 text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)', background: 'white' }}>
+              {dsData.summary}
+            </div>
+          </div>
+        )}
+
         {/* RentCast comps */}
         {comps && (
           <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
