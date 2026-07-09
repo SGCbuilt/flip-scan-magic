@@ -170,10 +170,11 @@ function canonicalAddressKey(address: string, city: string, state: string, zip: 
 }
 
 function cloneCaptureAnalysis(source: Capture): Partial<Capture> {
+  const deterministicMotivation = computeDriveMotivationScore(source.trace, source.comps, source.notes)
   return JSON.parse(JSON.stringify({
     trace: source.trace,
     comps: source.comps,
-    motivation: source.motivation,
+    motivation: deterministicMotivation || source.motivation,
     deepScan: source.deepScan ? normalizeDeepScanData(source.deepScan) : source.deepScan,
     inPipeline: source.inPipeline,
   }))
