@@ -21,7 +21,7 @@ import { toast } from '../lib/toast'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
-import { MotivationScore } from '../lib/motivationScore'
+import type { MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
 import { supabase } from '@/integrations/supabase/client'
 
@@ -307,7 +307,6 @@ async function runDeepScanForCapture(
 function buildAnalysis(capture: Capture, deepScan?: DeepScanData | null) {
   const comps = capture.comps
   const trace = capture.trace
-  const motiv = capture.motivation
   const permitRecords = deepScan?.permits?.permits || []
   const violationRecords = deepScan?.permits?.violations || []
   const verifiedPermits = permitRecords.filter(isVerifiedPermitRecord).length
@@ -601,7 +600,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           {/* Header band */}
           <div className="px-4 py-2.5 flex items-center justify-between" style={{ background: 'var(--sgc-navy)' }}>
             <span className="text-[11px] font-black text-white uppercase tracking-wider">📊 Deal Analysis</span>
-            <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">{analysis.confidence}</span>
+                <span className="text-[10px] font-bold text-white/70 uppercase tracking-wide">Deterministic · {analysis.confidence}</span>
           </div>
 
           {/* Hero rating */}
@@ -957,7 +956,7 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               style={{ background: motivColor }}>
               <div className="flex items-center gap-2">
                 <span className="text-sm">🧠</span>
-                <span className="text-xs font-bold text-white uppercase tracking-wide">AI Motivation Score</span>
+                <span className="text-xs font-bold text-white uppercase tracking-wide">Motivation Score</span>
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-2xl font-black text-white">{motiv.score}</span>
