@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 import { toast } from '../lib/toast'
+import { supabase } from '../integrations/supabase/client'
 
 /**
  * Chatham Permits — organizer for Chatham County's monthly permit reports.
@@ -137,6 +138,30 @@ export default function ChathamPermits() {
   const [search, setSearch]   = useState('')
   const [minVal, setMinVal]   = useState(0)
   const [sort, setSort]       = useState<SortKey>('signal')
+  const [fetching, setFetching] = useState(false)
+  const [sourceUrl, setSourceUrl] = useState<string | null>(null)
+
+  const handleFetchLatest = async () => {
+    setFetching(true)
+    try {
+      const { data, error } = await supabase.functions.invoke('chatham-permits', { body: {} })
+      if (error) throw new Error(error.message)
+      if (!data?.text) throw new Error(data?.error || 'No report text returned')
+      setPasted(data.text)
+      setSourceUrl(data.reportUrl || null)
+      const parsed = parseChathamReport(data.text)
+      if (parsed.length) {
+        setPermits(parsed)
+        toast.success(`Fetched & organized ${parsed.length} permits`)
+      } else {
+        toast.warning('Report fetched but no records recognized — review the text below')
+      }
+    } catch (e) {
+      toast.error(`Fetch failed: ${(e as Error).message}`)
+    } finally {
+      setFetching(false)
+    }
+  }
 
   const handleParse = () => {
     const p = parseChathamReport(pasted)
@@ -213,6 +238,11 @@ export default function ChathamPermits() {
               style={{ borderColor: '#D1D9E6', background: 'white' }}
             />
             <div className="flex items-center gap-3 mt-3">
+              <button onClick={handleFetchLatest} disabled={fetching}
+                className="px-5 py-2.5 rounded-lg text-sm font-bold text-white border-none cursor-pointer disabled:opacity-60"
+                style={{ background: '#1B3A8C' }}>
+                {fetching ? 'Fetching…' : '⬇ Fetch latest report'}
+              </button>
               <button onClick={handleParse}
                 className="px-5 py-2.5 rounded-lg text-sm font-bold text-white border-none cursor-pointer"
                 style={{ background: NAVY }}>
@@ -224,6 +254,11 @@ export default function ChathamPermits() {
                 <input type="file" accept=".csv,.txt,text/csv,text/plain" onChange={handleFile} className="hidden" />
               </label>
             </div>
+            {sourceUrl && (
+              <div className="text-[11px] mt-2" style={{ color: '#64748B' }}>
+                Source: <a href={sourceUrl} target="_blank" rel="noreferrer" style={{ color: NAVY }}>{sourceUrl}</a>
+              </div>
+            )}
           </>
         ) : (
           <>
