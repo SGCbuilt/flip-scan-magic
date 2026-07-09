@@ -18,7 +18,7 @@ import { toast } from '../lib/toast'
  *   - RentCast AVM → estimated value + comps
  *   - AI Motivation Score → should you call this one first?
  */
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { pullComps, CompResult } from '../lib/compPull'
 import { computeMotivationScore, MotivationScore } from '../lib/motivationScore'
