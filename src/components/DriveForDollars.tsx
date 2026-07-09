@@ -1160,16 +1160,31 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                 </div>
               )}
 
-              {/* Photos */}
-              {dsData?.photos && dsData.photos.list.length > 0 && (
+              {/* Photos — only when address-verified */}
+              {dsData?.photos && dsData.photos.list.length > 0 && dsData.photos.verified && (
                 <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-navy)' }}>📸 Photos ({dsData.photos.count})</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider mb-1 flex items-center gap-2" style={{ color: 'var(--sgc-navy)' }}>
+                    <span>📸 Photos ({dsData.photos.count})</span>
+                    <span className="px-1.5 py-0.5 rounded text-[9px] font-semibold" style={{ background: '#DCFCE7', color: '#166534' }}>✓ Address verified</span>
+                    <span className="text-[9px] font-normal opacity-70">via {dsData.photos.source}</span>
+                  </div>
+                  {dsData.photos.matchedAddress && (
+                    <div className="text-[9px] mb-1 opacity-70">Matched: {dsData.photos.matchedAddress}</div>
+                  )}
                   <div className="flex gap-1.5 overflow-x-auto">
                     {dsData.photos.list.slice(0, 6).map((src, i) => (
-                      <img key={i} src={src} alt="" className="h-16 w-20 object-cover rounded flex-shrink-0" />
+                      <img key={i} src={src} alt={`Property photo ${i + 1}`} loading="lazy" className="h-16 w-20 object-cover rounded flex-shrink-0" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none' }} />
                     ))}
                   </div>
                 </div>
+              )}
+              {dsData?.photos && dsData.photos.list.length > 0 && !dsData.photos.verified && (
+                <div className="text-[10px] p-2 rounded border" style={{ background: '#FEF3C7', borderColor: '#FCD34D', color: '#92400E' }}>
+                  ⚠️ Photos found but could not be verified as this address — suppressed to avoid showing the wrong property.
+                </div>
+              )}
+              {dsData?.photos && dsData.photos.list.length === 0 && (
+                <div className="text-[10px] opacity-70">No verified property photos available for this address.</div>
               )}
 
               {/* Permit Timeline */}
