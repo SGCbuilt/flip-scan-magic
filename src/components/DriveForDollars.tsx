@@ -351,10 +351,23 @@ async function runDeepScanForCapture(
       motivationTier: capture.motivation?.tier,
       motivationScore: capture.motivation?.score,
       dataGuardrail: 'Use only provided fields. Do not invent dates, permit history, ARV, ownership, violations, or offer strategy. Low-confidence records are review-only.',
-      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 3),
-      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 3),
+      // Widen the evidence window the AI reasons over (was 3-of-each).
+      permits: (permitsData?.permits || []).filter(isSupportPermitRecord).slice(0, 12),
+      violations: (permitsData?.violations || []).filter(isSupportPermitRecord).slice(0, 12),
       recordsHeldForReview: [...(permitsData?.permits || []), ...(permitsData?.violations || [])].filter((r: PermitRecord) => !isSupportPermitRecord(r)).length,
-      distress: (distressData?.signals || []).slice(0, 3),
+      distress: (distressData?.signals || []).slice(0, 10),
+      permitsSource: permitsData?.source,
+      distressSource: distressData?.source,
+      photoCount: scan.photos?.count || 0,
+      photoSource: scan.photos?.source,
+      yearBuilt: (capture.trace?.property as any)?.yearBuilt,
+      sqft: (capture.trace?.property as any)?.squareFootage || (capture.trace?.property as any)?.sqft,
+      beds: (capture.trace?.property as any)?.bedrooms,
+      baths: (capture.trace?.property as any)?.bathrooms,
+      lastSalePrice: (capture.trace?.property as any)?.lastSalePrice,
+      lastSaleDate: (capture.trace?.property as any)?.lastSaleDate,
+      ownerMailingAddress: capture.trace?.owner?.mailingAddr,
+      phones: (capture.trace?.phones || []).slice(0, 4).map((p: any) => ({ type: p.type, dnc: p.dnc, litigator: p.litigator })),
     }
     const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode: 'summary', context }, ...(invokeOpts || {}) })
     if (error) throw error
@@ -644,12 +657,11 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
   const ownerResearch = buildOwnerResearch(trace, dsData)
 
   const runDeepScan = async () => {
-    // Wipe any locally cached scan so the UI can't fall back to stale state
-    // while the fresh request is in flight, and force the backend to bypass
-    // any upstream caches.
+    // Keep the previous scan visible while refreshing so the AI evaluation
+    // card doesn't disappear mid-refresh and stay gone if a step fails.
+    const previous = dsData
     setDsRunning(true)
     setDsError(null)
-    setDsData({})
     setDsStep('photos · checking property imagery')
     try {
       const scan = await runDeepScanForCapture(
@@ -657,11 +669,21 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
         step => setDsStep(step),
         { forceRefresh: true },
       )
-      setDsData(scan)
-      onDeepScanComplete(capture.id, scan)
+      // Merge: prefer fresh values, but fall back to previous evaluation /
+      // summary if the AI summary step failed this run so the panel stays open.
+      const merged: DeepScanData = {
+        ...(previous || {}),
+        ...scan,
+        evaluation: scan.evaluation ?? previous?.evaluation,
+        summary: scan.summary || previous?.summary,
+      }
+      setDsData(merged)
+      onDeepScanComplete(capture.id, merged)
       setDsStep('')
     } catch (e: any) {
       setDsError(e?.message || 'Deep Scan failed')
+      // Restore prior scan on hard failure so the user doesn't lose the panel.
+      if (previous) setDsData(previous)
     } finally {
       setDsRunning(false)
     }
