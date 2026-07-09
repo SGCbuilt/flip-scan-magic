@@ -1608,6 +1608,34 @@ export default function DriveForDollars() {
     if (trace) newCapture.trace = trace
     if (comps) newCapture.comps = comps
 
+    // Fallback: auto-pull owner from public records when skip-trace missed / no key
+    if (!newCapture.trace?.owner?.name) {
+      setProgress(p => [...p, '🏛️ Looking up owner from public records...'])
+      try {
+        const pub = await lookupOwner(address, city, state, zip)
+        if (pub.hit) {
+          const existing = newCapture.trace
+          newCapture.trace = {
+            ...(existing || {
+              hit: false, creditsUsed: 0, owner: null, phones: [], emails: [],
+              property: null, rawData: null, fetchedAt: new Date().toISOString(),
+            }),
+            hit: true,
+            owner: {
+              name: pub.name || existing?.owner?.name || '',
+              mailingAddr: pub.mailingAddr || existing?.owner?.mailingAddr || '',
+            },
+            property: existing?.property || {
+              beds: 0, baths: 0, sqft: 0, yearBuilt: 0, propertyType: '',
+              estimatedValue: 0, equity: 0, equityPct: 0, mortgageBalance: 0,
+              lastSalePrice: 0, lastSaleDate: '', taxStatus: '',
+              vacant: false, absenteeOwner: pub.absenteeOwner,
+            },
+          } as SkipTraceResult
+        }
+      } catch {}
+    }
+
     setProgress(p => [...p, '🧠 Computing deterministic motivation score...'])
     const motivation = computeDriveMotivationScore(trace, comps, notes)
     if (motivation) newCapture.motivation = motivation
