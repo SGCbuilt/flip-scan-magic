@@ -1067,38 +1067,98 @@ async function fetchDistressSignals(fullAddr: string) {
 }
 
 // ── EXECUTIVE SUMMARY via AI gateway ──────────────────────────────────────
-async function execSummary(context: Record<string, unknown>): Promise<string> {
-  const key = Deno.env.get('LOVABLE_API_KEY')
-  if (!key) return ''
-  const system = `You are a senior real-estate acquisitions analyst for SGC General Contractors (VA/NC). Produce a professional, concise executive summary for a driving-for-dollars deep scan. Numbers first, risk second, exit third. No hedging.`
-  const prompt = `Write a professional Deep Scan Executive Summary for this property. Structure it in short labeled sections:
+export type EvalPriority = 'critical' | 'high' | 'medium' | 'low' | 'info'
+export interface EvalSection {
+  heading: string
+  priority: EvalPriority
+  body: string
+}
+export interface EvalResult {
+  summary: string
+  sections: EvalSection[]
+}
 
-**Bottom Line** — 2 sentence verdict.
-**Why This Deal** — 3 bullets.
-**Red Flags** — 3 bullets.
-**Recommended Play** — flip, wholesale, or BRRRR with a target offer.
-**Seller Approach Script** — 3-4 sentences you would say at the door.
+function sectionsToMarkdown(sections: EvalSection[]): string {
+  return sections.map(s => `**${s.heading}**\n${s.body}`).join('\n\n')
+}
+
+async function execSummary(context: Record<string, unknown>): Promise<EvalResult> {
+  const key = Deno.env.get('LOVABLE_API_KEY')
+  if (!key) return { summary: '', sections: [] }
+  const system = `You are the senior acquisitions principal for SGC General Contractors (VA/NC). Produce an institutional-grade fix-and-flip evaluation for a driving-for-dollars deep scan. Numbers first, risk second, exit third. No hedging, no filler.
+
+You MUST return STRICT JSON only (no markdown, no prose outside JSON). Each section has a priority the UI uses to color-code the paragraph:
+- "critical": deal-killer or must-act-now (bright red band)
+- "high":     top drivers of profit or major risk (orange band)
+- "medium":   material context worth weighing (amber band)
+- "low":      supporting evidence / operational detail (blue band)
+- "info":     neutral background (navy band)
+
+Every "body" is a single tight paragraph (2–5 sentences), specific to the DATA provided. Do NOT invent numbers, permits, ownership, or ARV that aren't in DATA.`
+
+  const prompt = `Return JSON exactly matching this schema:
+{
+  "summary": "<one-sentence bottom-line verdict tied to the numbers>",
+  "sections": [
+    { "heading": "Bottom Line",           "priority": "critical|high|medium|low|info", "body": "<paragraph>" },
+    { "heading": "Deal Thesis",           "priority": "high",                          "body": "<paragraph>" },
+    { "heading": "Red Flags",             "priority": "critical|high",                 "body": "<paragraph>" },
+    { "heading": "Rehab & Scope Reality", "priority": "high|medium",                   "body": "<paragraph>" },
+    { "heading": "Recommended Play",      "priority": "high",                          "body": "<paragraph — flip / wholesale / BRRRR with target offer>" },
+    { "heading": "Seller Approach",       "priority": "medium",                        "body": "<3-4 sentences you would say at the door>" },
+    { "heading": "Data Confidence",       "priority": "low|info",                      "body": "<what is verified vs. what still needs verification>" }
+  ]
+}
+
+Choose each priority based on what the DATA actually shows. A deal that fails the 70% rule, has open code violations, or has stale/unverified ARV should escalate "Red Flags" to "critical".
 
 DATA:
 ${JSON.stringify(context, null, 2)}`
+
   try {
     const res = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${key}` },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-pro',
-        temperature: 0,
+        model: 'openai/gpt-5.5',
         messages: [
           { role: 'system', content: system },
           { role: 'user', content: prompt },
         ],
+        response_format: { type: 'json_object' },
       }),
     })
-    if (!res.ok) return `AI summary unavailable (${res.status}).`
+    if (!res.ok) {
+      const detail = await res.text().catch(() => '')
+      return {
+        summary: `AI evaluation unavailable (${res.status}).`,
+        sections: [{ heading: 'Evaluation Unavailable', priority: 'info', body: `Gateway returned ${res.status}. ${detail.slice(0, 200)}` }],
+      }
+    }
     const data = await res.json()
-    return data.choices?.[0]?.message?.content || ''
-  } catch {
-    return ''
+    const raw = data.choices?.[0]?.message?.content || ''
+    let clean = String(raw).trim()
+    const fence = clean.match(/```(?:json)?\s*([\s\S]*?)```/)
+    if (fence) clean = fence[1].trim()
+    let parsed: any
+    try { parsed = JSON.parse(clean) } catch {
+      return { summary: raw.slice(0, 300), sections: [{ heading: 'Executive Summary', priority: 'info', body: raw }] }
+    }
+    const sections: EvalSection[] = Array.isArray(parsed?.sections)
+      ? parsed.sections
+          .filter((s: any) => s && s.heading && s.body)
+          .map((s: any) => ({
+            heading: String(s.heading).slice(0, 80),
+            priority: (['critical', 'high', 'medium', 'low', 'info'].includes(s.priority) ? s.priority : 'info') as EvalPriority,
+            body: String(s.body),
+          }))
+      : []
+    return {
+      summary: String(parsed?.summary || sections[0]?.body || '').slice(0, 500),
+      sections,
+    }
+  } catch (e) {
+    return { summary: '', sections: [{ heading: 'Evaluation Error', priority: 'info', body: e instanceof Error ? e.message : String(e) }] }
   }
 }
 
@@ -1126,8 +1186,11 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'summary') {
-      const summary = await execSummary({ address: fullAddr, ...(body.context || {}) })
-      return new Response(JSON.stringify({ summary }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+      const evalResult = await execSummary({ address: fullAddr, ...(body.context || {}) })
+      return new Response(JSON.stringify({
+        summary: sectionsToMarkdown(evalResult.sections) || evalResult.summary,
+        evaluation: evalResult,
+      }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
     // Run everything in parallel
@@ -1140,7 +1203,7 @@ Deno.serve(async (req) => {
         : Promise.resolve(null),
     ])
 
-    const summary = await execSummary({
+    const evalResult = await execSummary({
       address: fullAddr,
       deal: body.deal || null,
       permitsFound: permits.permits.length,
@@ -1158,7 +1221,8 @@ Deno.serve(async (req) => {
       permits: { permits: permits.permits, violations: permits.violations, source: permits.source },
       distress,
       variants: variants?.variants || null,
-      summary,
+      summary: sectionsToMarkdown(evalResult.sections) || evalResult.summary,
+      evaluation: evalResult,
     }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
   } catch (e) {
     const msg = e instanceof Error ? e.message : 'Unknown error'
