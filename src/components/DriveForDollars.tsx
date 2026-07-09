@@ -1246,9 +1246,9 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
                             </div>
                           )
                         })}
-                        {undated.length > 0 && dated.length > 0 && (
+                        {filtered.length > 8 && (
                           <div className="text-[9px] mt-1 pl-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-                            {undated.length} additional record{undated.length === 1 ? '' : 's'} without dates
+                            + {filtered.length - 8} more matching record{filtered.length - 8 === 1 ? '' : 's'} — refine filters to narrow.
                           </div>
                         )}
                       </div>
