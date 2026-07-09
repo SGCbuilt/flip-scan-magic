@@ -258,7 +258,14 @@ async function runDeepScanForCapture(
   try {
     const { data, error } = await supabase.functions.invoke('property-photos', { body: base, ...(invokeOpts || {}) })
     if (error) throw error
-    scan.photos = { list: data?.photos || [], source: data?.source || 'none', count: data?.count || 0 }
+    scan.photos = {
+      list: data?.photos || [],
+      source: data?.source || 'none',
+      count: data?.count || 0,
+      matchedAddress: data?.matchedAddress ?? null,
+      requestedAddress: data?.requestedAddress ?? null,
+      verified: !!data?.verified,
+    }
   } catch (e: any) {
     scan.errors?.push(`Photos unavailable: ${e?.message || 'source failed'}`)
   }
