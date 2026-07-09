@@ -1107,23 +1107,52 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
               </div>
 
               {/* Owner identity strip */}
-              <div className="px-3 py-2.5 flex items-center gap-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)', background: 'var(--sgc-navy-pale)' }}>
-                <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
-                  style={{ background: 'var(--sgc-navy)', color: 'white', fontWeight: 900 }}>
-                  {(owner?.name || '?').trim().charAt(0).toUpperCase()}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Owner of record</div>
-                  <div className="text-sm font-black truncate" style={{ color: 'var(--sgc-black)' }}>
-                    {owner?.name || 'Not verified — confirm via county GIS / Register of Deeds'}
-                  </div>
-                  {owner?.mailingAddr && (
-                    <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--sgc-gray-mid)' }} title={owner.mailingAddr}>
-                      📬 {owner.mailingAddr}
+              {(() => {
+                const src = (owner as any)?.source as string | undefined
+                const srcLabel = (owner as any)?.sourceLabel as string | undefined
+                const srcUrl = (owner as any)?.sourceUrl as string | undefined
+                const needsVerify = src === 'firecrawl_county'
+                const badgePalette: Record<string, { bg: string; fg: string }> = {
+                  rentcast_property: { bg: '#EDFAF3', fg: '#1A7A4A' },
+                  rentcast_avm:      { bg: '#EEF2FB', fg: '#1B3A8C' },
+                  rentcast_listing:  { bg: '#EEF2FB', fg: '#1B3A8C' },
+                  firecrawl_county:  { bg: '#FEF7EA', fg: '#8A5700' },
+                }
+                const bp = src ? badgePalette[src] : undefined
+                return (
+                  <div className="px-3 py-2.5 flex items-center gap-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)', background: 'var(--sgc-navy-pale)' }}>
+                    <div className="w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--sgc-navy)', color: 'white', fontWeight: 900 }}>
+                      {(owner?.name || '?').trim().charAt(0).toUpperCase()}
                     </div>
-                  )}
-                </div>
-              </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-black uppercase tracking-wider" style={{ color: 'var(--sgc-gray-mid)' }}>Owner of record</span>
+                        {bp && srcLabel && (
+                          <span className="text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-full"
+                            style={{ background: bp.bg, color: bp.fg }}>{srcLabel}</span>
+                        )}
+                      </div>
+                      <div className="text-sm font-black truncate" style={{ color: 'var(--sgc-black)' }}>
+                        {owner?.name || 'Not verified — confirm via county GIS / Register of Deeds'}
+                      </div>
+                      {owner?.mailingAddr && (
+                        <div className="text-[11px] font-semibold truncate" style={{ color: 'var(--sgc-gray-mid)' }} title={owner.mailingAddr}>
+                          📬 {owner.mailingAddr}
+                        </div>
+                      )}
+                      {needsVerify && (
+                        <div className="mt-1 text-[10px] font-semibold" style={{ color: '#8A5700' }}>
+                          ⚠️ Web-source snippet — verify in county records{srcUrl ? ' · ' : ''}
+                          {srcUrl && (
+                            <a href={srcUrl} target="_blank" rel="noreferrer" className="underline">open source</a>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })()}
 
               {/* Possible contacts */}
               <div className="p-3 space-y-2 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
@@ -1214,54 +1243,73 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
           )
         })()}
 
-        {/* AI Evaluation — priority-coded paragraphs */}
-        {(dsData?.evaluation?.sections?.length || dsData?.summary) && (
-          <div className="rounded-2xl border overflow-hidden shadow-sm" style={{ borderColor: 'var(--sgc-navy)33', background: 'white' }}>
-            <div className="px-4 py-3 flex items-center justify-between" style={{ background: 'linear-gradient(135deg, #0F2460, #1B3A8C)' }}>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] font-black uppercase tracking-wider text-white">🧠 AI Investor Evaluation</span>
-                <span className="text-[9px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full bg-white/15 text-white">GPT-5.5 · institutional</span>
+        {/* AI Evaluation — research-memo layout, priority-ordered */}
+        {(dsData?.evaluation?.sections?.length || dsData?.summary) && (() => {
+          const PRIORITY_ORDER: Array<'critical' | 'high' | 'medium' | 'low' | 'info'> = ['critical', 'high', 'medium', 'low', 'info']
+          const PRIORITY_META: Record<string, { color: string; label: string }> = {
+            critical: { color: '#C0341D', label: 'CRITICAL' },
+            high:     { color: '#C45E1A', label: 'HIGH' },
+            medium:   { color: '#8A5700', label: 'MEDIUM' },
+            low:      { color: '#1B3A8C', label: 'SUPPORT' },
+            info:     { color: '#8B8F9A', label: 'CONTEXT' },
+          }
+          const sections = (dsData?.evaluation?.sections || []).slice().sort(
+            (a, b) => PRIORITY_ORDER.indexOf(a.priority) - PRIORITY_ORDER.indexOf(b.priority)
+          )
+          const bottomLine = dsData?.evaluation?.summary
+          return (
+            <div className="rounded-2xl overflow-hidden border" style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
+              {/* Header bar */}
+              <div className="px-4 py-3 flex items-center justify-between border-b" style={{ background: 'var(--sgc-navy)', borderColor: 'var(--sgc-gray-border)' }}>
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-white">AI Investor Evaluation</span>
+                  <span className="text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full text-white/90" style={{ background: 'rgba(255,255,255,0.12)' }}>GPT-5.5</span>
+                </div>
+                <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full text-white/90" style={{ background: 'rgba(255,255,255,0.12)' }}>Review-only</span>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-wide px-2 py-0.5 rounded-full" style={{ background: '#FEF7EA', color: '#8A5700' }}>
-                Review-only
-              </span>
+
+              {/* Bottom line hero */}
+              {bottomLine && (
+                <div className="px-4 py-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)', background: 'var(--sgc-navy-pale)' }}>
+                  <div className="text-[9px] font-black uppercase tracking-widest mb-1" style={{ color: 'var(--sgc-navy)' }}>Bottom Line</div>
+                  <div className="text-[13px] font-semibold leading-snug" style={{ color: 'var(--sgc-black)' }}>{bottomLine}</div>
+                </div>
+              )}
+
+              {/* Sections grid — 1 col on mobile, 2 cols from md */}
+              {sections.length ? (
+                <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {sections.map((sec, i) => {
+                    const meta = PRIORITY_META[sec.priority] || PRIORITY_META.info
+                    return (
+                      <div key={i} className="flex rounded-lg border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)', background: 'white' }}>
+                        <div className="flex-shrink-0" style={{ width: 3, background: meta.color }} />
+                        <div className="p-3 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ color: meta.color, background: `${meta.color}12` }}>{meta.label}</span>
+                            <span className="text-[11px] font-black uppercase tracking-wide truncate" style={{ color: 'var(--sgc-black)' }}>{sec.heading}</span>
+                          </div>
+                          <div className="text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--sgc-black)' }}>
+                            {sec.body}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="p-4 text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--sgc-black)' }}>
+                  {dsData?.summary}
+                </div>
+              )}
+
+              {/* Footer disclaimer */}
+              <div className="px-4 py-2 text-[10px] font-semibold border-t" style={{ borderColor: 'var(--sgc-gray-border)', background: '#F7F9FC', color: 'var(--sgc-gray-mid)' }}>
+                Ordered by priority · verified numbers in the cards above are authoritative
+              </div>
             </div>
-            {dsData?.evaluation?.summary && (
-              <div className="px-4 py-3 border-b text-[13px] font-semibold leading-snug" style={{ borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-black)', background: '#F7F9FE' }}>
-                {dsData.evaluation.summary}
-              </div>
-            )}
-            {dsData?.evaluation?.sections?.length ? (
-              <div className="p-3 space-y-2">
-                {dsData.evaluation.sections.map((sec, i) => {
-                  const palette: Record<string, { bg: string; border: string; label: string; accent: string; badgeBg: string; badgeText: string }> = {
-                    critical: { bg: '#FEF0ED', border: '#C0341D', label: 'CRITICAL',  accent: '#C0341D', badgeBg: '#C0341D', badgeText: '#FFFFFF' },
-                    high:     { bg: '#FEF3EA', border: '#C45E1A', label: 'HIGH',      accent: '#C45E1A', badgeBg: '#C45E1A', badgeText: '#FFFFFF' },
-                    medium:   { bg: '#FEF7EA', border: '#8A5700', label: 'MEDIUM',    accent: '#8A5700', badgeBg: '#F4D68A', badgeText: '#6B4300' },
-                    low:      { bg: '#EEF4FE', border: '#1B3A8C', label: 'SUPPORT',   accent: '#1B3A8C', badgeBg: '#C5D0EF', badgeText: '#0F2460' },
-                    info:     { bg: '#F4F5F7', border: '#8B8F9A', label: 'INFO',      accent: '#4A4E58', badgeBg: '#E2E4E9', badgeText: '#4A4E58' },
-                  }
-                  const p = palette[sec.priority] || palette.info
-                  return (
-                    <div key={i} className="rounded-lg overflow-hidden border-l-4" style={{ background: p.bg, borderLeftColor: p.border }}>
-                      <div className="flex items-center justify-between px-3 pt-2">
-                        <span className="text-[11px] font-black uppercase tracking-wide" style={{ color: p.accent }}>{sec.heading}</span>
-                        <span className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded" style={{ background: p.badgeBg, color: p.badgeText }}>{p.label}</span>
-                      </div>
-                      <div className="px-3 pb-2 pt-1 text-[12px] leading-relaxed whitespace-pre-wrap" style={{ color: 'var(--sgc-black)' }}>
-                        {sec.body}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="p-3 text-[12px] whitespace-pre-wrap leading-relaxed" style={{ color: 'var(--sgc-black)' }}>
-                {dsData.summary}
-              </div>
-            )}
-          </div>
-        )}
+          )
+        })()}
 
         {/* RentCast comps */}
         {comps && (
@@ -1681,8 +1729,10 @@ export default function DriveForDollars() {
     if (trace) newCapture.trace = trace
     if (comps) newCapture.comps = comps
 
-    // Fallback: auto-pull owner from public records when skip-trace missed / no key
-    if (!newCapture.trace?.owner?.name) {
+    // Fallback: auto-pull owner from layered public records when skip-trace
+    // missed, no key, OR returned a hit with a blank name field.
+    const traceOwnerName = newCapture.trace?.owner?.name?.trim()
+    if (!traceOwnerName) {
       setProgress(p => [...p, '🏛️ Looking up owner from public records...'])
       try {
         const pub = await lookupOwner(address, city, state, zip)
@@ -1697,6 +1747,9 @@ export default function DriveForDollars() {
             owner: {
               name: pub.name || existing?.owner?.name || '',
               mailingAddr: pub.mailingAddr || existing?.owner?.mailingAddr || '',
+              source: pub.source,
+              sourceLabel: pub.sourceLabel,
+              sourceUrl: pub.sourceUrl,
             },
             property: existing?.property || {
               beds: 0, baths: 0, sqft: 0, yearBuilt: 0, propertyType: '',
@@ -1704,7 +1757,7 @@ export default function DriveForDollars() {
               lastSalePrice: 0, lastSaleDate: '', taxStatus: '',
               vacant: false, absenteeOwner: pub.absenteeOwner,
             },
-          } as SkipTraceResult
+          } as unknown as SkipTraceResult
         }
       } catch {}
     }
