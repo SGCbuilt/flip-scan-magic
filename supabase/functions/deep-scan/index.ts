@@ -40,6 +40,41 @@ function classifyPermitType(text: string): string {
   return 'Building'
 }
 
+// ── URL sanity check: does this look like an actual per-property record? ──
+// Rejects generic landing pages, PDFs, social media, and directory pages that
+// have no chance of being a specific permit/violation record for our address.
+function looksLikePerRecordUrl(url: string, streetNumber: string, streetName: string): boolean {
+  if (!url) return false
+  let u: URL
+  try { u = new URL(url) } catch { return false }
+  const host = u.hostname.toLowerCase()
+  const path = u.pathname.toLowerCase()
+  const search = u.search.toLowerCase()
+
+  // Hard-reject: social media, PDFs, dictionary/wiki, generic aggregators, parking meters.
+  const badHosts = ['facebook.com', 'twitter.com', 'x.com', 'instagram.com', 'youtube.com', 'reddit.com', 'tiktok.com', 'linkedin.com', 'pinterest.com', 'parkopedia.com', 'yelp.com']
+  if (badHosts.some(h => host === h || host.endsWith('.' + h))) return false
+  if (path.endsWith('.pdf')) return false
+
+  // Hard-reject federal/registry documents that never contain per-property permits.
+  const federalHosts = ['sam.gov', 'federalregister.gov', 'govinfo.gov', 'uscg.mil', 'regulations.gov', 'congress.gov', 'law.cornell.edu']
+  if (federalHosts.some(h => host === h || host.endsWith('.' + h))) return false
+
+  // Landing-page reject: a bare city-gov page like "/code-enforcement" with no query
+  // and no property-specific path segment is a landing page, not a record.
+  const landingPagePaths = ['/code-enforcement', '/permits', '/permit', '/building', '/inspections', '/planning', '/zoning']
+  const isBareLanding = landingPagePaths.some(p => path === p || path === p + '/' || path.endsWith(p))
+  if (isBareLanding && !search) return false
+
+  // Positive signals that this is a per-record page.
+  const hasRecordSegment = /(permit|inspection|violation|record|case|complaint|address|property|parcel|folio)[\/\-_=]/.test(path + search)
+  const hasRecordId = /(permit|case|folio|record|application|id|no)[=\/\-_]?([a-z0-9]{4,})/i.test(path + search)
+  const hasStreetNumInUrl = streetNumber && new RegExp(`(^|[\\/\\-_?&=])${streetNumber}([\\/\\-_?&=]|$)`).test(path + search)
+  const hasStreetNameInUrl = streetName && streetName.length >= 3 && (path + search).includes(streetName.toLowerCase().replace(/\s+/g, '-')) 
+
+  return hasRecordId || hasStreetNumInUrl || hasStreetNameInUrl || (hasRecordSegment && !isBareLanding)
+}
+
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
 
 interface Body {
