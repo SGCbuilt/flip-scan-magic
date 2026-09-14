@@ -187,8 +187,67 @@ function buildQueries(area: string, state: string, county: string) {
     `"notice of foreclosure sale" ${place} ${year} property address`,
     `${place} upcoming real estate auction list ${year} site:.gov`,
     `"public notice" foreclosure sale ${area} ${state} ${year}`,
+    // RealAuction runs county tax-deed / sheriff sales but has no single predictable
+    // URL per county, so we target it through search instead of a direct fetch.
+    `site:realauction.com ${county || area} county ${state} tax deed OR foreclosure OR sheriff sale`,
+    ...(state === 'TN' ? [
+      `site:foreclosuretennessee.com ${county || area} county tennessee`,
+      `site:betterchoicenotices.com ${county || area} tennessee foreclosure`,
+      `"${county || area} county" tennessee chancery OR "clerk and master" delinquent tax sale`,
+    ] : []),
   ]
 }
+
+// ── Layer 1.5: platform direct fetch ──────────────────────────────────────
+// Some counties run their sales on known platforms with predictable URLs.
+// We hit those directly instead of hoping a generic web search surfaces them.
+function countySlug(county: string): string {
+  return county.toLowerCase()
+    .replace(/\bcounty\b/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+async function fetchPlatformPages(state: string, county: string) {
+  const slug = countySlug(county)
+  const attempts: Array<{ platform: string; url: string; status: string; chars: number }> = []
+  const pages: Array<{ url: string; title: string; text: string; platform: string }> = []
+  if (!slug) {
+    return {
+      pages, attempts,
+      platforms: [
+        { platform: 'LienHub', status: 'skipped — no county supplied', records: 0 },
+        { platform: 'GovEase', status: 'skipped — no county supplied', records: 0 },
+      ],
+    }
+  }
+
+  const targets: Array<{ platform: string; url: string; title: string }> = []
+  if (state === 'FL') {
+    targets.push({ platform: 'LienHub', url: `https://lienhub.com/county/${slug}`, title: `LienHub — ${county} County tax deed / certificate sales` })
+  }
+  targets.push({ platform: 'GovEase', url: `https://www.govease.com/${slug}`, title: `GovEase — ${county} County tax sale` })
+
+  const platforms: Array<{ platform: string; status: string; records: number; url?: string }> = []
+
+  await Promise.all(targets.map(async t => {
+    const r = await scrapeUrl(t.url)
+    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars })
+    if (r.text) {
+      pages.push({ url: t.url, title: t.title, text: r.text, platform: t.platform })
+      platforms.push({ platform: t.platform, url: t.url, status: 'fetched', records: 0 })
+    } else {
+      // 404 / thin page / blocked — fall through silently to the search path.
+      platforms.push({ platform: t.platform, url: t.url, status: r.status, records: 0 })
+    }
+  }))
+
+  if (state !== 'FL') platforms.unshift({ platform: 'LienHub', status: 'skipped — Florida only', records: 0 })
+
+  return { pages, attempts, platforms }
+}
+
 
 async function searchAuctionNotices(area: string, state: string, county: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
