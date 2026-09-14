@@ -562,7 +562,8 @@ export default function App() {
     return 'hub'
   })
   const [collapsed,       setCollapsed]       = useState(false)
-  const [sidebarHidden,   setSidebarHidden]   = useState(false)
+  const [isNarrow,        setIsNarrow]        = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  const [sidebarHidden,   setSidebarHidden]   = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const [params,          setParams]          = useState<SearchParams>(DEFAULT_PARAMS)
   const [results,         setResults]         = useState<AnalyzedProperty[]>([])
   const [allAnalyzed,     setAllAnalyzed]     = useState<AnalyzedProperty[]>([])
@@ -583,6 +584,19 @@ export default function App() {
     const hasKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast')
     return !hasKey
   })
+
+  // Track narrow screens — sidebar becomes an overlay drawer on phones
+  useEffect(() => {
+    const onResize = () => {
+      const narrow = window.innerWidth < 768
+      setIsNarrow(prev => {
+        if (prev !== narrow) setSidebarHidden(narrow)
+        return narrow
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
 
   // Refresh badge every 60s
   useEffect(() => {
@@ -678,8 +692,21 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#F1F5F9' }}>
 
-      {/* ── SIDEBAR NAV ── */}
-      {!sidebarHidden && (
+      {/* ── SIDEBAR NAV ── (overlay drawer on phones, fixed column on desktop) */}
+      {!sidebarHidden && isNarrow && (
+        <div className="fixed inset-0 z-[200] flex" onClick={() => setSidebarHidden(true)}>
+          <div className="absolute inset-0" style={{ background: 'rgba(15,36,96,0.55)' }} />
+          <div className="relative h-full flex-shrink-0" style={{ width: 236 }} onClick={e => e.stopPropagation()}>
+            <Sidebar
+              activeTab={activeTab}
+              onTab={(id) => { setActiveTab(id); setSidebarHidden(true) }}
+              collapsed={false}
+              onToggle={() => setSidebarHidden(true)}
+            />
+          </div>
+        </div>
+      )}
+      {!sidebarHidden && !isNarrow && (
         <Sidebar
           activeTab={activeTab}
           onTab={setActiveTab}

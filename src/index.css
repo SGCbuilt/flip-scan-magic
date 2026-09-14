@@ -193,10 +193,6 @@ aside button[style*="rgba(255,255,255,0.12)"] {
 
 /* ── Mobile optimizations ── */
 @media (max-width: 768px) {
-  /* Auto-collapse sidebar on mobile */
-  aside {
-    width: 56px !important;
-  }
 
   /* Full-width content on mobile */
   main > div {
