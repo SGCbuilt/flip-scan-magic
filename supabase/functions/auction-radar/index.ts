@@ -578,6 +578,18 @@ Deno.serve(async (req) => {
       avgScore: records.length ? Math.round(records.reduce((s, r) => s + r.score, 0) / records.length) : 0,
     }
 
+    const searchErrs: string[] = (search.debug as any).searchErrors || []
+    const firecrawlHealth = !Deno.env.get('FIRECRAWL_API_KEY') ? 'missing_key'
+      : searchErrs.some(e => e.includes('402') || e.toLowerCase().includes('credit')) ? 'out_of_credits'
+      : searchErrs.some(e => e.includes('401') || e.includes('403')) ? 'bad_key'
+      : search.debug.queriesOk === 0 && searchErrs.length ? 'error'
+      : 'ok'
+    const rentcastHealth = !Deno.env.get('RENTCAST_API_KEY') ? 'missing_key'
+      : rc.note.includes('403') ? 'forbidden'
+      : rc.note.includes('401') ? 'bad_key'
+      : 'ok'
+    const sourceHealth = { firecrawl: firecrawlHealth, rentcast: rentcastHealth, firecrawlError: searchErrs[0] || null, rentcastNote: rc.note }
+
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
       { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
@@ -585,7 +597,7 @@ Deno.serve(async (req) => {
 
     return new Response(JSON.stringify({
       area, state, county, daysAhead,
-      records, stats, sources,
+      records, stats, sources, sourceHealth,
       debug: {
         ...search.debug,
         aiUsed: ai.aiUsed,
