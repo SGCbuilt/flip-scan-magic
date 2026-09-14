@@ -2222,10 +2222,10 @@ export default function DriveForDollars({ onNavigate, onSendToMarket }: {
                   style={{ background: 'var(--sgc-navy)', color: 'white' }}>
                   <div className="text-xl mb-1">🚗</div>
                   <div className="text-sm font-bold mb-1">You're at the curb.</div>
-                  <div className="text-xs opacity-80">Type or speak the address. Get owner info in 10 seconds.</div>
+                  <div className="text-xs opacity-80">Tap your location, snap a photo, save it. Analyze now or later.</div>
                 </div>
 
-                <AddressInput onSearch={handleSearch} />
+                <AddressInput onSubmit={handleCapture} busy={analyzing} />
 
                 {/* Quick notes */}
                 <div>
@@ -2313,6 +2313,8 @@ export default function DriveForDollars({ onNavigate, onSendToMarket }: {
                     capture={cap}
                     onAddPipeline={handleAddPipeline}
                     onDeepScanComplete={handleDeepScanComplete}
+                    onAnalyze={handleAnalyzeSaved}
+                    onMarketLookup={handleMarketLookup}
                   />
                 ))}
               </div>
