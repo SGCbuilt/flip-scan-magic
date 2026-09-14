@@ -509,7 +509,7 @@ export default function App() {
     // Support PWA shortcuts via ?tab= URL parameter
     try {
       const param = new URLSearchParams(window.location.search).get('tab')
-      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','chatham','auction','wholesale','buyers','financial','market','analyzer','reference','settings']
+      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','agent','project','pl','deals','hunt','chatham','auction','wholesale','buyers','financial','market','analyzer','reference','settings']
       if (param && valid.includes(param as TabId)) return param as TabId
     } catch {}
     return 'hub'
