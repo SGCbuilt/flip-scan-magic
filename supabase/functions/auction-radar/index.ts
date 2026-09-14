@@ -233,7 +233,7 @@ async function fetchPlatformPages(state: string, county: string) {
 
   await Promise.all(targets.map(async t => {
     const r = await scrapeUrl(t.url)
-    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars })
+    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars, via: r.via })
     if (r.text) {
       pages.push({ url: t.url, title: t.title, text: r.text, platform: t.platform })
       platforms.push({ platform: t.platform, url: t.url, status: 'fetched', records: 0 })
