@@ -334,6 +334,7 @@ function Topbar({
     home:     'Morning Brief', kpi: 'KPI Dashboard',
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
     drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
+    auction:  'Auction Radar',
     pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
