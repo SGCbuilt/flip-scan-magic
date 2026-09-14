@@ -91,8 +91,8 @@ const NAV: NavSection[] = [
       { id: 'velocity', label: 'Neighborhood',     icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
       { id: 'stack',    label: 'List Stack',       icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
       { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
-      { id: 'deals',    label: 'Deal Scanner',     icon: '🔍', tip: 'MLS + off-market search with flip scoring' },
-      { id: 'hunt',     label: 'Deal Hunter',      icon: '🎰', tip: 'Advanced criteria-based property hunting' },
+      { id: 'deals',    label: 'Deal Search',     icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
+
       { id: 'auction',  label: 'Auction Radar',    icon: '⚖️', tip: 'Trustee, sheriff & tax-foreclosure sales with dates and equity spread' },
       { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
