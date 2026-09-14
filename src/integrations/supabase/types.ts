@@ -38,6 +38,98 @@ export type Database = {
         }
         Relationships: []
       }
+      auction_seen: {
+        Row: {
+          addr_key: string
+          address: string
+          auction_date: string | null
+          created_at: string
+          first_seen_at: string
+          id: string
+          watch_id: string
+        }
+        Insert: {
+          addr_key: string
+          address?: string
+          auction_date?: string | null
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          watch_id: string
+        }
+        Update: {
+          addr_key?: string
+          address?: string
+          auction_date?: string | null
+          created_at?: string
+          first_seen_at?: string
+          id?: string
+          watch_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auction_seen_watch_id_fkey"
+            columns: ["watch_id"]
+            isOneToOne: false
+            referencedRelation: "auction_watches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auction_watches: {
+        Row: {
+          active: boolean
+          city: string
+          county: string
+          created_at: string
+          days_ahead: number
+          id: string
+          label: string
+          last_run_at: string | null
+          last_run_note: string | null
+          max_price: number
+          notify_email: string
+          state: string
+          updated_at: string
+          user_id: string
+          zip: string
+        }
+        Insert: {
+          active?: boolean
+          city?: string
+          county?: string
+          created_at?: string
+          days_ahead?: number
+          id?: string
+          label?: string
+          last_run_at?: string | null
+          last_run_note?: string | null
+          max_price?: number
+          notify_email: string
+          state?: string
+          updated_at?: string
+          user_id: string
+          zip?: string
+        }
+        Update: {
+          active?: boolean
+          city?: string
+          county?: string
+          created_at?: string
+          days_ahead?: number
+          id?: string
+          label?: string
+          last_run_at?: string | null
+          last_run_note?: string | null
+          max_price?: number
+          notify_email?: string
+          state?: string
+          updated_at?: string
+          user_id?: string
+          zip?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
