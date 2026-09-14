@@ -596,13 +596,15 @@ Deno.serve(async (req) => {
 
     const area = zip || (city ? `${city}${state ? ', ' + state : ''}` : state)
 
-    const [rc, search] = await Promise.all([
+    const [rc, search, platform] = await Promise.all([
       fromRentCast(loc, { maxPrice }),
       searchAuctionNotices(area, state, county),
+      fetchPlatformPages(state, county),
     ])
 
     const scrape = await scrapeNoticePages(search.hits, 8)
-    const ai = await extractAuctions(area, state, county, scrape.pages, search.hits)
+    const ai = await extractAuctions(area, state, county, [...platform.pages, ...scrape.pages], search.hits)
+
 
     // Validate web-derived records, keep rejects for transparency
     const rejected: Array<{ address: string; url: string; why: string }> = []
