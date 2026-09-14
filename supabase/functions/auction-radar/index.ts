@@ -194,15 +194,25 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   let ok = 0
   const hits: Array<{ title: string; description: string; url: string }> = []
   const seen = new Set<string>()
+  const searchErrors: string[] = []
 
-  await Promise.all(queries.map(async q => {
+  // Throttled: Firecrawl rate-limits bursts, and a 429 wipes the whole scan.
+  const runQuery = async (q: string, attempt = 0): Promise<void> => {
     try {
       const res = await fetch(FIRECRAWL_SEARCH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ query: q, limit: 8, scrapeOptions: { formats: ['markdown'] } }),
+        body: JSON.stringify({ query: q, limit: 8 }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        const txt = await res.text().catch(() => '')
+        if ((res.status === 429 || res.status >= 500) && attempt < 2) {
+          await new Promise(r => setTimeout(r, 2500 * (attempt + 1)))
+          return runQuery(q, attempt + 1)
+        }
+        searchErrors.push(`HTTP ${res.status}: ${txt.slice(0, 140)}`)
+        return
+      }
       ok++
       const data = await res.json()
       const arr: any[] = data?.data?.web || data?.data || data?.results || []
@@ -214,10 +224,17 @@ async function searchAuctionNotices(area: string, state: string, county: string)
         const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
         hits.push({ title: r.title || '', description: body, url })
       }
-    } catch { /* ignore individual query failure */ }
-  }))
+    } catch (e) {
+      searchErrors.push(String(e).slice(0, 140))
+    }
+  }
 
-  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length } }
+  for (let i = 0; i < queries.length; i += 3) {
+    await Promise.all(queries.slice(i, i + 3).map(q => runQuery(q)))
+    if (i + 3 < queries.length) await new Promise(r => setTimeout(r, 700))
+  }
+
+  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
 // ── Layer 2b: open each notice page and read the whole list ───────────────
