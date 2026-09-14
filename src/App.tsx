@@ -940,7 +940,12 @@ export default function App() {
           <ErrorBoundary label="Lead Radar">       {activeTab === 'radar'     && <LeadRadar />}              </ErrorBoundary>
           <ErrorBoundary label="Neighborhood">     {activeTab === 'velocity'  && <NeighborhoodVelocity />}   </ErrorBoundary>
           <ErrorBoundary label="List Stack">       {activeTab === 'stack'     && <ListStacking />}           </ErrorBoundary>
-          <ErrorBoundary label="Drive for Dollars">{activeTab === 'drive'     && <DriveForDollars />}        </ErrorBoundary>
+          <ErrorBoundary label="Drive for Dollars">{activeTab === 'drive'     && (
+            <DriveForDollars
+              onNavigate={(t) => setActiveTab(t as TabId)}
+              onSendToMarket={(location, mode) => setParams(p => ({ ...p, locationQuery: location, searchMode: mode }))}
+            />
+          )}</ErrorBoundary>
           <ErrorBoundary label="Deal Scanner">
             {activeTab === 'deals' && (
               <Dashboard
