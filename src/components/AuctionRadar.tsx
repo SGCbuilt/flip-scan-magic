@@ -1095,31 +1095,23 @@ export default function AuctionRadar() {
                             <span className="text-[10px]" style={{ color: '#94A3B8' }}>Source: {r.sourceLabel || r.sourceHost}</span>
                           </div>
 
-                          {/* Investor memo */}
+                          {/* Deep Scan panel */}
+                          {memos[r.id]?.loading && (
+                            <div className="mt-2 rounded-lg px-3 py-2 text-[11px]"
+                              style={{ background: '#F1F5F9', color: NAVY_2 }}>
+                              🔬 {memos[r.id].stage || 'Deep Scanning…'}
+                            </div>
+                          )}
                           {memos[r.id]?.error && (
                             <div className="mt-2 rounded-lg px-3 py-2 text-[11px]"
                               style={{ background: '#FEF2F2', color: '#991B1B' }}>
                               Deep Scan could not finish for this address — {memos[r.id].error}
                             </div>
                           )}
-                          {openMemo[r.id] && memos[r.id]?.text && (
-                            <div className="mt-2 rounded-lg border p-3" style={{ background: '#F8FAFC', borderColor: '#E5E9F0' }}>
-                              <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94A3B8' }}>
-                                Investor memo · Deep Scan
-                              </div>
-                              <div className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#334155' }}>
-                                {memos[r.id].text}
-                              </div>
-                              {!!memos[r.id]?.scan?.permits?.permits?.length && (
-                                <div className="text-[10px] mt-2" style={{ color: '#64748B' }}>
-                                  {memos[r.id].scan.permits.permits.length} permit record(s) found
-                                </div>
-                              )}
-                              <div className="text-[10px] mt-2" style={{ color: '#94A3B8' }}>
-                                Added to the pipeline note when you send this property to the pipeline.
-                              </div>
-                            </div>
+                          {openMemo[r.id] && (memos[r.id]?.text || memos[r.id]?.scan) && (
+                            <DeepScanPanel memo={memos[r.id]} />
                           )}
+
                         </div>
                       </div>
                     </div>
