@@ -862,6 +862,7 @@ export default function App() {
           <ErrorBoundary label="Pipeline CRM">     {activeTab === 'pipeline'  && <Pipeline />}               </ErrorBoundary>
           <ErrorBoundary label="Tasks">            {activeTab === 'tasks'     && <Tasks />}                  </ErrorBoundary>
           <ErrorBoundary label="Drip Sequences">   {activeTab === 'drip'      && <DripSequences />}          </ErrorBoundary>
+          <ErrorBoundary label="Research Agent">   {activeTab === 'agent'     && <AgentDashboard />}         </ErrorBoundary>
           <ErrorBoundary label="Project Clock">    {activeTab === 'project'   && <ProjectTracker />}         </ErrorBoundary>
           <ErrorBoundary label="Deal P&L">         {activeTab === 'pl'        && <DealPLTracker />}          </ErrorBoundary>
           <ErrorBoundary label="Wholesale">        {activeTab === 'wholesale' && <Wholesale />}              </ErrorBoundary>
