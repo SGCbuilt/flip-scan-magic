@@ -261,7 +261,7 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const pages: Array<{ url: string; title: string; text: string }> = []
   const attempts: Array<{ url: string; status: string; chars: number }> = []
 
-  await Promise.all(targets.map(async h => {
+  const scrapeOne = async (h: { url: string; title: string }, attempt = 0): Promise<void> => {
     try {
       const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
         method: 'POST',
@@ -270,6 +270,10 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
       })
       if (!res.ok) {
         const t = await res.text().catch(() => '')
+        if ((res.status === 429 || res.status >= 500) && attempt < 1) {
+          await new Promise(r => setTimeout(r, 2500))
+          return scrapeOne(h, attempt + 1)
+        }
         attempts.push({ url: h.url, status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 })
         return
       }
@@ -282,7 +286,12 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
     } catch (e) {
       attempts.push({ url: h.url, status: `error ${String(e).slice(0, 120)}`, chars: 0 })
     }
-  }))
+  }
+
+  for (let i = 0; i < targets.length; i += 3) {
+    await Promise.all(targets.slice(i, i + 3).map(h => scrapeOne(h)))
+    if (i + 3 < targets.length) await new Promise(r => setTimeout(r, 800))
+  }
 
   return { pages, scraped: targets.length, scrapeOk: okCount, attempts }
 }
