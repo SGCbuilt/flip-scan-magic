@@ -21,6 +21,7 @@ import { toast } from '../lib/toast'
 import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import { skipTrace, SkipTraceResult } from '../lib/skipTrace'
 import { lookupOwner } from '../lib/ownerLookup'
+import { suggestAddresses, reverseGeocode, type AddressSuggestion } from '../lib/addressAutocomplete'
 import { pullComps, CompResult } from '../lib/compPull'
 import type { MotivationScore } from '../lib/motivationScore'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
@@ -182,6 +183,11 @@ interface Capture {
   capturedAt:  string
   notes:       string
   photoDataUrl?: string
+  photos?:     string[]
+  lat?:        number
+  lng?:        number
+  gpsAccuracy?: number
+  analyzed?:   boolean
   // Results
   trace?:      SkipTraceResult
   comps?:      CompResult
@@ -564,14 +570,142 @@ function buildOwnerResearch(trace?: SkipTraceResult | null, deepScan?: DeepScanD
   return { facts, nextSteps, confidence }
 }
 
-// ── Address input with speech recognition ─────────────────────────────────────
-function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, state: string, zip: string) => void }) {
+// ── Photo + GPS helpers ───────────────────────────────────────────────────────
+async function compressPhoto(file: File, maxSide = 1280, quality = 0.72): Promise<string> {
+  const dataUrl: string = await new Promise((resolve, reject) => {
+    const fr = new FileReader()
+    fr.onload = () => resolve(String(fr.result || ''))
+    fr.onerror = () => reject(new Error('read failed'))
+    fr.readAsDataURL(file)
+  })
+  try {
+    const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const i = new Image()
+      i.onload = () => resolve(i)
+      i.onerror = () => reject(new Error('decode failed'))
+      i.src = dataUrl
+    })
+    const scale = Math.min(1, maxSide / Math.max(img.width, img.height))
+    const w = Math.round(img.width * scale)
+    const h = Math.round(img.height * scale)
+    const canvas = document.createElement('canvas')
+    canvas.width = w; canvas.height = h
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return dataUrl
+    ctx.drawImage(img, 0, 0, w, h)
+    return canvas.toDataURL('image/jpeg', quality)
+  } catch {
+    return dataUrl
+  }
+}
+
+// Sample GPS for a few seconds and keep the most accurate reading — a single
+// getCurrentPosition call on a phone often returns a coarse network fix.
+function getBestPosition(timeoutMs = 9000, goodEnoughMeters = 18): Promise<GeolocationPosition> {
+  return new Promise((resolve, reject) => {
+    if (!navigator.geolocation) { reject(new Error('Location is not available on this device')); return }
+    let best: GeolocationPosition | null = null
+    let done = false
+    const finish = () => {
+      if (done) return
+      done = true
+      navigator.geolocation.clearWatch(id)
+      clearTimeout(timer)
+      best ? resolve(best) : reject(new Error('Could not get a location fix'))
+    }
+    const id = navigator.geolocation.watchPosition(
+      pos => {
+        if (!best || pos.coords.accuracy < best.coords.accuracy) best = pos
+        if (best.coords.accuracy <= goodEnoughMeters) finish()
+      },
+      err => { if (!best) { done = true; clearTimeout(timer); reject(new Error(err.message || 'Location denied')) } },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: timeoutMs },
+    )
+    const timer = setTimeout(finish, timeoutMs)
+  })
+}
+
+export interface CaptureDraft {
+  address: string
+  city: string
+  state: string
+  zip: string
+  lat?: number
+  lng?: number
+  gpsAccuracy?: number
+  photos: string[]
+}
+
+// ── Address input: GPS, autocomplete, speech, photos ──────────────────────────
+function AddressInput({ onSubmit, busy }: {
+  onSubmit: (draft: CaptureDraft, mode: 'quick' | 'analyze') => void
+  busy?: boolean
+}) {
   const [raw,       setRaw]       = useState('')
   const [city,      setCity]      = useState('')
   const [state,     setState]     = useState('VA')
   const [zip,       setZip]       = useState('')
   const [listening, setListening] = useState(false)
+  const [suggests,  setSuggests]  = useState<AddressSuggestion[]>([])
+  const [showSug,   setShowSug]   = useState(false)
+  const [gps,       setGps]       = useState<{ lat: number; lng: number; accuracy: number } | null>(null)
+  const [locating,  setLocating]  = useState(false)
+  const [photos,    setPhotos]    = useState<string[]>([])
   const recognitionRef = useRef<any>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
+
+  // Debounced address suggestions (free OpenStreetMap geocoder)
+  useEffect(() => {
+    const q = raw.trim()
+    if (q.length < 4 || !showSug) { setSuggests([]); return }
+    const t = setTimeout(async () => {
+      const list = await suggestAddresses(city || zip ? `${q}, ${city} ${state} ${zip}`.trim() : q)
+      setSuggests(list)
+    }, 350)
+    return () => clearTimeout(t)
+  }, [raw, city, state, zip, showSug])
+
+  const applySuggestion = (s: AddressSuggestion) => {
+    setRaw(s.address || s.label)
+    if (s.city) setCity(s.city)
+    if (s.state) setState(s.state)
+    if (s.zip) setZip(s.zip)
+    if (s.lat && s.lng) setGps({ lat: s.lat, lng: s.lng, accuracy: 0 })
+    setShowSug(false)
+    setSuggests([])
+  }
+
+  const useMyLocation = async () => {
+    setLocating(true)
+    try {
+      const pos = await getBestPosition()
+      const { latitude, longitude, accuracy } = pos.coords
+      setGps({ lat: latitude, lng: longitude, accuracy })
+      const place = await reverseGeocode(latitude, longitude)
+      if (place) {
+        if (place.address) setRaw(place.address)
+        if (place.city) setCity(place.city)
+        if (place.state) setState(place.state)
+        if (place.zip) setZip(place.zip)
+        toast.success(`Located within ~${Math.round(accuracy)} m — check the house number`)
+      } else {
+        toast.warning('Got your position but no street match — type the house number')
+      }
+    } catch (e: any) {
+      toast.error(e?.message || 'Could not get your location')
+    } finally {
+      setLocating(false)
+    }
+  }
+
+  const addPhotos = async (files: FileList | null) => {
+    if (!files?.length) return
+    const next: string[] = []
+    for (const f of Array.from(files).slice(0, 6)) {
+      try { next.push(await compressPhoto(f)) } catch {}
+    }
+    setPhotos(p => [...p, ...next].slice(0, 8))
+  }
 
   const startListening = () => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
@@ -583,6 +717,7 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
     rec.onresult = (e: any) => {
       const text = e.results[0][0].transcript
       setRaw(text)
+      setShowSug(true)
       setListening(false)
     }
     rec.onerror = () => setListening(false)
@@ -597,16 +732,44 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
     setListening(false)
   }
 
-  const handleSearch = () => {
+  const submit = (mode: 'quick' | 'analyze') => {
     const parsed = normalizeCapturedAddress(raw, city, state, zip)
-    if (!parsed.address) return
-    onSearch(parsed.address, parsed.city, parsed.state, parsed.zip)
+    if (!parsed.address) { toast.warning('Enter or locate an address first'); return }
+    onSubmit({
+      ...parsed,
+      lat: gps?.lat,
+      lng: gps?.lng,
+      gpsAccuracy: gps?.accuracy,
+      photos,
+    }, mode)
+    // Reset for the next house on the street
+    setRaw(''); setZip(zip); setPhotos([]); setGps(null); setSuggests([]); setShowSug(false)
   }
 
   return (
     <div className="space-y-3">
+      {/* GPS */}
+      <button onClick={useMyLocation} disabled={locating}
+        className="w-full py-3 rounded-2xl text-sm font-black border cursor-pointer flex items-center justify-center gap-2"
+        style={{ background: 'white', borderColor: 'var(--sgc-navy)', color: 'var(--sgc-navy)' }}>
+        {locating
+          ? <><span className="w-4 h-4 border-2 rounded-full spin inline-block" style={{ borderColor: 'var(--sgc-gray-border)', borderTopColor: 'var(--sgc-navy)' }} /> Getting an accurate fix…</>
+          : <>📍 Use my location</>}
+      </button>
+      {gps && (
+        <div className="text-[11px] rounded-xl px-3 py-2 flex items-center justify-between"
+          style={{ background: gps.accuracy && gps.accuracy > 40 ? '#FEF7EA' : 'var(--sgc-navy-pale)', color: gps.accuracy && gps.accuracy > 40 ? '#8A5700' : 'var(--sgc-navy)' }}>
+          <span>
+            {gps.accuracy ? `GPS accurate to ~${Math.round(gps.accuracy)} m` : 'Pinned from address match'}
+            {gps.accuracy > 40 ? ' — confirm the house number' : ''}
+          </span>
+          <a href={`https://www.google.com/maps?q=${gps.lat},${gps.lng}`} target="_blank" rel="noopener noreferrer"
+            className="font-bold underline">Map</a>
+        </div>
+      )}
+
       {/* Address field with mic */}
-      <div>
+      <div className="relative">
         <div className="text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--sgc-navy)' }}>
           Street Address
         </div>
@@ -614,15 +777,13 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
           <input
             type="text"
             value={raw}
-            onChange={e => setRaw(e.target.value)}
-            onKeyDown={e => e.key === 'Enter' && handleSearch()}
+            onChange={e => { setRaw(e.target.value); setShowSug(true) }}
+            onKeyDown={e => e.key === 'Enter' && submit('analyze')}
             placeholder="123 Oak Street"
             className="flex-1 rounded-xl border text-base px-4 py-3 outline-none"
             style={{ borderColor: 'var(--sgc-gray-border)', fontSize: 16 }}
-            autoFocus
             autoComplete="street-address"
           />
-          {/* Mic button */}
           <button
             onClick={listening ? stopListening : startListening}
             className="w-12 h-12 rounded-xl flex items-center justify-center border-none cursor-pointer flex-shrink-0"
@@ -638,6 +799,19 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
             Listening... speak the address clearly
           </div>
         )}
+        {showSug && suggests.length > 0 && (
+          <div className="absolute z-30 left-0 right-0 mt-1 rounded-xl border bg-white overflow-hidden"
+            style={{ borderColor: 'var(--sgc-gray-border)', boxShadow: '0 18px 34px rgba(15,36,96,0.14)' }}>
+            {suggests.map((s, i) => (
+              <button key={i} onClick={() => applySuggestion(s)}
+                className="w-full text-left px-3 py-2.5 text-xs border-none cursor-pointer bg-white hover:bg-[#F4F5F7]"
+                style={{ color: 'var(--sgc-black)' }}>
+                <div className="font-bold">{s.address || s.label}</div>
+                <div style={{ color: 'var(--sgc-gray-mid)' }}>{[s.city, s.state, s.zip].filter(Boolean).join(', ')}</div>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* City / State / Zip */}
@@ -651,17 +825,11 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
         </div>
         <div>
           <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>State</div>
-          <div className="grid grid-cols-2 gap-1">
-            {['VA','NC'].map(s => (
-              <button key={s} onClick={() => setState(s)}
-                className="py-2.5 rounded-xl border text-sm font-bold cursor-pointer"
-                style={state === s
-                  ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
-                  : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
-                {s}
-              </button>
-            ))}
-          </div>
+          <select value={state} onChange={e => setState(e.target.value)}
+            className="w-full rounded-xl border text-sm px-2 py-2.5 outline-none bg-white"
+            style={{ borderColor: 'var(--sgc-gray-border)', fontSize: 16, color: 'var(--sgc-navy)', fontWeight: 700 }}>
+            {['VA','NC','TN','FL','SC','GA','MD','DC','WV'].map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
         </div>
         <div>
           <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>Zip</div>
@@ -673,21 +841,70 @@ function AddressInput({ onSearch }: { onSearch: (addr: string, city: string, sta
         </div>
       </div>
 
-      {/* Search button */}
-      <button onClick={handleSearch}
-        className="w-full py-4 rounded-2xl text-base font-black text-white border-none cursor-pointer"
-        style={{ background: 'var(--sgc-navy)', fontSize: 17 }}>
-        🔍 Analyze This Property
-      </button>
+      {/* Photos */}
+      <div>
+        <div className="text-xs font-bold uppercase tracking-wider mb-1.5" style={{ color: 'var(--sgc-navy)' }}>Photos</div>
+        <input ref={fileRef} type="file" accept="image/*" capture="environment" multiple className="hidden"
+          onChange={e => { addPhotos(e.target.files); if (fileRef.current) fileRef.current.value = '' }} />
+        <div className="flex gap-2 flex-wrap items-center">
+          <button onClick={() => fileRef.current?.click()}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold border cursor-pointer"
+            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)' }}>
+            📷 Take photo
+          </button>
+          {photos.map((p, i) => (
+            <div key={i} className="relative">
+              <img src={p} alt={`Capture ${i + 1}`} className="w-14 h-14 object-cover rounded-xl border"
+                style={{ borderColor: 'var(--sgc-gray-border)' }} />
+              <button onClick={() => setPhotos(ph => ph.filter((_, j) => j !== i))}
+                className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full text-[10px] font-black text-white border-none cursor-pointer"
+                style={{ background: '#C0341D' }}>×</button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Actions */}
+      <div className="grid grid-cols-2 gap-2">
+        <button onClick={() => submit('quick')} disabled={busy}
+          className="py-4 rounded-2xl text-sm font-black border cursor-pointer"
+          style={{ background: 'white', borderColor: 'var(--sgc-navy)', color: 'var(--sgc-navy)' }}>
+          ⚡ Save &amp; next house
+        </button>
+        <button onClick={() => submit('analyze')} disabled={busy}
+          className="py-4 rounded-2xl text-sm font-black text-white border-none cursor-pointer"
+          style={{ background: 'var(--sgc-navy)' }}>
+          🔍 Save &amp; analyze
+        </button>
+      </div>
+      <div className="text-[11px] text-center" style={{ color: 'var(--sgc-gray-mid)' }}>
+        "Save &amp; next house" logs it in a second so you can keep driving — run the full analysis later from History.
+      </div>
     </div>
   )
 }
 
 // ── Result card ───────────────────────────────────────────────────────────────
-function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
+function CapturePhotoStrip({ photos }: { photos?: string[] }) {
+  if (!photos?.length) return null
+  return (
+    <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+      {photos.map((p, i) => (
+        <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+          <img src={p} alt={`Field photo ${i + 1}`} loading="lazy"
+            className="h-24 w-32 object-cover rounded-xl border" style={{ borderColor: 'var(--sgc-gray-border)' }} />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+function ResultCard({ capture, onAddPipeline, onDeepScanComplete, onAnalyze, onMarketLookup }: {
   capture: Capture
   onAddPipeline: (id: string) => void
   onDeepScanComplete: (id: string, deepScan: DeepScanData) => void
+  onAnalyze?: (id: string) => void
+  onMarketLookup?: (capture: Capture) => void
 }) {
   const trace = capture.trace
   const comps  = capture.comps
@@ -747,22 +964,70 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
     : motiv.tier === 'warm'     ? '#8A5700'
     : 'var(--sgc-gray-mid)' : 'var(--sgc-gray-mid)'
 
+  const mapsHref = capture.lat && capture.lng
+    ? `https://www.google.com/maps?q=${capture.lat},${capture.lng}`
+    : `https://www.google.com/maps/search/${encodeURIComponent([capture.address, capture.city, capture.state, capture.zip].filter(Boolean).join(' '))}`
+
+  const addressHeader = (
+    <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+      <div className="font-black text-lg leading-tight" style={{ color: 'var(--sgc-navy)' }}>
+        {capture.address}
+      </div>
+      <div className="text-sm mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+        {capture.city}, {capture.state} {capture.zip}
+      </div>
+      <div className="text-[10px] mt-1 flex items-center gap-2 flex-wrap" style={{ color: 'var(--sgc-gray-mid)' }}>
+        <span>Captured {new Date(capture.capturedAt).toLocaleString()}</span>
+        {capture.gpsAccuracy ? <span>· GPS ±{Math.round(capture.gpsAccuracy)} m</span> : null}
+        <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="font-bold underline" style={{ color: 'var(--sgc-navy)' }}>Open map</a>
+      </div>
+    </div>
+  )
+
+  // Quick-saved house — not researched yet. Keep it light and give one clear
+  // next step so a driving session stays fast.
+  const notResearched = !capture.trace && !capture.comps && !capture.deepScan
+  if (notResearched) {
+    return (
+      <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+        {addressHeader}
+        <CapturePhotoStrip photos={capture.photos} />
+        {capture.notes && (
+          <div className="px-4 pb-3 text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>“{capture.notes}”</div>
+        )}
+        <div className="px-4 pb-4 grid grid-cols-2 gap-2">
+          <button onClick={() => onAnalyze?.(capture.id)}
+            className="py-3 rounded-xl text-sm font-black text-white border-none cursor-pointer"
+            style={{ background: 'var(--sgc-navy)' }}>
+            🔍 Run full analysis
+          </button>
+          <button onClick={() => onMarketLookup?.(capture)}
+            className="py-3 rounded-xl text-sm font-bold border cursor-pointer"
+            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)' }}>
+            📈 Area market
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl border overflow-hidden bg-white"
       style={{ borderColor: motiv?.tier === 'critical' ? '#C0341D40' : motiv?.tier === 'hot' ? '#C45E1A40' : 'var(--sgc-gray-border)' }}>
 
       {/* Address header */}
-      <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-        <div className="font-black text-lg leading-tight" style={{ color: 'var(--sgc-navy)' }}>
-          {capture.address}
+      {addressHeader}
+      <CapturePhotoStrip photos={capture.photos} />
+      {onMarketLookup && (
+        <div className="px-4 pb-3">
+          <button onClick={() => onMarketLookup(capture)}
+            className="w-full py-2.5 rounded-xl text-xs font-bold border cursor-pointer"
+            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)' }}>
+            📈 See this area's market data
+          </button>
         </div>
-        <div className="text-sm mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-          {capture.city}, {capture.state} {capture.zip}
-        </div>
-        <div className="text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-          Captured {new Date(capture.capturedAt).toLocaleString()}
-        </div>
-      </div>
+      )}
+
 
       <div className="p-4 space-y-4">
 
@@ -1744,7 +2009,10 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function DriveForDollars() {
+export default function DriveForDollars({ onNavigate, onSendToMarket }: {
+  onNavigate?: (tab: string) => void
+  onSendToMarket?: (location: string, mode: 'city' | 'zip') => void
+} = {}) {
   const [captures,   setCaptures]   = useState<Capture[]>(loadCaptures)
   const [analyzing,  setAnalyzing]  = useState(false)
   const [progress,   setProgress]   = useState<string[]>([])
@@ -1757,34 +2025,41 @@ export default function DriveForDollars() {
     setCaptures(updated)
   }
 
-  const handleSearch = useCallback(async (address: string, city: string, state: string, zip: string) => {
+  // Full research pass for one capture. Used both right after a curb capture
+  // and later, from History, for quick-saved houses.
+  const runFullAnalysis = useCallback(async (seed: Capture, replaceExisting = false) => {
+    const { address, city, state, zip } = seed
     if (!address) return
+    const captureNotes = seed.notes || ''
+    const newCapture: Capture = { ...seed, analyzed: true }
 
     setAnalyzing(true)
     setProgress(['🔍 Looking up property...'])
 
-    const tracerKey   = getTracerKey()
-    const captureId   = `d4d-${Date.now()}`
+    const tracerKey = getTracerKey()
 
-    const newCapture: Capture = {
-      id: captureId,
-      address, city, state, zip,
-      notes,
-      capturedAt: new Date().toISOString(),
-      inPipeline: false,
+    const commit = (record: Capture) => {
+      const all = loadCaptures()
+      const updated = replaceExisting || all.some(c => c.id === record.id)
+        ? all.map(c => (c.id === record.id ? record : c))
+        : [record, ...all]
+      saveAndRefresh(updated)
     }
 
     const addressKey = canonicalAddressKey(address, city, state, zip)
-    const allBeforeLookup = loadCaptures()
-    const prior = allBeforeLookup.find(c =>
+    const prior = loadCaptures().find(c =>
+      c.id !== newCapture.id &&
       canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
       c.trace?.owner?.name
     )
     if (prior) {
-      Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
+      Object.assign(newCapture, cloneCaptureAnalysis(prior), {
+        id: newCapture.id, capturedAt: newCapture.capturedAt, notes: captureNotes,
+        photos: newCapture.photos, lat: newCapture.lat, lng: newCapture.lng, gpsAccuracy: newCapture.gpsAccuracy,
+        analyzed: true,
+      })
       setProgress(['✓ Reused saved analysis for this address. Use Refresh live permit history for a new permit pull.'])
-      const updated = [newCapture, ...allBeforeLookup]
-      saveAndRefresh(updated)
+      commit(newCapture)
       setAnalyzing(false)
       setProgress([])
       setNotes('')
@@ -1842,7 +2117,7 @@ export default function DriveForDollars() {
     }
 
     setProgress(p => [...p, '🧠 Computing deterministic motivation score...'])
-    const motivation = computeDriveMotivationScore(trace, comps, notes)
+    const motivation = computeDriveMotivationScore(newCapture.trace, comps, captureNotes)
     if (motivation) newCapture.motivation = motivation
 
     setProgress(p => [...p, '⚡ Deep Scan: photos · checking property imagery'])
@@ -1854,15 +2129,51 @@ export default function DriveForDollars() {
     } catch {}
 
     setProgress(p => [...p, '✓ Done!'])
-
-    const all = loadCaptures()
-    const updated = [newCapture, ...all]
-    saveAndRefresh(updated)
+    commit(newCapture)
     setAnalyzing(false)
     setProgress([])
     setNotes('')
     setView('history')
-  }, [notes])
+  }, [])
+
+  // Curb capture: quick save (keep driving) or save + full analysis.
+  const handleCapture = useCallback(async (draft: CaptureDraft, mode: 'quick' | 'analyze') => {
+    if (!draft.address) return
+    const record: Capture = {
+      id: `d4d-${Date.now()}`,
+      address: draft.address,
+      city: draft.city,
+      state: draft.state,
+      zip: draft.zip,
+      lat: draft.lat,
+      lng: draft.lng,
+      gpsAccuracy: draft.gpsAccuracy,
+      photos: draft.photos,
+      notes,
+      capturedAt: new Date().toISOString(),
+      inPipeline: false,
+      analyzed: false,
+    }
+    if (mode === 'quick') {
+      saveAndRefresh([record, ...loadCaptures()])
+      setNotes('')
+      toast.success(`Saved ${record.address} — ready for the next house`)
+      return
+    }
+    await runFullAnalysis(record)
+  }, [notes, runFullAnalysis])
+
+  const handleAnalyzeSaved = (captureId: string) => {
+    const cap = loadCaptures().find(c => c.id === captureId)
+    if (cap) runFullAnalysis(cap, true)
+  }
+
+  const handleMarketLookup = (cap: Capture) => {
+    const location = cap.zip || [cap.city, cap.state].filter(Boolean).join(', ')
+    if (!location) { toast.warning('Add a zip or city to this capture first'); return }
+    onSendToMarket?.(location, cap.zip ? 'zip' : 'city')
+    onNavigate?.('market')
+  }
 
   const handleAddPipeline = (captureId: string) => {
     const all = loadCaptures()
@@ -1975,10 +2286,10 @@ export default function DriveForDollars() {
                   style={{ background: 'var(--sgc-navy)', color: 'white' }}>
                   <div className="text-xl mb-1">🚗</div>
                   <div className="text-sm font-bold mb-1">You're at the curb.</div>
-                  <div className="text-xs opacity-80">Type or speak the address. Get owner info in 10 seconds.</div>
+                  <div className="text-xs opacity-80">Tap your location, snap a photo, save it. Analyze now or later.</div>
                 </div>
 
-                <AddressInput onSearch={handleSearch} />
+                <AddressInput onSubmit={handleCapture} busy={analyzing} />
 
                 {/* Quick notes */}
                 <div>
@@ -2066,6 +2377,8 @@ export default function DriveForDollars() {
                     capture={cap}
                     onAddPipeline={handleAddPipeline}
                     onDeepScanComplete={handleDeepScanComplete}
+                    onAnalyze={handleAnalyzeSaved}
+                    onMarketLookup={handleMarketLookup}
                   />
                 ))}
               </div>
