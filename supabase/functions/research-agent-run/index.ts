@@ -252,8 +252,15 @@ Deno.serve(async (req) => {
   if (error) return json({ error: error.message }, 500)
   if (!watches?.length) return json({ ran: 0, results: [], note: 'No active watches' })
 
+  // Manual override — a user who paused the agent is skipped entirely.
+  const { data: paused } = await admin
+    .from('agent_settings').select('user_id').eq('paused', true)
+  const pausedUsers = new Set((paused || []).map((r: any) => r.user_id))
+  const active = (watches as Watch[]).filter(w => !pausedUsers.has(w.user_id))
+  if (!active.length) return json({ ran: 0, results: [], paused: true, note: 'Agent is paused' })
+
   const results: any[] = []
-  for (const w of watches as Watch[]) {
+  for (const w of active) {
     try { results.push(await runWatch(admin, w, !!body.force)) }
     catch (e) { results.push({ watchId: w.id, error: String((e as Error)?.message || e) }) }
   }

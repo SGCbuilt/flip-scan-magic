@@ -28,6 +28,7 @@ import ListStacking      from './components/ListStacking'
 import DealPLTracker     from './components/DealPL'
 import DailyDigest       from './components/DailyDigest'
 import DripSequences     from './components/DripSequences'
+import AgentDashboard    from './components/AgentDashboard'
 import ProjectTracker    from './components/ProjectTracker'
 import NeighborhoodVelocity from './components/NeighborhoodVelocity'
 import Settings from './components/Settings'
@@ -51,7 +52,7 @@ export type AppState = 'idle' | 'loading' | 'results' | 'error'
 type TabId =
   | 'hub' | 'home' | 'kpi'
   | 'radar' | 'velocity' | 'stack' | 'drive'
-  | 'pipeline' | 'tasks' | 'drip' | 'project' | 'pl'
+  | 'pipeline' | 'tasks' | 'drip' | 'agent' | 'project' | 'pl'
   | 'deals' | 'hunt' | 'chatham' | 'auction'
   | 'wholesale' | 'buyers'
   | 'financial' | 'market' | 'analyzer' | 'reference'
@@ -103,6 +104,7 @@ const NAV: NavSection[] = [
       { id: 'pipeline', label: 'Pipeline CRM',     icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
       { id: 'tasks',    label: 'Tasks',             icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
       { id: 'drip',     label: 'Drip Sequences',   icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
+      { id: 'agent',    label: 'Research Agent',   icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
     ],
   },
   {
@@ -335,7 +337,7 @@ function Topbar({
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
     drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
     auction:  'Auction Radar',
-    pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences',
+    pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences', agent: 'Research Agent',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
     financial:'Financial Tools', market: 'Market Trends', analyzer: 'Area Intelligence', reference: 'Lead Sources',
@@ -507,7 +509,7 @@ export default function App() {
     // Support PWA shortcuts via ?tab= URL parameter
     try {
       const param = new URLSearchParams(window.location.search).get('tab')
-      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','chatham','auction','wholesale','buyers','financial','market','analyzer','reference','settings']
+      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','agent','project','pl','deals','hunt','chatham','auction','wholesale','buyers','financial','market','analyzer','reference','settings']
       if (param && valid.includes(param as TabId)) return param as TabId
     } catch {}
     return 'hub'
@@ -860,6 +862,7 @@ export default function App() {
           <ErrorBoundary label="Pipeline CRM">     {activeTab === 'pipeline'  && <Pipeline />}               </ErrorBoundary>
           <ErrorBoundary label="Tasks">            {activeTab === 'tasks'     && <Tasks />}                  </ErrorBoundary>
           <ErrorBoundary label="Drip Sequences">   {activeTab === 'drip'      && <DripSequences />}          </ErrorBoundary>
+          <ErrorBoundary label="Research Agent">   {activeTab === 'agent'     && <AgentDashboard />}         </ErrorBoundary>
           <ErrorBoundary label="Project Clock">    {activeTab === 'project'   && <ProjectTracker />}         </ErrorBoundary>
           <ErrorBoundary label="Deal P&L">         {activeTab === 'pl'        && <DealPLTracker />}          </ErrorBoundary>
           <ErrorBoundary label="Wholesale">        {activeTab === 'wholesale' && <Wholesale />}              </ErrorBoundary>
