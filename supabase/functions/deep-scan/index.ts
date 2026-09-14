@@ -1318,12 +1318,30 @@ Deno.serve(async (req) => {
 
     // ── Per-step modes for client-side step-by-step UI ──────────────────
     if (body.mode === 'permits') {
-      const r = await fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId)
+      const r = await withTimeout(
+        fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
+        55000,
+        { permits: [], violations: [], source: 'timeout' } as any,
+      )
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'distress') {
-      const r = await fetchDistressSignals(fullAddr)
+      const r = await withTimeout(fetchDistressSignals(fullAddr), 55000, { signals: [], source: 'timeout' } as any)
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'history') {
+      const r = await fetchPropertyHistory(body.address, city, state, body.zip || '')
+      return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'photos') {
+      const p = await withTimeout(
+        invoke('property-photos', { address: body.address, city, state, zip: body.zip }),
+        45000,
+        { photos: [], source: 'timeout', count: 0 },
+      ).catch(e => ({ error: String(e), photos: [], source: 'none', count: 0 }))
+      return new Response(JSON.stringify({ list: p?.photos || [], source: p?.source || 'none', count: p?.count || 0 }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
     if (body.mode === 'summary') {
       const evalResult = await execSummary({ address: fullAddr, ...(body.context || {}) })
@@ -1333,15 +1351,17 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // Run everything in parallel
-    const [photos, permits, distress, variants] = await Promise.all([
-      invoke('property-photos', { address: body.address, city, state, zip: body.zip }).catch(e => ({ error: String(e) })),
-      fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
-      fetchDistressSignals(fullAddr),
+    // Run everything in parallel, each step bounded so one slow source can't hang the scan
+    const [photos, permits, distress, history, variants] = await Promise.all([
+      withTimeout(invoke('property-photos', { address: body.address, city, state, zip: body.zip }), 30000, { photos: [], source: 'timeout', count: 0 }).catch(e => ({ error: String(e) })),
+      withTimeout(fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId), 40000, { permits: [], violations: [], source: 'timeout' } as any),
+      withTimeout(fetchDistressSignals(fullAddr), 40000, { signals: [], source: 'timeout' } as any),
+      withTimeout(fetchPropertyHistory(body.address, city, state, body.zip || ''), 30000, EMPTY_HISTORY),
       body.deal
-        ? invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }).catch(e => ({ error: String(e) }))
+        ? withTimeout(invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }), 45000, null).catch(e => ({ error: String(e) }))
         : Promise.resolve(null),
     ])
+
 
     const evalResult = await execSummary({
       address: fullAddr,
