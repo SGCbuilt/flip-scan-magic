@@ -50,13 +50,31 @@ interface AuctionRecord {
   urgency: string
 }
 
+interface SourceHealth {
+  firecrawl: 'ok' | 'out_of_credits' | 'missing_key' | 'bad_key' | 'error'
+  rentcast: 'ok' | 'forbidden' | 'missing_key' | 'bad_key'
+  firecrawlError?: string | null
+  rentcastNote?: string
+}
+
 interface ScanResult {
   area: string
   records: AuctionRecord[]
   stats: { total: number; scheduled: number; within7: number; within30: number; avgScore: number }
   sources: { name: string; note: string; count: number }[]
+  sourceHealth?: SourceHealth
   debug: any
   scannedAt: string
+}
+
+const HEALTH_MSG: Record<string, string> = {
+  out_of_credits: 'The web-notice scanner is out of Firecrawl credits, so trustee, sheriff and tax-sale notice pages could not be read. Top up the Firecrawl plan to restore this source.',
+  missing_key_fc: 'The web-notice scanner has no Firecrawl key configured, so auction notice pages could not be read.',
+  bad_key_fc: 'Firecrawl rejected the current key, so auction notice pages could not be read.',
+  error: 'The web-notice scanner could not reach its sources on this run. Try again in a moment.',
+  forbidden: 'RentCast rejected the request (403), so distressed MLS listings were skipped. Check the RentCast plan or key.',
+  missing_key_rc: 'No RentCast key is configured, so distressed MLS listings were skipped.',
+  bad_key_rc: 'RentCast rejected the current key, so distressed MLS listings were skipped.',
 }
 
 const TYPES = [
