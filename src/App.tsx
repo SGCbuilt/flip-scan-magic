@@ -506,7 +506,7 @@ export default function App() {
     // Support PWA shortcuts via ?tab= URL parameter
     try {
       const param = new URLSearchParams(window.location.search).get('tab')
-      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','chatham','wholesale','buyers','financial','market','analyzer','reference','settings']
+      const valid: TabId[] = ['hub','home','kpi','radar','velocity','stack','drive','pipeline','tasks','drip','project','pl','deals','hunt','chatham','auction','wholesale','buyers','financial','market','analyzer','reference','settings']
       if (param && valid.includes(param as TabId)) return param as TabId
     } catch {}
     return 'hub'
@@ -855,6 +855,7 @@ export default function App() {
           </ErrorBoundary>
           <ErrorBoundary label="Deal Hunter">      {activeTab === 'hunt'      && <DealHunter />}             </ErrorBoundary>
           <ErrorBoundary label="Chatham Permits">  {activeTab === 'chatham'   && <ChathamPermits />}         </ErrorBoundary>
+          <ErrorBoundary label="Auction Radar">    {activeTab === 'auction'   && <AuctionRadar />}           </ErrorBoundary>
           <ErrorBoundary label="Pipeline CRM">     {activeTab === 'pipeline'  && <Pipeline />}               </ErrorBoundary>
           <ErrorBoundary label="Tasks">            {activeTab === 'tasks'     && <Tasks />}                  </ErrorBoundary>
           <ErrorBoundary label="Drip Sequences">   {activeTab === 'drip'      && <DripSequences />}          </ErrorBoundary>
