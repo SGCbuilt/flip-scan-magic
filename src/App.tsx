@@ -562,7 +562,8 @@ export default function App() {
     return 'hub'
   })
   const [collapsed,       setCollapsed]       = useState(false)
-  const [sidebarHidden,   setSidebarHidden]   = useState(false)
+  const [isNarrow,        setIsNarrow]        = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
+  const [sidebarHidden,   setSidebarHidden]   = useState(() => typeof window !== 'undefined' && window.innerWidth < 768)
   const [params,          setParams]          = useState<SearchParams>(DEFAULT_PARAMS)
   const [results,         setResults]         = useState<AnalyzedProperty[]>([])
   const [allAnalyzed,     setAllAnalyzed]     = useState<AnalyzedProperty[]>([])
