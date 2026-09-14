@@ -242,25 +242,32 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const targets = [...hits].sort((a, b) => scoreHit(b) - scoreHit(a)).slice(0, limit)
   let okCount = 0
   const pages: Array<{ url: string; title: string; text: string }> = []
+  const attempts: Array<{ url: string; status: string; chars: number }> = []
 
   await Promise.all(targets.map(async h => {
     try {
       const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ url: h.url, formats: ['markdown'], onlyMainContent: true, waitFor: 1200 }),
+        body: JSON.stringify({ url: h.url, formats: ['markdown'], onlyMainContent: true, timeout: 25000 }),
       })
-      if (!res.ok) return
+      if (!res.ok) {
+        const t = await res.text().catch(() => '')
+        attempts.push({ url: h.url, status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 })
+        return
+      }
       const data = await res.json()
-      const md = String(data?.data?.markdown || data?.markdown || '')
+      const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
+      attempts.push({ url: h.url, status: md.length >= 200 ? 'ok' : 'too short', chars: md.length })
       if (md.length < 200) return
       okCount++
-      // Keep the slices that actually look like sale rows (address + date nearby).
       pages.push({ url: h.url, title: h.title, text: md.slice(0, 14000) })
-    } catch { /* page failed, skip */ }
+    } catch (e) {
+      attempts.push({ url: h.url, status: `error ${String(e).slice(0, 120)}`, chars: 0 })
+    }
   }))
 
-  return { pages, scraped: targets.length, scrapeOk: okCount }
+  return { pages, scraped: targets.length, scrapeOk: okCount, attempts }
 }
 
 // ── Layer 3: AI normalization ─────────────────────────────────────────────
