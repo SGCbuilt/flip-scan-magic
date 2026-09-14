@@ -885,10 +885,26 @@ function AddressInput({ onSubmit, busy }: {
 }
 
 // ── Result card ───────────────────────────────────────────────────────────────
-function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
+function CapturePhotoStrip({ photos }: { photos?: string[] }) {
+  if (!photos?.length) return null
+  return (
+    <div className="flex gap-2 overflow-x-auto px-4 pb-3">
+      {photos.map((p, i) => (
+        <a key={i} href={p} target="_blank" rel="noopener noreferrer" className="flex-shrink-0">
+          <img src={p} alt={`Field photo ${i + 1}`} loading="lazy"
+            className="h-24 w-32 object-cover rounded-xl border" style={{ borderColor: 'var(--sgc-gray-border)' }} />
+        </a>
+      ))}
+    </div>
+  )
+}
+
+function ResultCard({ capture, onAddPipeline, onDeepScanComplete, onAnalyze, onMarketLookup }: {
   capture: Capture
   onAddPipeline: (id: string) => void
   onDeepScanComplete: (id: string, deepScan: DeepScanData) => void
+  onAnalyze?: (id: string) => void
+  onMarketLookup?: (capture: Capture) => void
 }) {
   const trace = capture.trace
   const comps  = capture.comps
