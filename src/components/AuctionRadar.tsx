@@ -986,18 +986,29 @@ export default function AuctionRadar() {
           <div className="rounded-xl border mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
             <button onClick={() => setShowFollows(s => !s)}
               className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
-              <span className="text-sm font-bold" style={{ color: NAVY }}>
+              <span className="text-sm font-bold flex items-center gap-2" style={{ color: NAVY }}>
                 📌 Properties I'm following
-                <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded"
                   style={{ background: '#EEF2FB', color: NAVY_2 }}>{follows.length}</span>
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded inline-flex items-center gap-1"
+                  style={{
+                    background: live ? '#ECFDF5' : '#F1F5F9',
+                    color: live ? '#0F7A3D' : '#94A3B8',
+                  }}>
+                  <span className="inline-block rounded-full"
+                    style={{ width: 6, height: 6, background: live ? '#0F7A3D' : '#CBD5E1' }} />
+                  {live ? 'Live' : 'Connecting…'}
+                </span>
               </span>
               <span className="text-xs" style={{ color: '#94A3B8' }}>{showFollows ? '▲' : '▼'}</span>
             </button>
             {showFollows && (
               <div className="px-4 pb-4">
                 <p className="text-[11px] mb-3 leading-relaxed" style={{ color: '#64748B' }}>
-                  Each address below is checked once a day. The moment a sale date is posted — or an
-                  existing date moves — you get an email with the notice link.
+                  Each address below is checked once a day, and this list updates itself the second
+                  anything changes. The moment a sale date is posted — or an existing date moves —
+                  you get an email with the notice link.
+                  {liveAt ? ` Last update ${sinceLabel(liveAt)}.` : ''}
                 </p>
                 {follows.map(f => (
                   <div key={f.id} className="flex flex-wrap items-center gap-2 py-2 border-t" style={{ borderColor: '#EEF2F7' }}>
@@ -1005,7 +1016,7 @@ export default function AuctionRadar() {
                       <span className="block text-[12px] font-bold" style={{ color: NAVY }}>{f.address}</span>
                       <span className="block text-[10px]" style={{ color: '#94A3B8' }}>
                         {[f.city, f.state].filter(Boolean).join(', ')}
-                        {f.last_checked_at ? ` · checked ${new Date(f.last_checked_at).toLocaleDateString()}` : ' · not checked yet'}
+                        {` · updated ${sinceLabel(f.last_checked_at)}`}
                         {f.last_note ? ` · ${f.last_note}` : ''}
                       </span>
                     </span>
