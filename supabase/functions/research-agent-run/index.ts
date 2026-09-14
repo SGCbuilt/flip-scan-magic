@@ -270,9 +270,10 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
     await admin.from('research_agent_seen').upsert(
       fresh.map(r => ({
         watch_id: w.id, addr_key: addrKey(r.address), address: r.address,
-        source: 'auction-radar', score: r.score || 0, grade: r.grade || '',
+        source: 'auction-radar', score: r.__rank || r.score || 0, grade: r.grade || '',
         auto_added: !!r.__autoAdded,
       })),
+
       { onConflict: 'watch_id,addr_key', ignoreDuplicates: true },
     )
   }
