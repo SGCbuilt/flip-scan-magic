@@ -1266,6 +1266,7 @@ ${JSON.stringify(context, null, 2)}`
         ],
         response_format: { type: 'json_object' },
         max_completion_tokens: 8000,
+        stream: true,
       }),
     })
     if (!res.ok) {
@@ -1275,8 +1276,29 @@ ${JSON.stringify(context, null, 2)}`
         sections: [{ heading: 'Evaluation Unavailable', priority: 'info', body: `Gateway returned ${res.status}. ${detail.slice(0, 200)}` }],
       }
     }
-    const data = await res.json()
-    const raw = data.choices?.[0]?.message?.content || ''
+    // Consume the SSE stream so the connection keeps producing bytes on long generations.
+    let raw = ''
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() || ''
+      for (const line of lines) {
+        const t = line.trim()
+        if (!t.startsWith('data:')) continue
+        const payload = t.slice(5).trim()
+        if (!payload || payload === '[DONE]') continue
+        try {
+          const chunk = JSON.parse(payload)
+          raw += chunk.choices?.[0]?.delta?.content || ''
+        } catch { /* ignore partial frames */ }
+      }
+    }
+
     let clean = String(raw).trim()
     const fence = clean.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (fence) clean = fence[1].trim()
