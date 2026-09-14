@@ -804,6 +804,18 @@ Deno.serve(async (req) => {
     })
     const platformOk = platformDetail.some(p => p.status === 'fetched' || p.status === 'found via targeted search')
 
+    // Cost accounting: how many page reads were free vs paid this scan.
+    const allAttempts = [...((scrape as any).attempts || []), ...platform.attempts] as Array<{ via?: string }>
+    const viaCount = (v: string) => allAttempts.filter(a => a.via === v).length
+    const costSummary = {
+      freeFetch: viaCount('free-fetch'),
+      cached: viaCount('cache'),
+      firecrawl: viaCount('firecrawl'),
+      searchQueriesBilled: Math.max(0, (search.debug.queriesRun || 0) - (((search.debug as any).queriesCached) || 0)),
+      searchQueriesCached: ((search.debug as any).queriesCached) || 0,
+    }
+    const costNote = `${costSummary.freeFetch} free, ${costSummary.cached} cached, ${costSummary.firecrawl} firecrawl · ${costSummary.searchQueriesBilled} search queries billed`
+
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
       { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
@@ -814,7 +826,9 @@ Deno.serve(async (req) => {
         platformDirect: platformDetail,
         health: platformOk ? 'ok' : 'no_platform_data',
       },
+      { name: 'Page reads (cost)', note: costNote, count: costSummary.freeFetch + costSummary.cached + costSummary.firecrawl, costSummary },
     ]
+
 
     return new Response(JSON.stringify({
       area, state, county, daysAhead,
