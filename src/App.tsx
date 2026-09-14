@@ -199,7 +199,7 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
     <aside
       className="flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-200 relative"
       style={{
-        width:      collapsed ? 56 : 220,
+        width:      collapsed ? 56 : 236,
         background: '#0F2460',
         borderRight:'1px solid rgba(255,255,255,0.07)',
       }}>
@@ -382,12 +382,12 @@ function Topbar({
   const tabTitles: Partial<Record<TabId, string>> = {
     home:     'Morning Brief', kpi: 'KPI Dashboard',
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
-    drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
+    drive:    'Drive for Dollars', deals: 'Deal Search', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
     auction:  'Auction Radar',
     pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences', agent: 'Research Agent',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
-    financial:'Financial Tools', market: 'Market Trends', analyzer: 'Area Intelligence', reference: 'Lead Sources',
+    financial:'Financial Tools', market: 'Market Intel', analyzer: 'Area Intelligence', reference: 'Lead Sources',
   }
 
   const title = tabTitles[activeTab as TabId] || ''
