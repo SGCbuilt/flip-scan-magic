@@ -454,7 +454,12 @@ export default function AuctionRadar() {
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setResult(data as ScanResult)
+      setRestored(null)
       const n = data?.records?.length || 0
+      setAskSave({
+        label: (data as ScanResult)?.area || [city, stateCode].filter(Boolean).join(', ') || 'Auction search',
+        count: n,
+      })
       if (n) toast.success(`${n} auction / distressed record${n === 1 ? '' : 's'} found`)
       else toast.warning('No verifiable auction records for that area and window')
     } catch (e: any) {
