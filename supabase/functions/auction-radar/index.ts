@@ -845,6 +845,7 @@ Deno.serve(async (req) => {
         scrapeAttempts: (scrape as any).attempts || [],
         platformAttempts: platform.attempts,
         platformDirect: platformDetail,
+        costSummary,
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
