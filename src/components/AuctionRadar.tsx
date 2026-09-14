@@ -90,6 +90,42 @@ const TYPES = [
   'Bank / REO Auction', 'Pre-Foreclosure', 'Probate / Estate', 'Foreclosure Auction', 'Short Sale',
 ]
 
+// ── Target markets: curated city lists for the four operating states ──────
+const MARKET_STATES = ['VA', 'NC', 'TN', 'FL'] as const
+const STATE_NAME: Record<string, string> = {
+  VA: 'Virginia', NC: 'North Carolina', TN: 'Tennessee', FL: 'Florida',
+}
+const MARKETS: Record<string, string[]> = {
+  VA: [
+    'Norfolk', 'Virginia Beach', 'Chesapeake', 'Portsmouth', 'Suffolk', 'Hampton',
+    'Newport News', 'Williamsburg', 'Richmond', 'Petersburg', 'Hopewell', 'Colonial Heights',
+    'Chesterfield', 'Henrico', 'Charlottesville', 'Lynchburg', 'Roanoke', 'Danville',
+    'Martinsville', 'Harrisonburg', 'Staunton', 'Winchester', 'Fredericksburg',
+    'Manassas', 'Woodbridge', 'Alexandria', 'Arlington', 'Emporia', 'Franklin', 'Salem',
+  ],
+  NC: [
+    'Raleigh', 'Durham', 'Cary', 'Chapel Hill', 'Pittsboro', 'Siler City', 'Sanford',
+    'Apex', 'Garner', 'Clayton', 'Zebulon', 'Wake Forest', 'Burlington', 'Greensboro',
+    'High Point', 'Winston-Salem', 'Charlotte', 'Concord', 'Gastonia', 'Salisbury',
+    'Fayetteville', 'Wilmington', 'Jacksonville', 'Greenville', 'Rocky Mount',
+    'Wilson', 'Goldsboro', 'Kinston', 'Asheville', 'Hickory', 'Statesville',
+  ],
+  TN: [
+    'Nashville', 'Murfreesboro', 'Franklin', 'Hendersonville', 'Gallatin', 'Lebanon',
+    'Clarksville', 'Columbia', 'Cookeville', 'Memphis', 'Bartlett', 'Germantown',
+    'Jackson', 'Knoxville', 'Maryville', 'Oak Ridge', 'Sevierville', 'Morristown',
+    'Chattanooga', 'Cleveland', 'Johnson City', 'Kingsport', 'Bristol', 'Greeneville',
+  ],
+  FL: [
+    'Jacksonville', 'Orange Park', 'St. Augustine', 'Palm Coast', 'Daytona Beach',
+    'Ocala', 'Gainesville', 'Orlando', 'Kissimmee', 'Sanford', 'Deltona', 'Leesburg',
+    'Tampa', 'St. Petersburg', 'Clearwater', 'Brandon', 'Lakeland', 'Winter Haven',
+    'Sarasota', 'Bradenton', 'Port Charlotte', 'Cape Coral', 'Fort Myers', 'Naples',
+    'West Palm Beach', 'Port St. Lucie', 'Fort Lauderdale', 'Hollywood', 'Miami',
+    'Homestead', 'Pensacola', 'Tallahassee', 'Panama City',
+  ],
+}
+
 const GRADE_COLOR: Record<string, string> = {
   'A+': '#0F7A3D', 'A': '#0F7A3D', 'B+': '#1A7A4A', 'B': '#1B3A8C',
   'C+': '#C45E1A', 'C': '#C45E1A', 'D': '#94A3B8',
@@ -130,6 +166,8 @@ export default function AuctionRadar() {
   const [minGradeScore, setMinGradeScore] = useState(0)
   const [showDebug, setShowDebug] = useState(false)
   const [added, setAdded] = useState<Record<string, boolean>>({})
+  const [customCity, setCustomCity] = useState(false)
+  const [batch, setBatch] = useState<{ done: number; total: number } | null>(null)
 
   // ── Deep Scan memos (session cache, keyed by record id) ─────────────────
   const [memos, setMemos] = useState<Record<string, Memo>>({})
@@ -148,6 +186,7 @@ export default function AuctionRadar() {
     { label: 'North Carolina (statewide)', city: '', state: 'NC', county: '', zip: '' },
     { label: 'Virginia (statewide)', city: '', state: 'VA', county: '', zip: '' },
     { label: 'Tennessee (statewide)', city: '', state: 'TN', county: '', zip: '' },
+    { label: 'Florida (statewide)', city: '', state: 'FL', county: '', zip: '' },
   ]
 
   useEffect(() => {
@@ -271,6 +310,85 @@ export default function AuctionRadar() {
     toast.success('Deep Scan finished for the visible listings')
   }
 
+  function buildStats(records: AuctionRecord[]) {
+    const sched = records.filter(r => r.auctionDate)
+    return {
+      total: records.length,
+      scheduled: sched.length,
+      within7: sched.filter(r => daysUntil(r.auctionDate!) <= 7 && daysUntil(r.auctionDate!) >= 0).length,
+      within30: sched.filter(r => daysUntil(r.auctionDate!) <= 30 && daysUntil(r.auctionDate!) >= 0).length,
+      avgScore: records.length ? Math.round(records.reduce((s, r) => s + (r.score || 0), 0) / records.length) : 0,
+    }
+  }
+
+  // Sweep a list of markets, merging every result into one deduped board.
+  async function sweep(markets: { city: string; state: string }[], label: string) {
+    setLoading(true); setErr(''); setResult(null)
+    setBatch({ done: 0, total: markets.length })
+    const merged: AuctionRecord[] = []
+    const seen = new Set<string>()
+    let health: SourceHealth | undefined
+    let failures = 0
+    try {
+      for (let i = 0; i < markets.length; i += 3) {
+        const chunk = markets.slice(i, i + 3)
+        const out = await Promise.all(chunk.map(async m => {
+          try {
+            const { data, error } = await supabase.functions.invoke('auction-radar', {
+              body: { city: m.city, state: m.state, county: '', zip: '', daysAhead, maxPrice, nonce: Date.now() },
+            })
+            if (error || data?.error) throw new Error(error?.message || data.error)
+            return data as ScanResult
+          } catch { failures++; return null }
+        }))
+        out.forEach(d => {
+          if (!d) return
+          if (d.sourceHealth) health = d.sourceHealth
+          ;(d.records || []).forEach(r => {
+            const k = (r.address || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+            if (k && !seen.has(k)) { seen.add(k); merged.push(r) }
+          })
+        })
+        setBatch({ done: Math.min(i + 3, markets.length), total: markets.length })
+      }
+      setResult({
+        area: label,
+        records: merged,
+        stats: buildStats(merged),
+        sources: [{
+          name: `${markets.length - failures}/${markets.length} markets scanned`,
+          note: label,
+          count: merged.length,
+        }],
+        sourceHealth: health,
+        debug: { sweep: true, markets: markets.length, failures },
+        scannedAt: new Date().toISOString(),
+      })
+      if (merged.length) toast.success(`${merged.length} distressed / auction records across ${markets.length} markets`)
+      else toast.warning('No verifiable auction records in those markets yet')
+    } catch (e: any) {
+      setErr(e?.message || String(e))
+      toast.error('Market sweep failed')
+    } finally {
+      setBatch(null); setLoading(false)
+    }
+  }
+
+  function scanStateCities() {
+    const list = (MARKETS[stateCode] || []).map(c => ({ city: c, state: stateCode }))
+    if (!list.length) { toast.info('No saved city list for that state'); return }
+    sweep([{ city: '', state: stateCode }, ...list], `${STATE_NAME[stateCode] || stateCode} — all markets`)
+  }
+
+  function scanAllStates() {
+    const list: { city: string; state: string }[] = []
+    MARKET_STATES.forEach(s => {
+      list.push({ city: '', state: s })
+      ;(MARKETS[s] || []).forEach(c => list.push({ city: c, state: s }))
+    })
+    sweep(list, 'VA · NC · TN · FL — all markets')
+  }
+
   async function runScan() {
     setLoading(true); setErr(''); setResult(null)
     try {
@@ -354,20 +472,36 @@ export default function AuctionRadar() {
         {/* Search panel */}
         <div className="rounded-xl border p-4 mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="col-span-2 md:col-span-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>City</label>
-              <input value={city} onChange={e => setCity(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runScan()}
-                placeholder="Norfolk"
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
-                style={{ borderColor: '#D1D9E6', color: NAVY }} />
-            </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>State</label>
-              <input value={stateCode} onChange={e => setStateCode(e.target.value.toUpperCase().slice(0, 2))}
-                placeholder="VA"
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
-                style={{ borderColor: '#D1D9E6', color: NAVY }} />
+              <select value={stateCode}
+                onChange={e => { setStateCode(e.target.value); setCity(''); setCustomCity(false) }}
+                className="w-full mt-1 px-2 py-2 text-sm rounded-lg border outline-none cursor-pointer"
+                style={{ borderColor: '#D1D9E6', color: NAVY, background: 'white' }}>
+                {MARKET_STATES.map(s => <option key={s} value={s}>{STATE_NAME[s]} ({s})</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>City / market</label>
+              {customCity ? (
+                <input value={city} autoFocus onChange={e => setCity(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && runScan()}
+                  placeholder="Type any city"
+                  className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
+                  style={{ borderColor: '#D1D9E6', color: NAVY }} />
+              ) : (
+                <select value={city}
+                  onChange={e => {
+                    if (e.target.value === '__custom') { setCustomCity(true); setCity('') }
+                    else setCity(e.target.value)
+                  }}
+                  className="w-full mt-1 px-2 py-2 text-sm rounded-lg border outline-none cursor-pointer"
+                  style={{ borderColor: '#D1D9E6', color: NAVY, background: 'white' }}>
+                  <option value="">Statewide — all of {STATE_NAME[stateCode] || stateCode}</option>
+                  {(MARKETS[stateCode] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__custom">Other city…</option>
+                </select>
+              )}
             </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>County</label>
@@ -393,6 +527,12 @@ export default function AuctionRadar() {
             </div>
           </div>
 
+          {customCity && (
+            <button onClick={() => { setCustomCity(false); setCity('') }}
+              className="mt-2 text-[11px] underline bg-transparent border-none cursor-pointer p-0"
+              style={{ color: NAVY_2 }}>← back to the market list</button>
+          )}
+
           <div className="flex flex-wrap items-end gap-3 mt-3">
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Max price</label>
@@ -408,6 +548,21 @@ export default function AuctionRadar() {
               style={{ background: loading ? '#94A3B8' : NAVY }}>
               {loading ? '⟳ Scanning auction notices…' : '⚖️ Scan for auctions'}
             </button>
+            <button onClick={scanStateCities} disabled={loading}
+              className="px-4 py-2.5 rounded-lg text-sm font-bold text-white border-none cursor-pointer"
+              style={{ background: loading ? '#94A3B8' : NAVY_2 }}>
+              🏙️ Sweep every {stateCode} city
+            </button>
+            <button onClick={scanAllStates} disabled={loading}
+              className="px-4 py-2.5 rounded-lg text-sm font-bold border cursor-pointer"
+              style={{ background: 'white', borderColor: NAVY_2, color: NAVY_2 }}>
+              🌎 Sweep VA · NC · TN · FL
+            </button>
+            {batch && (
+              <span className="text-[11px] font-bold" style={{ color: NAVY_2 }}>
+                Sweeping markets {batch.done}/{batch.total}…
+              </span>
+            )}
             {result && (
               <span className="text-[11px]" style={{ color: '#94A3B8' }}>
                 Scanned {new Date(result.scannedAt).toLocaleString()}
