@@ -1945,7 +1945,10 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete }: {
 }
 
 // ── Main Component ────────────────────────────────────────────────────────────
-export default function DriveForDollars() {
+export default function DriveForDollars({ onNavigate, onSendToMarket }: {
+  onNavigate?: (tab: string) => void
+  onSendToMarket?: (location: string, mode: 'city' | 'zip') => void
+} = {}) {
   const [captures,   setCaptures]   = useState<Capture[]>(loadCaptures)
   const [analyzing,  setAnalyzing]  = useState(false)
   const [progress,   setProgress]   = useState<string[]>([])
@@ -1958,34 +1961,41 @@ export default function DriveForDollars() {
     setCaptures(updated)
   }
 
-  const handleSearch = useCallback(async (address: string, city: string, state: string, zip: string) => {
+  // Full research pass for one capture. Used both right after a curb capture
+  // and later, from History, for quick-saved houses.
+  const runFullAnalysis = useCallback(async (seed: Capture, replaceExisting = false) => {
+    const { address, city, state, zip } = seed
     if (!address) return
+    const captureNotes = seed.notes || ''
+    const newCapture: Capture = { ...seed, analyzed: true }
 
     setAnalyzing(true)
     setProgress(['🔍 Looking up property...'])
 
-    const tracerKey   = getTracerKey()
-    const captureId   = `d4d-${Date.now()}`
+    const tracerKey = getTracerKey()
 
-    const newCapture: Capture = {
-      id: captureId,
-      address, city, state, zip,
-      notes,
-      capturedAt: new Date().toISOString(),
-      inPipeline: false,
+    const commit = (record: Capture) => {
+      const all = loadCaptures()
+      const updated = replaceExisting || all.some(c => c.id === record.id)
+        ? all.map(c => (c.id === record.id ? record : c))
+        : [record, ...all]
+      saveAndRefresh(updated)
     }
 
     const addressKey = canonicalAddressKey(address, city, state, zip)
-    const allBeforeLookup = loadCaptures()
-    const prior = allBeforeLookup.find(c =>
+    const prior = loadCaptures().find(c =>
+      c.id !== newCapture.id &&
       canonicalAddressKey(c.address, c.city, c.state, c.zip) === addressKey &&
       c.trace?.owner?.name
     )
     if (prior) {
-      Object.assign(newCapture, cloneCaptureAnalysis(prior), { id: captureId, capturedAt: newCapture.capturedAt, notes })
+      Object.assign(newCapture, cloneCaptureAnalysis(prior), {
+        id: newCapture.id, capturedAt: newCapture.capturedAt, notes: captureNotes,
+        photos: newCapture.photos, lat: newCapture.lat, lng: newCapture.lng, gpsAccuracy: newCapture.gpsAccuracy,
+        analyzed: true,
+      })
       setProgress(['✓ Reused saved analysis for this address. Use Refresh live permit history for a new permit pull.'])
-      const updated = [newCapture, ...allBeforeLookup]
-      saveAndRefresh(updated)
+      commit(newCapture)
       setAnalyzing(false)
       setProgress([])
       setNotes('')
@@ -2043,7 +2053,7 @@ export default function DriveForDollars() {
     }
 
     setProgress(p => [...p, '🧠 Computing deterministic motivation score...'])
-    const motivation = computeDriveMotivationScore(trace, comps, notes)
+    const motivation = computeDriveMotivationScore(newCapture.trace, comps, captureNotes)
     if (motivation) newCapture.motivation = motivation
 
     setProgress(p => [...p, '⚡ Deep Scan: photos · checking property imagery'])
@@ -2055,15 +2065,51 @@ export default function DriveForDollars() {
     } catch {}
 
     setProgress(p => [...p, '✓ Done!'])
-
-    const all = loadCaptures()
-    const updated = [newCapture, ...all]
-    saveAndRefresh(updated)
+    commit(newCapture)
     setAnalyzing(false)
     setProgress([])
     setNotes('')
     setView('history')
-  }, [notes])
+  }, [])
+
+  // Curb capture: quick save (keep driving) or save + full analysis.
+  const handleCapture = useCallback(async (draft: CaptureDraft, mode: 'quick' | 'analyze') => {
+    if (!draft.address) return
+    const record: Capture = {
+      id: `d4d-${Date.now()}`,
+      address: draft.address,
+      city: draft.city,
+      state: draft.state,
+      zip: draft.zip,
+      lat: draft.lat,
+      lng: draft.lng,
+      gpsAccuracy: draft.gpsAccuracy,
+      photos: draft.photos,
+      notes,
+      capturedAt: new Date().toISOString(),
+      inPipeline: false,
+      analyzed: false,
+    }
+    if (mode === 'quick') {
+      saveAndRefresh([record, ...loadCaptures()])
+      setNotes('')
+      toast.success(`Saved ${record.address} — ready for the next house`)
+      return
+    }
+    await runFullAnalysis(record)
+  }, [notes, runFullAnalysis])
+
+  const handleAnalyzeSaved = (captureId: string) => {
+    const cap = loadCaptures().find(c => c.id === captureId)
+    if (cap) runFullAnalysis(cap, true)
+  }
+
+  const handleMarketLookup = (cap: Capture) => {
+    const location = cap.zip || [cap.city, cap.state].filter(Boolean).join(', ')
+    if (!location) { toast.warning('Add a zip or city to this capture first'); return }
+    onSendToMarket?.(location, cap.zip ? 'zip' : 'city')
+    onNavigate?.('market')
+  }
 
   const handleAddPipeline = (captureId: string) => {
     const all = loadCaptures()
