@@ -217,12 +217,12 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
         const appended = appendPipelineLead(nextPipeline, {
           id: leadId,
           stage: 'new',
-          priority: r.score >= 78 ? 'hot' : r.score >= 62 ? 'warm' : 'cold',
+          priority: r.__rank >= 78 ? 'hot' : r.__rank >= 62 ? 'warm' : 'cold',
           address: r.address, city: r.city || '', state: r.state || '',
           zip: r.zip || '', county: r.county || w.county || '',
           signalType: 'auction',
           signalLabel: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
-          investorScore: r.score || 0,
+          investorScore: r.__rank || r.score || 0,
           severity: daysUntil(r.auctionDate) <= 21 ? 'high' : 'medium',
           source: r.sourceLabel || 'Research agent',
           estimatedARV: r.estimatedValue || 0,
@@ -231,11 +231,14 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
           maxOffer: r.estimatedValue ? Math.round(r.estimatedValue * 0.7) : 0,
           notes: [
             'Found automatically by the research agent.',
+            `Agent rank ${r.__rank || 0}/100 (source score ${r.score || 0}).`,
+            market ? `Market here: ${market.label}.` : '',
             r.description, r.caseNumber && `Case #${r.caseNumber}`,
             r.trustee && `Trustee: ${r.trustee}`, r.sourceUrl,
             distressNotes.length ? `\nDistress signals:\n${distressNotes.join('\n')}` : '',
           ].filter(Boolean).join('\n'),
           tags: ['auction', 'agent', r.auctionType].filter(Boolean),
+
         })
 
         if (!appended) continue
