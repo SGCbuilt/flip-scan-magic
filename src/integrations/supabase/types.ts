@@ -316,6 +316,75 @@ export type Database = {
         }
         Relationships: []
       }
+      property_follows: {
+        Row: {
+          active: boolean
+          addr_key: string
+          address: string
+          auction_date: string | null
+          auction_date_label: string | null
+          auction_type: string | null
+          city: string
+          county: string
+          created_at: string
+          id: string
+          last_checked_at: string | null
+          last_note: string | null
+          notified_at: string | null
+          notify_email: string
+          opening_bid: number | null
+          source_url: string | null
+          state: string
+          updated_at: string
+          user_id: string
+          zip: string
+        }
+        Insert: {
+          active?: boolean
+          addr_key: string
+          address: string
+          auction_date?: string | null
+          auction_date_label?: string | null
+          auction_type?: string | null
+          city?: string
+          county?: string
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_note?: string | null
+          notified_at?: string | null
+          notify_email: string
+          opening_bid?: number | null
+          source_url?: string | null
+          state?: string
+          updated_at?: string
+          user_id: string
+          zip?: string
+        }
+        Update: {
+          active?: boolean
+          addr_key?: string
+          address?: string
+          auction_date?: string | null
+          auction_date_label?: string | null
+          auction_type?: string | null
+          city?: string
+          county?: string
+          created_at?: string
+          id?: string
+          last_checked_at?: string | null
+          last_note?: string | null
+          notified_at?: string | null
+          notify_email?: string
+          opening_bid?: number | null
+          source_url?: string | null
+          state?: string
+          updated_at?: string
+          user_id?: string
+          zip?: string
+        }
+        Relationships: []
+      }
       suppressed_emails: {
         Row: {
           created_at: string
