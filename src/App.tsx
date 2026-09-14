@@ -692,8 +692,21 @@ export default function App() {
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: '#F1F5F9' }}>
 
-      {/* ── SIDEBAR NAV ── */}
-      {!sidebarHidden && (
+      {/* ── SIDEBAR NAV ── (overlay drawer on phones, fixed column on desktop) */}
+      {!sidebarHidden && isNarrow && (
+        <div className="fixed inset-0 z-[200] flex" onClick={() => setSidebarHidden(true)}>
+          <div className="absolute inset-0" style={{ background: 'rgba(15,36,96,0.55)' }} />
+          <div className="relative h-full" onClick={e => e.stopPropagation()}>
+            <Sidebar
+              activeTab={activeTab}
+              onTab={(id) => { setActiveTab(id); setSidebarHidden(true) }}
+              collapsed={false}
+              onToggle={() => setSidebarHidden(true)}
+            />
+          </div>
+        </div>
+      )}
+      {!sidebarHidden && !isNarrow && (
         <Sidebar
           activeTab={activeTab}
           onTab={setActiveTab}
