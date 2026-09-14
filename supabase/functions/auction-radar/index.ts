@@ -665,14 +665,36 @@ Deno.serve(async (req) => {
       : 'ok'
     const sourceHealth = { firecrawl: firecrawlHealth, rentcast: rentcastHealth, firecrawlError: searchErrs[0] || null, rentcastNote: rc.note }
 
+    // Per-platform attribution: how many validated records each platform gave us.
+    const countFor = (host: string) => webRecords.filter(r => String(r.sourceHost || '').endsWith(host)).length
+    const platformDetail = platform.platforms.map(p => {
+      const host = p.platform === 'LienHub' ? 'lienhub.com' : p.platform === 'GovEase' ? 'govease.com' : 'realauction.com'
+      return { ...p, records: countFor(host) }
+    })
+    // RealAuction has no predictable per-county URL — it comes in via targeted search.
+    platformDetail.push({
+      platform: 'RealAuction',
+      status: search.hits.some(h => hostOf(h.url).endsWith('realauction.com')) ? 'found via targeted search' : 'no realauction.com hits',
+      records: countFor('realauction.com'),
+    })
+    const platformOk = platformDetail.some(p => p.status === 'fetched' || p.status === 'found via targeted search')
+
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
       { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
+      {
+        name: 'County auction platforms (direct)',
+        note: platformDetail.map(p => `${p.platform}: ${p.status}${p.records ? ` · ${p.records} records` : ''}`).join(' · '),
+        count: platformDetail.reduce((s, p) => s + p.records, 0),
+        platformDirect: platformDetail,
+        health: platformOk ? 'ok' : 'no_platform_data',
+      },
     ]
 
     return new Response(JSON.stringify({
       area, state, county, daysAhead,
-      records, stats, sources, sourceHealth,
+      records, stats, sources,
+      sourceHealth: { ...sourceHealth, platformDirect: platformOk ? 'ok' : 'no_platform_data' },
       debug: {
         ...search.debug,
         aiUsed: ai.aiUsed,
@@ -682,9 +704,12 @@ Deno.serve(async (req) => {
         pagesRead: scrape.scrapeOk,
         pagesParsed: (ai as any).pagesParsed || 0,
         scrapeAttempts: (scrape as any).attempts || [],
+        platformAttempts: platform.attempts,
+        platformDirect: platformDetail,
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
+
       scannedAt: new Date().toISOString(),
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
