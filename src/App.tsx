@@ -128,8 +128,8 @@ const NAV: NavSection[] = [
     color:   'rgba(255,255,255,0.5)',
     items: [
       { id: 'financial',  label: 'Financial Tools',  icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
-      { id: 'market',     label: 'Market Trends',    icon: '📈', tip: 'Area market stats, DOM, price trends' },
-      { id: 'analyzer',   label: 'Area Intelligence', icon: '🔬', tip: 'Claude AI market analysis by location' },
+      { id: 'market',     label: 'Market Intel',     icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
+
       { id: 'reference',  label: 'Lead Sources',     icon: '📚', tip: 'Guide to all data sources and gov APIs' },
     ],
   },
