@@ -895,7 +895,9 @@ export default function App() {
           <ErrorBoundary label="Area Intelligence">{activeTab === 'analyzer'  && <MarketAnalyzer />}         </ErrorBoundary>
           <ErrorBoundary label="Lead Sources">     {activeTab === 'reference' && <ReferenceHub />}           </ErrorBoundary>
           <ErrorBoundary label="Settings">         {activeTab === 'settings'  && <Settings />}               </ErrorBoundary>
+          </div>
         </main>
+
       </div>
 
       {selected && <PropertyModal property={selected} params={params} onClose={() => setSelected(null)} />}
