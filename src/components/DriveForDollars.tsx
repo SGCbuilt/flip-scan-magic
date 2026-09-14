@@ -964,22 +964,70 @@ function ResultCard({ capture, onAddPipeline, onDeepScanComplete, onAnalyze, onM
     : motiv.tier === 'warm'     ? '#8A5700'
     : 'var(--sgc-gray-mid)' : 'var(--sgc-gray-mid)'
 
+  const mapsHref = capture.lat && capture.lng
+    ? `https://www.google.com/maps?q=${capture.lat},${capture.lng}`
+    : `https://www.google.com/maps/search/${encodeURIComponent([capture.address, capture.city, capture.state, capture.zip].filter(Boolean).join(' '))}`
+
+  const addressHeader = (
+    <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+      <div className="font-black text-lg leading-tight" style={{ color: 'var(--sgc-navy)' }}>
+        {capture.address}
+      </div>
+      <div className="text-sm mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+        {capture.city}, {capture.state} {capture.zip}
+      </div>
+      <div className="text-[10px] mt-1 flex items-center gap-2 flex-wrap" style={{ color: 'var(--sgc-gray-mid)' }}>
+        <span>Captured {new Date(capture.capturedAt).toLocaleString()}</span>
+        {capture.gpsAccuracy ? <span>· GPS ±{Math.round(capture.gpsAccuracy)} m</span> : null}
+        <a href={mapsHref} target="_blank" rel="noopener noreferrer" className="font-bold underline" style={{ color: 'var(--sgc-navy)' }}>Open map</a>
+      </div>
+    </div>
+  )
+
+  // Quick-saved house — not researched yet. Keep it light and give one clear
+  // next step so a driving session stays fast.
+  const notResearched = !capture.trace && !capture.comps && !capture.deepScan
+  if (notResearched) {
+    return (
+      <div className="rounded-2xl border overflow-hidden bg-white" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+        {addressHeader}
+        <CapturePhotoStrip photos={capture.photos} />
+        {capture.notes && (
+          <div className="px-4 pb-3 text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>“{capture.notes}”</div>
+        )}
+        <div className="px-4 pb-4 grid grid-cols-2 gap-2">
+          <button onClick={() => onAnalyze?.(capture.id)}
+            className="py-3 rounded-xl text-sm font-black text-white border-none cursor-pointer"
+            style={{ background: 'var(--sgc-navy)' }}>
+            🔍 Run full analysis
+          </button>
+          <button onClick={() => onMarketLookup?.(capture)}
+            className="py-3 rounded-xl text-sm font-bold border cursor-pointer"
+            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)' }}>
+            📈 Area market
+          </button>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl border overflow-hidden bg-white"
       style={{ borderColor: motiv?.tier === 'critical' ? '#C0341D40' : motiv?.tier === 'hot' ? '#C45E1A40' : 'var(--sgc-gray-border)' }}>
 
       {/* Address header */}
-      <div className="px-4 pt-4 pb-3 border-b" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-        <div className="font-black text-lg leading-tight" style={{ color: 'var(--sgc-navy)' }}>
-          {capture.address}
+      {addressHeader}
+      <CapturePhotoStrip photos={capture.photos} />
+      {onMarketLookup && (
+        <div className="px-4 pb-3">
+          <button onClick={() => onMarketLookup(capture)}
+            className="w-full py-2.5 rounded-xl text-xs font-bold border cursor-pointer"
+            style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)' }}>
+            📈 See this area's market data
+          </button>
         </div>
-        <div className="text-sm mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
-          {capture.city}, {capture.state} {capture.zip}
-        </div>
-        <div className="text-[10px] mt-1" style={{ color: 'var(--sgc-gray-mid)' }}>
-          Captured {new Date(capture.capturedAt).toLocaleString()}
-        </div>
-      </div>
+      )}
+
 
       <div className="p-4 space-y-4">
 
