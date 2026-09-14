@@ -300,6 +300,33 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
+// Shared single-page scrape (Firecrawl). Never throws — returns a status string.
+async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; status: string; chars: number }> {
+  const key = Deno.env.get('FIRECRAWL_API_KEY')
+  if (!key) return { text: '', status: 'FIRECRAWL_API_KEY missing', chars: 0 }
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true, timeout: 25000 }),
+    })
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      if ((res.status === 429 || res.status >= 500) && attempt < 1) {
+        await new Promise(r => setTimeout(r, 2500))
+        return scrapeUrl(url, attempt + 1)
+      }
+      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 }
+    }
+    const data = await res.json()
+    const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
+    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length }
+    return { text: md.slice(0, 14000), status: 'ok', chars: md.length }
+  } catch (e) {
+    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0 }
+  }
+}
+
 // ── Layer 2b: open each notice page and read the whole list ───────────────
 // Search snippets rarely contain the property rows; the actual addresses and
 // sale dates live on the page itself, so we scrape the most promising pages.
@@ -314,6 +341,7 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
     if (/(sale|auction|foreclos|trustee|sheriff|tax)/.test(t)) s += 3
     if (/(list|upcoming|schedule|notice|calendar|properties)/.test(t)) s += 3
     if (/(bid4assets|auction\.com|taxva|kanialawfirm|publicnotice|column\.us)/.test(t)) s += 2
+    if (/(realauction|govease|lienhub|foreclosuretennessee|betterchoicenotices)/.test(t)) s += 4
     if (/\.gov/.test(t)) s += 2
     if (/(faq|how-to|blog|about|guide|glossary|law\.lis)/.test(t)) s -= 5
     return s
@@ -324,32 +352,14 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const pages: Array<{ url: string; title: string; text: string }> = []
   const attempts: Array<{ url: string; status: string; chars: number }> = []
 
-  const scrapeOne = async (h: { url: string; title: string }, attempt = 0): Promise<void> => {
-    try {
-      const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ url: h.url, formats: ['markdown'], onlyMainContent: true, timeout: 25000 }),
-      })
-      if (!res.ok) {
-        const t = await res.text().catch(() => '')
-        if ((res.status === 429 || res.status >= 500) && attempt < 1) {
-          await new Promise(r => setTimeout(r, 2500))
-          return scrapeOne(h, attempt + 1)
-        }
-        attempts.push({ url: h.url, status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 })
-        return
-      }
-      const data = await res.json()
-      const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
-      attempts.push({ url: h.url, status: md.length >= 200 ? 'ok' : 'too short', chars: md.length })
-      if (md.length < 200) return
-      okCount++
-      pages.push({ url: h.url, title: h.title, text: md.slice(0, 14000) })
-    } catch (e) {
-      attempts.push({ url: h.url, status: `error ${String(e).slice(0, 120)}`, chars: 0 })
-    }
+  const scrapeOne = async (h: { url: string; title: string }): Promise<void> => {
+    const r = await scrapeUrl(h.url)
+    attempts.push({ url: h.url, status: r.status, chars: r.chars })
+    if (!r.text) return
+    okCount++
+    pages.push({ url: h.url, title: h.title, text: r.text })
   }
+
 
   for (let i = 0; i < targets.length; i += 3) {
     await Promise.all(targets.slice(i, i + 3).map(h => scrapeOne(h)))
