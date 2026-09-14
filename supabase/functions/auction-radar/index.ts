@@ -211,7 +211,7 @@ function countySlug(county: string): string {
 
 async function fetchPlatformPages(state: string, county: string) {
   const slug = countySlug(county)
-  const attempts: Array<{ platform: string; url: string; status: string; chars: number }> = []
+  const attempts: Array<{ platform: string; url: string; status: string; chars: number; via: string }> = []
   const pages: Array<{ url: string; title: string; text: string; platform: string }> = []
   if (!slug) {
     return {
