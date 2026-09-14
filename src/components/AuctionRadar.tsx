@@ -50,6 +50,14 @@ interface AuctionRecord {
   urgency: string
 }
 
+interface Memo {
+  loading: boolean
+  text?: string
+  error?: string
+  scan?: any
+  at?: string
+}
+
 interface SourceHealth {
   firecrawl: 'ok' | 'out_of_credits' | 'missing_key' | 'bad_key' | 'error'
   rentcast: 'ok' | 'forbidden' | 'missing_key' | 'bad_key'
@@ -381,6 +389,56 @@ export default function AuctionRadar() {
           </div>
         </div>
 
+        {/* Email alerts */}
+        <div className="rounded-xl border mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
+          <button onClick={() => setShowAlerts(s => !s)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
+            <span className="text-sm font-bold" style={{ color: NAVY }}>
+              🔔 Email alerts — Chatham County, NC
+              <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
+                style={{ background: watch?.active ? '#ECFDF5' : '#F1F5F9', color: watch?.active ? '#0F7A3D' : '#64748B' }}>
+                {watch?.active ? 'ON' : 'OFF'}
+              </span>
+            </span>
+            <span className="text-xs" style={{ color: '#94A3B8' }}>{showAlerts ? '▲' : '▼'}</span>
+          </button>
+          {showAlerts && (
+            <div className="px-4 pb-4">
+              <p className="text-[11px] mb-3 leading-relaxed" style={{ color: '#64748B' }}>
+                Once a day at 7:00 AM Eastern the radar checks Chatham County and emails you only the
+                listings it has never reported before. Nothing new means no email.
+              </p>
+              <div className="flex flex-wrap items-end gap-2">
+                <div className="flex-1 min-w-[220px]">
+                  <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Send alerts to</label>
+                  <input value={wEmail} onChange={e => setWEmail(e.target.value)}
+                    placeholder="you@sgcbuilt.com"
+                    className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
+                    style={{ borderColor: '#D1D9E6', color: NAVY }} />
+                </div>
+                <button onClick={() => saveWatch(!(watch?.active))} disabled={wBusy}
+                  className="px-4 py-2 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer"
+                  style={{ background: wBusy ? '#94A3B8' : watch?.active ? '#C0341D' : NAVY }}>
+                  {wBusy ? 'Working…' : watch?.active ? 'Turn alerts off' : 'Turn alerts on'}
+                </button>
+                {watch && (
+                  <button onClick={testAlert} disabled={wBusy}
+                    className="px-4 py-2 rounded-lg text-[11px] font-bold border cursor-pointer"
+                    style={{ borderColor: '#D1D9E6', color: NAVY_2, background: 'white' }}>
+                    Run check now
+                  </button>
+                )}
+              </div>
+              {(wNote || watch?.last_run_note) && (
+                <div className="text-[11px] mt-2" style={{ color: '#64748B' }}>
+                  Last check: {wNote || watch?.last_run_note}
+                  {watch?.last_run_at && !wNote ? ` · ${new Date(watch.last_run_at).toLocaleString()}` : ''}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
         {err && (
           <div className="rounded-xl border p-4 mb-4 text-sm"
             style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B' }}>
@@ -458,6 +516,11 @@ export default function AuctionRadar() {
                 {filtered.length} of {result.records.length}
               </span>
               <div className="flex-1" />
+              <button onClick={deepScanAllVisible} disabled={!!bulk}
+                className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg border-none cursor-pointer text-white"
+                style={{ background: bulk ? '#94A3B8' : NAVY_2 }}>
+                {bulk ? `🔬 Deep Scanning ${bulk.done}/${bulk.total}…` : '🔬 Deep Scan all visible'}
+              </button>
               <button onClick={() => setShowDebug(d => !d)}
                 className="px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border cursor-pointer"
                 style={{ borderColor: '#D1D9E6', color: '#64748B', background: 'white' }}>
