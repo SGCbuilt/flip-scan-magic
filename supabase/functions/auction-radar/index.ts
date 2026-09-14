@@ -568,6 +568,7 @@ Deno.serve(async (req) => {
         pagesScraped: scrape.scraped,
         pagesRead: scrape.scrapeOk,
         pagesParsed: (ai as any).pagesParsed || 0,
+        scrapeAttempts: (scrape as any).attempts || [],
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
