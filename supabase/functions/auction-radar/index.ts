@@ -320,7 +320,7 @@ async function searchAuctionNotices(area: string, state: string, county: string)
     if (i + 3 < queries.length) await new Promise(r => setTimeout(r, 700))
   }
 
-  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
+  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
 // ── Scrape cache (12h TTL) ────────────────────────────────────────────────
