@@ -40,7 +40,11 @@ const TRUSTED_HOSTS = [
   'hutchenslawfirm.com', 'shapiroingle.com', 'sales.hutchenslawfirm.com',
   'trusteeservices.net', 'samuel-i-white.com', 'siwpc.net', 'glasserlaw.com',
   'zlsnc.com', 'nc.gov', 'virginia.gov',
+  // County auction platforms + statutory TN posting companies
+  'realauction.com', 'govease.com', 'lienhub.com',
+  'foreclosuretennessee.com', 'betterchoicenotices.com',
 ]
+
 
 function hostOf(url: string): string {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' }
