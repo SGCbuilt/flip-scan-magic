@@ -379,7 +379,7 @@ export default function AuctionRadar() {
 
   // Sweep a list of markets, merging every result into one deduped board.
   async function sweep(markets: { city: string; state: string }[], label: string) {
-    setLoading(true); setErr(''); setResult(null)
+    setLoading(true); setErr(''); setResult(null); setAskSave(null)
     setBatch({ done: 0, total: markets.length })
     const merged: AuctionRecord[] = []
     const seen = new Set<string>()
@@ -448,7 +448,7 @@ export default function AuctionRadar() {
   }
 
   async function runScan() {
-    setLoading(true); setErr(''); setResult(null)
+    setLoading(true); setErr(''); setResult(null); setAskSave(null)
     try {
       const { data, error } = await supabase.functions.invoke('auction-radar', {
         body: { city, state: stateCode, county, zip, daysAhead, maxPrice, nonce: Date.now() },
@@ -632,6 +632,66 @@ export default function AuctionRadar() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* Save-or-delete prompt after every scan */}
+        {askSave && (
+          <div className="rounded-xl border p-4 mb-4 flex flex-wrap items-center gap-3"
+            style={{ background: '#FFF8E8', borderColor: '#F0D9A0' }}>
+            <span className="flex-1 min-w-[220px] text-[12px] font-semibold" style={{ color: NAVY }}>
+              Keep this search? “{askSave.label}” · {askSave.count} listing{askSave.count === 1 ? '' : 's'}
+              <span className="block font-normal mt-0.5" style={{ color: '#64748B' }}>
+                Saved searches reopen instantly later with no new scan cost.
+              </span>
+            </span>
+            <button onClick={keepSearch}
+              className="px-4 py-2 rounded-lg text-[12px] font-bold text-white border-none cursor-pointer"
+              style={{ background: NAVY }}>💾 Save the full search</button>
+            <button onClick={discardSearch}
+              className="px-4 py-2 rounded-lg text-[12px] font-bold border cursor-pointer"
+              style={{ background: 'white', borderColor: '#C0341D', color: '#C0341D' }}>🗑 Delete it</button>
+          </div>
+        )}
+
+        {/* Saved search log */}
+        <div className="rounded-xl border mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
+          <button onClick={() => setShowLog(s => !s)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
+            <span className="text-sm font-bold" style={{ color: NAVY }}>
+              🗂 Saved searches
+              <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
+                style={{ background: '#F1F5F9', color: '#64748B' }}>{savedLog.length}</span>
+            </span>
+            <span className="text-xs" style={{ color: '#94A3B8' }}>{showLog ? '▲' : '▼'}</span>
+          </button>
+          {showLog && (
+            <div className="px-4 pb-4">
+              {!savedLog.length ? (
+                <p className="text-[11px]" style={{ color: '#64748B' }}>
+                  Nothing saved yet. After a scan finishes, choose “Save the full search” to keep it here.
+                </p>
+              ) : savedLog.map(e => (
+                <div key={e.id} className="flex flex-wrap items-center gap-2 py-2 border-t" style={{ borderColor: '#EEF2F7' }}>
+                  <span className="flex-1 min-w-[180px] text-[12px] font-semibold" style={{ color: NAVY }}>
+                    {e.label}
+                    {restored === e.id && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: '#ECFDF5', color: '#0F7A3D' }}>OPEN</span>
+                    )}
+                    <span className="block font-normal text-[11px] mt-0.5" style={{ color: '#94A3B8' }}>
+                      {e.count} listing{e.count === 1 ? '' : 's'} · saved {new Date(e.savedAt).toLocaleString()}
+                    </span>
+                  </span>
+                  <button onClick={() => openSaved(e)}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer"
+                    style={{ background: NAVY_2 }}>Reopen</button>
+                  <button onClick={() => removeSaved(e)}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
+                    style={{ background: 'white', borderColor: '#C0341D', color: '#C0341D' }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Email alerts */}
