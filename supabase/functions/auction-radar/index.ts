@@ -329,7 +329,7 @@ Respond ONLY with JSON: {"records":[{...}]}`
       const addr = String(r.address || '').trim()
       const text = `${r.auctionType || ''} ${r.description || ''} ${r.title || ''} ${src.title}`
       return {
-        id: `web-${i}-${addr.slice(0, 24)}`,
+        id: `web-${hostOf(src.url)}-${i}-${addr.slice(0, 24)}`,
         address: addr,
         city: r.city || '',
         state: (r.state || state || '').toUpperCase().slice(0, 2),
@@ -359,6 +359,28 @@ Respond ONLY with JSON: {"records":[{...}]}`
   } catch (e) {
     return { records: [], aiUsed: false, aiError: String(e) }
   }
+}
+
+// Run one extraction per scraped page, plus one pass over raw search snippets.
+async function extractAuctions(
+  area: string, state: string, county: string,
+  pages: Array<{ url: string; title: string; text: string }>,
+  snippets: Array<{ title: string; description: string; url: string }>,
+) {
+  const sources = [...pages]
+  if (snippets.length) {
+    sources.push({
+      url: snippets[0].url,
+      title: 'Combined search snippets',
+      text: snippets.slice(0, 20).map(s => `### ${s.title}\nURL: ${s.url}\n${s.description}`).join('\n\n').slice(0, 14000),
+    })
+  }
+  if (!sources.length) return { records: [], aiUsed: false, pagesParsed: 0 }
+
+  const out = await Promise.all(sources.map(s => extractFromSource(area, state, county, s)))
+  const records = out.flatMap(o => o.records)
+  const aiError = out.find(o => (o as any).aiError)?.['aiError' as never] || null
+  return { records, aiUsed: out.some(o => o.aiUsed), aiError, pagesParsed: sources.length }
 }
 
 // ── Validation gate ───────────────────────────────────────────────────────
