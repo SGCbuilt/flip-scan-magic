@@ -838,8 +838,29 @@ export default function App() {
         )}
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden" style={{ background: '#F8FAFC' }}>
+        <main className="flex-1 overflow-hidden flex flex-col" style={{ background: '#F8FAFC' }}>
+          {(['deals','hunt','market','analyzer'] as string[]).includes(activeTab) && (
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b" style={{ background: '#FFFFFF', borderColor: '#E2E8F0' }}>
+              {(activeTab === 'deals' || activeTab === 'hunt'
+                ? [{ id: 'deals', label: 'Quick scan' }, { id: 'hunt', label: 'Advanced hunt' }]
+                : [{ id: 'market', label: 'Area trends' }, { id: 'analyzer', label: 'AI area analysis' }]
+              ).map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setActiveTab(m.id as TabId)}
+                  className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                  style={activeTab === m.id
+                    ? { background: '#0F2460', color: '#FFFFFF' }
+                    : { background: '#F1F5F9', color: '#475569' }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
           <ErrorBoundary label="Portal Hub">       {activeTab === 'hub'       && <PortalHub onNavigate={(t) => setActiveTab(t as TabId)} />} </ErrorBoundary>
+
           <ErrorBoundary label="Morning Brief">    {activeTab === 'home'      && <DailyDigest />}            </ErrorBoundary>
           <ErrorBoundary label="KPI Dashboard">    {activeTab === 'kpi'       && <KPIDashboard />}           </ErrorBoundary>
           <ErrorBoundary label="Lead Radar">       {activeTab === 'radar'     && <LeadRadar />}              </ErrorBoundary>
