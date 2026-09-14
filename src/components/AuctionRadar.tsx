@@ -298,6 +298,11 @@ export default function AuctionRadar() {
   const [wNote, setWNote] = useState('')
   const [showAlerts, setShowAlerts] = useState(false)
 
+  // ── Followed properties (per-address auction-date watch) ────────────────
+  const [follows, setFollows] = useState<any[]>([])
+  const [fBusy, setFBusy] = useState<string | null>(null)
+  const [showFollows, setShowFollows] = useState(false)
+
   const DEFAULT_WATCHES = [
     { label: 'Chatham County, NC', city: '', state: 'NC', county: 'Chatham', zip: '' },
     { label: 'North Carolina (statewide)', city: '', state: 'NC', county: '', zip: '' },
@@ -377,6 +382,87 @@ export default function AuctionRadar() {
       else toast.info('Check ran — nothing new to send right now')
     } catch (e: any) { toast.error(e?.message || 'Alert check failed') }
     finally { setWBusy(null) }
+  }
+
+  // ── Follow one specific property until its sale date is posted ──────────
+  const keyOf = (a: string) => (a || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase.from('property_follows')
+        .select('*').order('created_at', { ascending: false })
+      if (data) setFollows(data)
+    })()
+  }, [])
+
+  const followedKeys = useMemo(
+    () => new Set(follows.filter(f => f.active).map(f => f.addr_key)),
+    [follows],
+  )
+
+  async function toggleFollow(r: AuctionRecord) {
+    const key = keyOf(r.address)
+    const existing = follows.find(f => f.addr_key === key)
+    setFBusy(key)
+    try {
+      if (existing?.active) {
+        const { error } = await supabase.from('property_follows').delete().eq('id', existing.id)
+        if (error) throw error
+        setFollows(fs => fs.filter(f => f.id !== existing.id))
+        toast.info('Stopped following this property')
+        return
+      }
+      const { data: u } = await supabase.auth.getUser()
+      if (!u?.user) throw new Error('Sign in first')
+      const email = (wEmail || u.user.email || '').trim()
+      if (!email) throw new Error('Add an email address in the alerts panel first')
+      const row = {
+        user_id: u.user.id,
+        address: r.address, city: r.city || '', state: r.state || '',
+        zip: r.zip || '', county: r.county || '',
+        addr_key: key, notify_email: email,
+        auction_date: r.auctionDate || null,
+        auction_date_label: r.auctionDateLabel || null,
+        auction_type: r.auctionType || null,
+        opening_bid: r.openingBid || null,
+        source_url: r.sourceUrl || null,
+        active: true,
+      }
+      const { data, error } = await supabase.from('property_follows')
+        .upsert(row, { onConflict: 'user_id,addr_key' }).select().single()
+      if (error) throw error
+      setFollows(fs => [data, ...fs.filter(f => f.id !== data.id)])
+      toast.success(r.auctionDate
+        ? `Following ${r.address} — you'll be emailed if the sale date changes`
+        : `Following ${r.address} — you'll be emailed the moment a sale date is posted`)
+    } catch (e: any) { toast.error(e?.message || 'Could not follow this property') }
+    finally { setFBusy(null) }
+  }
+
+  async function checkFollow(f: any) {
+    setFBusy(f.addr_key)
+    try {
+      const { data, error } = await supabase.functions.invoke('property-follow-check', {
+        body: { followId: f.id },
+      })
+      if (error) throw error
+      const res = data?.results?.[0]
+      const { data: fresh } = await supabase.from('property_follows').select('*').eq('id', f.id).single()
+      if (fresh) setFollows(fs => fs.map(x => x.id === f.id ? fresh : x))
+      toast.info(res?.auctionDate
+        ? `Sale date found: ${res.auctionDate}`
+        : res?.note || 'No auction notice for this address yet')
+    } catch (e: any) { toast.error(e?.message || 'Check failed') }
+    finally { setFBusy(null) }
+  }
+
+  async function unfollow(f: any) {
+    setFBusy(f.addr_key)
+    try {
+      await supabase.from('property_follows').delete().eq('id', f.id)
+      setFollows(fs => fs.filter(x => x.id !== f.id))
+      toast.info('Stopped following')
+    } finally { setFBusy(null) }
   }
 
   // ── Deep Scan (staged: each source is its own short call, so nothing times out)
@@ -862,6 +948,60 @@ export default function AuctionRadar() {
           )}
         </div>
 
+        {/* Followed properties */}
+        {!!follows.length && (
+          <div className="rounded-xl border mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
+            <button onClick={() => setShowFollows(s => !s)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
+              <span className="text-sm font-bold" style={{ color: NAVY }}>
+                📌 Properties I'm following
+                <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
+                  style={{ background: '#EEF2FB', color: NAVY_2 }}>{follows.length}</span>
+              </span>
+              <span className="text-xs" style={{ color: '#94A3B8' }}>{showFollows ? '▲' : '▼'}</span>
+            </button>
+            {showFollows && (
+              <div className="px-4 pb-4">
+                <p className="text-[11px] mb-3 leading-relaxed" style={{ color: '#64748B' }}>
+                  Each address below is checked once a day. The moment a sale date is posted — or an
+                  existing date moves — you get an email with the notice link.
+                </p>
+                {follows.map(f => (
+                  <div key={f.id} className="flex flex-wrap items-center gap-2 py-2 border-t" style={{ borderColor: '#EEF2F7' }}>
+                    <span className="flex-1 min-w-[180px]">
+                      <span className="block text-[12px] font-bold" style={{ color: NAVY }}>{f.address}</span>
+                      <span className="block text-[10px]" style={{ color: '#94A3B8' }}>
+                        {[f.city, f.state].filter(Boolean).join(', ')}
+                        {f.last_checked_at ? ` · checked ${new Date(f.last_checked_at).toLocaleDateString()}` : ' · not checked yet'}
+                        {f.last_note ? ` · ${f.last_note}` : ''}
+                      </span>
+                    </span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded"
+                      style={{
+                        background: f.auction_date ? '#ECFDF5' : '#FFFBEB',
+                        color: f.auction_date ? '#0F7A3D' : '#B7950B',
+                      }}>
+                      {f.auction_date
+                        ? new Date(f.auction_date + 'T12:00:00Z').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+                        : 'Waiting for sale date'}
+                    </span>
+                    <button onClick={() => checkFollow(f)} disabled={!!fBusy}
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
+                      style={{ borderColor: '#D1D9E6', color: NAVY_2, background: 'white' }}>
+                      {fBusy === f.addr_key ? 'Checking…' : 'Check now'}
+                    </button>
+                    <button onClick={() => unfollow(f)} disabled={!!fBusy}
+                      className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
+                      style={{ background: 'white', borderColor: '#C0341D', color: '#C0341D' }}>
+                      Stop
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
         {err && (
           <div className="rounded-xl border p-4 mb-4 text-sm"
             style={{ background: '#FEF2F2', borderColor: '#FECACA', color: '#991B1B' }}>
@@ -1091,6 +1231,19 @@ export default function AuctionRadar() {
                                 : memos[r.id]?.text
                                   ? (openMemo[r.id] ? 'Hide investor memo' : 'Show investor memo')
                                   : '🔬 Deep Scan'}
+                            </button>
+                            <button onClick={() => toggleFollow(r)} disabled={fBusy === keyOf(r.address)}
+                              className="px-3 py-1.5 text-[11px] font-bold rounded-lg border cursor-pointer"
+                              style={{
+                                borderColor: followedKeys.has(keyOf(r.address)) ? '#0F7A3D' : '#D1D9E6',
+                                color: followedKeys.has(keyOf(r.address)) ? '#0F7A3D' : NAVY_2,
+                                background: followedKeys.has(keyOf(r.address)) ? '#ECFDF5' : 'white',
+                              }}>
+                              {fBusy === keyOf(r.address)
+                                ? 'Saving…'
+                                : followedKeys.has(keyOf(r.address))
+                                  ? '📌 Following — alerts on'
+                                  : '📌 Follow for sale date'}
                             </button>
                             <span className="text-[10px]" style={{ color: '#94A3B8' }}>Source: {r.sourceLabel || r.sourceHost}</span>
                           </div>
