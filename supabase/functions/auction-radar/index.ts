@@ -547,7 +547,7 @@ Deno.serve(async (req) => {
 
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
-      { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits`, count: webRecords.length },
+      { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
     ]
 
     return new Response(JSON.stringify({
@@ -558,6 +558,9 @@ Deno.serve(async (req) => {
         aiUsed: ai.aiUsed,
         aiError: (ai as any).aiError || null,
         extracted: ai.records.length,
+        pagesScraped: scrape.scraped,
+        pagesRead: scrape.scrapeOk,
+        pagesParsed: (ai as any).pagesParsed || 0,
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
