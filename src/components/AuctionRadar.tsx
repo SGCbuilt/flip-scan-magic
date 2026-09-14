@@ -57,6 +57,7 @@ interface AuctionRecord {
 
 interface Memo {
   loading: boolean
+  stage?: string
   text?: string
   error?: string
   scan?: any
@@ -378,11 +379,19 @@ export default function AuctionRadar() {
     finally { setWBusy(null) }
   }
 
-  // ── Deep Scan ───────────────────────────────────────────────────────────
+  // ── Deep Scan (staged: each source is its own short call, so nothing times out)
   async function deepScanOne(r: AuctionRecord): Promise<void> {
     if (memos[r.id]?.text) { setOpenMemo(o => ({ ...o, [r.id]: true })); return }
-    setMemos(m => ({ ...m, [r.id]: { loading: true } }))
+    const setStage = (stage: string) => setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage } }))
+    setMemos(m => ({ ...m, [r.id]: { loading: true, stage: 'Pulling photos and property record…' } }))
     setOpenMemo(o => ({ ...o, [r.id]: true }))
+    const base = { address: r.address, city: r.city, state: r.state, zip: r.zip }
+    const call = async (mode: string, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode, ...extra } })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return data
+    }
     try {
       const deal = {
         address: `${r.address}, ${r.city}, ${r.state} ${r.zip}`.trim(),
@@ -401,18 +410,48 @@ export default function AuctionRadar() {
         auctionDate: r.auctionDate,
         sourceUrl: r.sourceUrl,
       }
-      const { data, error } = await supabase.functions.invoke('deep-scan', {
-        body: { address: r.address, city: r.city, state: r.state, zip: r.zip, deal },
+
+      const [photos, history] = await Promise.all([
+        call('photos').catch(e => ({ list: [], source: 'none', count: 0, error: e?.message })),
+        call('history').catch(e => ({ sales: [], assessments: [], taxes: [], valueSeries: [], error: e?.message })),
+      ])
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage: 'Checking permits, violations and distress signals…', scan: { photos, history } } }))
+
+      const [permits, distress] = await Promise.all([
+        call('permits').catch(e => ({ permits: [], violations: [], source: 'error', error: e?.message })),
+        call('distress').catch(e => ({ signals: [], source: 'error', error: e?.message })),
+      ])
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage: 'Writing the investor memo…', scan: { photos, history, permits, distress } } }))
+      setStage('Writing the investor memo…')
+
+      const sum = await call('summary', {
+        context: {
+          deal,
+          photosFound: photos?.count || 0,
+          permitsFound: permits?.permits?.length || 0,
+          violationsFound: permits?.violations?.length || 0,
+          distressSignals: (distress?.signals || []).flatMap((s: any) => s.flags || []),
+          propertyFacts: history?.facts || null,
+          saleHistory: history?.sales || [],
+          taxAssessmentHistory: history?.assessments || [],
+          propertyTaxHistory: history?.taxes || [],
+          valueThroughTheYears: history?.valueSeries || [],
+          currentValuation: history?.current || null,
+          appreciation: history?.appreciation || null,
+          ownership: history?.owner || null,
+        },
       })
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
-      const text: string = data?.summary || ''
+      const text: string = sum?.summary || ''
       if (!text.trim()) throw new Error('No memo returned for this address')
-      setMemos(m => ({ ...m, [r.id]: { loading: false, text, scan: data, at: new Date().toISOString() } }))
+      setMemos(m => ({
+        ...m,
+        [r.id]: { loading: false, text, scan: { photos, history, permits, distress, evaluation: sum?.evaluation }, at: new Date().toISOString() },
+      }))
     } catch (e: any) {
-      setMemos(m => ({ ...m, [r.id]: { loading: false, error: e?.message || 'Deep Scan failed' } }))
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: false, stage: undefined, error: e?.message || 'Deep Scan failed' } }))
     }
   }
+
 
   async function deepScanAllVisible() {
     const todo = filtered.filter(r => !memos[r.id]?.text && !memos[r.id]?.loading)
@@ -1056,31 +1095,23 @@ export default function AuctionRadar() {
                             <span className="text-[10px]" style={{ color: '#94A3B8' }}>Source: {r.sourceLabel || r.sourceHost}</span>
                           </div>
 
-                          {/* Investor memo */}
+                          {/* Deep Scan panel */}
+                          {memos[r.id]?.loading && (
+                            <div className="mt-2 rounded-lg px-3 py-2 text-[11px]"
+                              style={{ background: '#F1F5F9', color: NAVY_2 }}>
+                              🔬 {memos[r.id].stage || 'Deep Scanning…'}
+                            </div>
+                          )}
                           {memos[r.id]?.error && (
                             <div className="mt-2 rounded-lg px-3 py-2 text-[11px]"
                               style={{ background: '#FEF2F2', color: '#991B1B' }}>
                               Deep Scan could not finish for this address — {memos[r.id].error}
                             </div>
                           )}
-                          {openMemo[r.id] && memos[r.id]?.text && (
-                            <div className="mt-2 rounded-lg border p-3" style={{ background: '#F8FAFC', borderColor: '#E5E9F0' }}>
-                              <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94A3B8' }}>
-                                Investor memo · Deep Scan
-                              </div>
-                              <div className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#334155' }}>
-                                {memos[r.id].text}
-                              </div>
-                              {!!memos[r.id]?.scan?.permits?.permits?.length && (
-                                <div className="text-[10px] mt-2" style={{ color: '#64748B' }}>
-                                  {memos[r.id].scan.permits.permits.length} permit record(s) found
-                                </div>
-                              )}
-                              <div className="text-[10px] mt-2" style={{ color: '#94A3B8' }}>
-                                Added to the pipeline note when you send this property to the pipeline.
-                              </div>
-                            </div>
+                          {openMemo[r.id] && (memos[r.id]?.text || memos[r.id]?.scan) && (
+                            <DeepScanPanel memo={memos[r.id]} />
                           )}
+
                         </div>
                       </div>
                     </div>
@@ -1102,6 +1133,154 @@ export default function AuctionRadar() {
           </div>
         )}
       </div>
+    </div>
+  )
+}
+
+const money = (n: any) => (typeof n === 'number' && isFinite(n) ? '$' + Math.round(n).toLocaleString() : '—')
+
+function DeepScanPanel({ memo }: { memo: Memo }) {
+  const scan = memo.scan || {}
+  const photos: string[] = scan.photos?.list || []
+  const h = scan.history || {}
+  const series: any[] = h.valueSeries || []
+  const peak = Math.max(1, ...series.map((v: any) => Math.max(v.sale || 0, v.estimate || 0, v.assessed || 0)))
+  const permits: any[] = scan.permits?.permits || []
+  const violations: any[] = scan.permits?.violations || []
+  const signals: any[] = scan.distress?.signals || []
+
+  return (
+    <div className="mt-2 rounded-lg border p-3" style={{ background: '#F8FAFC', borderColor: '#E5E9F0' }}>
+      {/* Photos */}
+      {!!photos.length && (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94A3B8' }}>
+            Property photos ({photos.length})
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-2 mb-3">
+            {photos.slice(0, 12).map((src, i) => (
+              <a key={i} href={src} target="_blank" rel="noopener noreferrer" className="shrink-0">
+                <img src={src} alt={`Property photo ${i + 1}`} loading="lazy"
+                  className="h-24 w-32 object-cover rounded-lg border"
+                  style={{ borderColor: '#E2E8F0' }} />
+              </a>
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Value through the years */}
+      {!!series.length && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94A3B8' }}>
+            Value through the years
+          </div>
+          <div className="flex items-end gap-2 h-28">
+            {series.map((v: any) => {
+              const val = v.sale || v.estimate || v.assessed || 0
+              const isSale = !!v.sale
+              const isEst = !v.sale && !!v.estimate
+              return (
+                <div key={v.year} className="flex-1 flex flex-col items-center justify-end h-full">
+                  <div className="text-[9px] font-bold mb-0.5" style={{ color: '#475569' }}>
+                    {val ? '$' + Math.round(val / 1000) + 'k' : '—'}
+                  </div>
+                  <div className="w-full rounded-t"
+                    style={{
+                      height: `${Math.max(4, (val / peak) * 78)}px`,
+                      background: isSale ? NAVY : isEst ? '#16A34A' : NAVY_2,
+                      opacity: isSale || isEst ? 1 : 0.45,
+                    }} />
+                  <div className="text-[9px] mt-1" style={{ color: '#94A3B8' }}>{v.year}</div>
+                </div>
+              )
+            })}
+          </div>
+          <div className="flex flex-wrap gap-3 mt-1 text-[9px]" style={{ color: '#94A3B8' }}>
+            <span>■ Recorded sale</span>
+            <span style={{ color: '#16A34A' }}>■ Current estimate</span>
+            <span>□ County assessment</span>
+          </div>
+          {h.appreciation && (
+            <div className="text-[10px] mt-1" style={{ color: '#475569' }}>
+              {h.appreciation.pct > 0 ? 'Up' : 'Down'} {Math.abs(h.appreciation.pct)}% from {h.appreciation.fromYear} to {h.appreciation.toYear}
+              {' '}({h.appreciation.cagrPct}%/yr)
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Facts + valuation */}
+      {(h.facts || h.current) && (
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+          <Fact label="Est. value today" value={money(h.current?.estimate)} />
+          <Fact label="Value range" value={h.current ? `${money(h.current.low)} – ${money(h.current.high)}` : '—'} />
+          <Fact label="Last sale" value={h.facts?.lastSalePrice ? `${money(h.facts.lastSalePrice)} · ${String(h.facts.lastSaleDate || '').slice(0, 10)}` : '—'} />
+          <Fact label="Owner tenure" value={h.owner?.tenureYears != null ? `${h.owner.tenureYears} yr` : '—'} />
+          <Fact label="Type" value={h.facts?.propertyType || '—'} />
+          <Fact label="Beds / baths" value={h.facts ? `${h.facts.bedrooms ?? '—'} / ${h.facts.bathrooms ?? '—'}` : '—'} />
+          <Fact label="Sqft / lot" value={h.facts ? `${h.facts.squareFootage ?? '—'} / ${h.facts.lotSize ?? '—'}` : '—'} />
+          <Fact label="Built" value={h.facts?.yearBuilt ? String(h.facts.yearBuilt) : '—'} />
+        </div>
+      )}
+
+      {/* Sale history */}
+      {!!(h.sales || []).length && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#94A3B8' }}>Sale history</div>
+          {h.sales.map((s: any, i: number) => (
+            <div key={i} className="flex justify-between text-[11px] py-0.5" style={{ color: '#334155' }}>
+              <span>{s.date} · {s.event}</span><b>{money(s.price)}</b>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tax history */}
+      {!!(h.taxes || []).length && (
+        <div className="mb-3">
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#94A3B8' }}>Property taxes</div>
+          <div className="flex flex-wrap gap-2">
+            {h.taxes.map((t: any) => (
+              <Chip key={t.year} label={String(t.year)} value={money(t.total)} />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Permits / violations / distress */}
+      {(permits.length > 0 || violations.length > 0 || signals.length > 0) && (
+        <div className="mb-3 text-[11px]" style={{ color: '#475569' }}>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: '#94A3B8' }}>Records found</div>
+          {permits.length > 0 && <div>{permits.length} permit record(s)</div>}
+          {violations.length > 0 && <div style={{ color: '#B45309' }}>{violations.length} violation record(s)</div>}
+          {signals.length > 0 && <div>{signals.length} distress signal(s): {signals.flatMap((s: any) => s.flags || []).slice(0, 6).join(', ')}</div>}
+        </div>
+      )}
+
+      {/* Memo */}
+      {memo.text && (
+        <>
+          <div className="text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ color: '#94A3B8' }}>
+            Investor memo · Deep Scan
+          </div>
+          <div className="text-[11px] leading-relaxed whitespace-pre-wrap" style={{ color: '#334155' }}>
+            {memo.text}
+          </div>
+        </>
+      )}
+      <div className="text-[10px] mt-2" style={{ color: '#94A3B8' }}>
+        Added to the pipeline note when you send this property to the pipeline.
+      </div>
+    </div>
+  )
+}
+
+function Fact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border px-2 py-1.5" style={{ background: 'white', borderColor: '#E5E9F0' }}>
+      <div className="text-[9px] uppercase tracking-wider" style={{ color: '#94A3B8' }}>{label}</div>
+      <div className="text-[11px] font-bold" style={{ color: NAVY }}>{value}</div>
     </div>
   )
 }

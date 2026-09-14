@@ -128,7 +128,7 @@ interface Body {
   ownerName?: string
   parcelId?: string
   deal?: Record<string, unknown>
-  mode?: 'full' | 'permits' | 'distress' | 'summary'
+  mode?: 'full' | 'permits' | 'distress' | 'summary' | 'history' | 'photos'
   context?: Record<string, unknown>
 }
 
@@ -146,6 +146,133 @@ async function invoke(fn: string, body: unknown): Promise<any> {
   })
   const text = await res.text()
   try { return JSON.parse(text) } catch { return { error: text } }
+}
+
+// Bound any step so one slow source can never hang the whole scan.
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
+// ── PROPERTY HISTORY: sales, tax assessments, value through the years ─────
+export interface HistoryResult {
+  facts: Record<string, unknown> | null
+  sales: Array<{ date: string; event: string; price: number | null }>
+  assessments: Array<{ year: number; value: number | null; land: number | null; improvements: number | null }>
+  taxes: Array<{ year: number; total: number | null }>
+  valueSeries: Array<{ year: number; assessed: number | null; sale: number | null; estimate: number | null }>
+  current: { estimate: number | null; low: number | null; high: number | null; comparables: number } | null
+  appreciation: { fromYear: number; toYear: number; pct: number; cagrPct: number } | null
+  owner: { name: string | null; occupied: boolean | null; tenureYears: number | null }
+  source: string
+  note?: string
+}
+
+const EMPTY_HISTORY: HistoryResult = {
+  facts: null, sales: [], assessments: [], taxes: [], valueSeries: [],
+  current: null, appreciation: null,
+  owner: { name: null, occupied: null, tenureYears: null },
+  source: 'unavailable', note: 'No property record returned',
+}
+
+async function fetchPropertyHistory(address: string, city: string, state: string, zip: string): Promise<HistoryResult> {
+  const full = [address, city, state, zip].filter(Boolean).join(', ')
+  const [recRes, avmRes] = await Promise.all([
+    withTimeout(invoke('rentcast', { endpoint: 'properties', params: { address: full } }), 20000, { error: 'timeout' }),
+    withTimeout(invoke('rentcast', { endpoint: 'avm', params: { address: full } }), 20000, { error: 'timeout' }),
+  ])
+
+  const rec = Array.isArray(recRes) ? recRes[0] : (recRes && !recRes.error ? recRes : null)
+  if (!rec && (!avmRes || avmRes.error)) {
+    return { ...EMPTY_HISTORY, note: String(recRes?.error || avmRes?.error || 'No property record found') }
+  }
+
+  const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null)
+
+  // Sale / listing history
+  const sales: HistoryResult['sales'] = []
+  const hist = rec?.history && typeof rec.history === 'object' ? rec.history : {}
+  for (const [k, v] of Object.entries<any>(hist)) {
+    const date = String(v?.date || k).slice(0, 10)
+    sales.push({ date, event: String(v?.event || 'Sale'), price: num(v?.price) })
+  }
+  if (rec?.lastSaleDate && !sales.some(s => s.date === String(rec.lastSaleDate).slice(0, 10))) {
+    sales.push({ date: String(rec.lastSaleDate).slice(0, 10), event: 'Sale', price: num(rec.lastSalePrice) })
+  }
+  sales.sort((a, b) => a.date.localeCompare(b.date))
+
+  // Tax assessments and property taxes by year
+  const assessments: HistoryResult['assessments'] = Object.values<any>(rec?.taxAssessments || {})
+    .map(a => ({ year: Number(a?.year), value: num(a?.value), land: num(a?.land), improvements: num(a?.improvements) }))
+    .filter(a => a.year > 1900)
+    .sort((a, b) => a.year - b.year)
+
+  const taxes: HistoryResult['taxes'] = Object.values<any>(rec?.propertyTaxes || {})
+    .map(t => ({ year: Number(t?.year), total: num(t?.total) }))
+    .filter(t => t.year > 1900)
+    .sort((a, b) => a.year - b.year)
+
+  const current = avmRes && !avmRes.error
+    ? {
+        estimate: num(avmRes.price),
+        low: num(avmRes.priceRangeLow),
+        high: num(avmRes.priceRangeHigh),
+        comparables: Array.isArray(avmRes.comparables) ? avmRes.comparables.length : 0,
+      }
+    : null
+
+  // Value through the years: one row per year with whatever evidence exists
+  const thisYear = new Date().getFullYear()
+  const years = new Set<number>()
+  assessments.forEach(a => years.add(a.year))
+  sales.forEach(s => { const y = Number(s.date.slice(0, 4)); if (y > 1900) years.add(y) })
+  if (current?.estimate) years.add(thisYear)
+  const valueSeries = [...years].sort((a, b) => a - b).map(year => ({
+    year,
+    assessed: assessments.find(a => a.year === year)?.value ?? null,
+    sale: sales.filter(s => s.date.startsWith(String(year)) && s.price).slice(-1)[0]?.price ?? null,
+    estimate: year === thisYear ? (current?.estimate ?? null) : null,
+  }))
+
+  // Appreciation from the earliest known value to the most recent known value
+  const pts = valueSeries
+    .map(v => ({ year: v.year, val: v.sale ?? v.estimate ?? v.assessed }))
+    .filter(p => p.val && p.val > 0) as Array<{ year: number; val: number }>
+  let appreciation: HistoryResult['appreciation'] = null
+  if (pts.length >= 2) {
+    const a = pts[0], b = pts[pts.length - 1]
+    const span = Math.max(1, b.year - a.year)
+    appreciation = {
+      fromYear: a.year, toYear: b.year,
+      pct: Math.round(((b.val - a.val) / a.val) * 1000) / 10,
+      cagrPct: Math.round(((Math.pow(b.val / a.val, 1 / span) - 1) * 100) * 10) / 10,
+    }
+  }
+
+  const lastSaleYear = sales.filter(s => s.price).slice(-1)[0]?.date?.slice(0, 4)
+  const owner = {
+    name: rec?.owner?.names?.[0] || rec?.owner?.name || null,
+    occupied: typeof rec?.ownerOccupied === 'boolean' ? rec.ownerOccupied : null,
+    tenureYears: lastSaleYear ? thisYear - Number(lastSaleYear) : null,
+  }
+
+  const facts = rec
+    ? {
+        formattedAddress: rec.formattedAddress, propertyType: rec.propertyType,
+        bedrooms: rec.bedrooms, bathrooms: rec.bathrooms, squareFootage: rec.squareFootage,
+        lotSize: rec.lotSize, yearBuilt: rec.yearBuilt, county: rec.county,
+        lastSaleDate: rec.lastSaleDate, lastSalePrice: rec.lastSalePrice,
+        features: rec.features || null, zoning: rec.zoning || null,
+      }
+    : null
+
+  return {
+    facts, sales, assessments, taxes, valueSeries, current, appreciation, owner,
+    source: rec ? 'rentcast' : (current ? 'rentcast-avm' : 'unavailable'),
+    note: rec ? undefined : 'Valuation only — no county record matched this address',
+  }
 }
 
 // ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
@@ -1139,6 +1266,7 @@ ${JSON.stringify(context, null, 2)}`
         ],
         response_format: { type: 'json_object' },
         max_completion_tokens: 8000,
+        stream: true,
       }),
     })
     if (!res.ok) {
@@ -1148,8 +1276,29 @@ ${JSON.stringify(context, null, 2)}`
         sections: [{ heading: 'Evaluation Unavailable', priority: 'info', body: `Gateway returned ${res.status}. ${detail.slice(0, 200)}` }],
       }
     }
-    const data = await res.json()
-    const raw = data.choices?.[0]?.message?.content || ''
+    // Consume the SSE stream so the connection keeps producing bytes on long generations.
+    let raw = ''
+    const reader = res.body!.getReader()
+    const decoder = new TextDecoder()
+    let buf = ''
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buf += decoder.decode(value, { stream: true })
+      const lines = buf.split('\n')
+      buf = lines.pop() || ''
+      for (const line of lines) {
+        const t = line.trim()
+        if (!t.startsWith('data:')) continue
+        const payload = t.slice(5).trim()
+        if (!payload || payload === '[DONE]') continue
+        try {
+          const chunk = JSON.parse(payload)
+          raw += chunk.choices?.[0]?.delta?.content || ''
+        } catch { /* ignore partial frames */ }
+      }
+    }
+
     let clean = String(raw).trim()
     const fence = clean.match(/```(?:json)?\s*([\s\S]*?)```/)
     if (fence) clean = fence[1].trim()
@@ -1191,12 +1340,30 @@ Deno.serve(async (req) => {
 
     // ── Per-step modes for client-side step-by-step UI ──────────────────
     if (body.mode === 'permits') {
-      const r = await fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId)
+      const r = await withTimeout(
+        fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
+        55000,
+        { permits: [], violations: [], source: 'timeout' } as any,
+      )
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
     if (body.mode === 'distress') {
-      const r = await fetchDistressSignals(fullAddr)
+      const r = await withTimeout(fetchDistressSignals(fullAddr), 55000, { signals: [], source: 'timeout' } as any)
       return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'history') {
+      const r = await fetchPropertyHistory(body.address, city, state, body.zip || '')
+      return new Response(JSON.stringify(r), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
+    }
+    if (body.mode === 'photos') {
+      const p = await withTimeout(
+        invoke('property-photos', { address: body.address, city, state, zip: body.zip }),
+        45000,
+        { photos: [], source: 'timeout', count: 0 },
+      ).catch(e => ({ error: String(e), photos: [], source: 'none', count: 0 }))
+      return new Response(JSON.stringify({ list: p?.photos || [], source: p?.source || 'none', count: p?.count || 0 }), {
+        status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      })
     }
     if (body.mode === 'summary') {
       const evalResult = await execSummary({ address: fullAddr, ...(body.context || {}) })
@@ -1206,15 +1373,17 @@ Deno.serve(async (req) => {
       }), { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
     }
 
-    // Run everything in parallel
-    const [photos, permits, distress, variants] = await Promise.all([
-      invoke('property-photos', { address: body.address, city, state, zip: body.zip }).catch(e => ({ error: String(e) })),
-      fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId),
-      fetchDistressSignals(fullAddr),
+    // Run everything in parallel, each step bounded so one slow source can't hang the scan
+    const [photos, permits, distress, history, variants] = await Promise.all([
+      withTimeout(invoke('property-photos', { address: body.address, city, state, zip: body.zip }), 30000, { photos: [], source: 'timeout', count: 0 }).catch(e => ({ error: String(e) })),
+      withTimeout(fetchPermits(body.address, city, state, body.zip || '', body.ownerName, body.parcelId), 40000, { permits: [], violations: [], source: 'timeout' } as any),
+      withTimeout(fetchDistressSignals(fullAddr), 40000, { signals: [], source: 'timeout' } as any),
+      withTimeout(fetchPropertyHistory(body.address, city, state, body.zip || ''), 30000, EMPTY_HISTORY),
       body.deal
-        ? invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }).catch(e => ({ error: String(e) }))
+        ? withTimeout(invoke('ai-analysis', { mode: 'variants', deal: body.deal, provider: 'gemini' }), 45000, null).catch(e => ({ error: String(e) }))
         : Promise.resolve(null),
     ])
+
 
     const evalResult = await execSummary({
       address: fullAddr,
@@ -1223,6 +1392,14 @@ Deno.serve(async (req) => {
       violationsFound: permits.violations.length,
       distressSignals: distress.signals.map((s: any) => s.flags).flat(),
       photosFound: photos?.count || 0,
+      propertyFacts: history.facts,
+      saleHistory: history.sales,
+      taxAssessmentHistory: history.assessments,
+      propertyTaxHistory: history.taxes,
+      valueThroughTheYears: history.valueSeries,
+      currentValuation: history.current,
+      appreciation: history.appreciation,
+      ownership: history.owner,
       recommendedStrategy: variants?.variants?.recommendedStrategy || null,
       topRisk: variants?.variants?.topRisk || null,
     })
@@ -1233,6 +1410,7 @@ Deno.serve(async (req) => {
       photos: { list: photos?.photos || [], source: photos?.source || 'none', count: photos?.count || 0 },
       permits: { permits: permits.permits, violations: permits.violations, source: permits.source },
       distress,
+      history,
       variants: variants?.variants || null,
       summary: sectionsToMarkdown(evalResult.sections) || evalResult.summary,
       evaluation: evalResult,
