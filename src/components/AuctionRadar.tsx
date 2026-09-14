@@ -467,6 +467,21 @@ export default function AuctionRadar() {
               style={{ background: loading ? '#94A3B8' : NAVY }}>
               {loading ? '⟳ Scanning auction notices…' : '⚖️ Scan for auctions'}
             </button>
+            <button onClick={scanStateCities} disabled={loading}
+              className="px-4 py-2.5 rounded-lg text-sm font-bold text-white border-none cursor-pointer"
+              style={{ background: loading ? '#94A3B8' : NAVY_2 }}>
+              🏙️ Sweep every {stateCode} city
+            </button>
+            <button onClick={scanAllStates} disabled={loading}
+              className="px-4 py-2.5 rounded-lg text-sm font-bold border cursor-pointer"
+              style={{ background: 'white', borderColor: NAVY_2, color: NAVY_2 }}>
+              🌎 Sweep VA · NC · TN · FL
+            </button>
+            {batch && (
+              <span className="text-[11px] font-bold" style={{ color: NAVY_2 }}>
+                Sweeping markets {batch.done}/{batch.total}…
+              </span>
+            )}
             {result && (
               <span className="text-[11px]" style={{ color: '#94A3B8' }}>
                 Scanned {new Date(result.scannedAt).toLocaleString()}
