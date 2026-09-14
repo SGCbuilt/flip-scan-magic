@@ -23,7 +23,11 @@ const APP_URL = 'https://sgcflip.com'
 /** Grade B and up — the same 0-100 score auction-radar already assigns. */
 const AUTO_ADD_SCORE = 62
 const MAX_AUTO_ADD_PER_WATCH = 10
-const MAX_ENRICH_PER_WATCH = 3
+const MAX_ENRICH_PER_WATCH = 5
+/** Second, wider discovery pass fires when the first pass came back thin. */
+const THIN_RESULT_COUNT = 5
+const WIDE_DAYS_AHEAD = 180
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
@@ -49,6 +53,65 @@ function daysUntil(iso?: string | null): number {
   if (!iso) return 9999
   return Math.round((new Date(iso + 'T12:00:00Z').getTime() - Date.now()) / 86400000)
 }
+
+/**
+ * Market read for the watch area — pulled from the existing rentcast proxy,
+ * never a new service. Returns a short human label plus a −6…+8 adjustment
+ * that nudges ranking toward markets that actually move.
+ */
+async function readMarket(zip: string): Promise<{ label: string; bonus: number } | null> {
+  if (!/^\d{5}$/.test(zip || '')) return null
+  const res = await withTimeout(
+    callFn('rentcast', { endpoint: 'markets', params: { zipCode: zip, dataType: 'Sale' } }),
+    25_000, null,
+  )
+  const sale = res?.saleData || res?.data?.saleData
+  if (!sale) return null
+
+  const dom = Number(sale.averageDaysOnMarket || 0)
+  const psf = Number(sale.averagePricePerSquareFoot || 0)
+  const price = Number(sale.averagePrice || 0)
+  if (!dom && !price) return null
+
+  let bonus = 0
+  if (dom && dom <= 30) bonus += 8
+  else if (dom && dom <= 60) bonus += 4
+  else if (dom > 120) bonus -= 6
+  if (price >= 200_000) bonus += 2
+
+  const label = [
+    price ? `avg sale $${Math.round(price / 1000)}K` : '',
+    psf ? `$${Math.round(psf)}/sqft` : '',
+    dom ? `${Math.round(dom)} days on market` : '',
+  ].filter(Boolean).join(' · ')
+
+  return { label, bonus }
+}
+
+/**
+ * Composite deal score — the auction-radar score is the base (that scoring is
+ * untouched); equity spread, sale urgency and market speed adjust the ranking
+ * so the strongest deal in the strongest market rises to the top.
+ */
+function dealRank(r: any, marketBonus: number): number {
+  const base = Number(r.score || 0)
+  const value = Number(r.estimatedValue || 0)
+  const bid = Number(r.openingBid || 0)
+  const equityPct = value > 0 && bid > 0 ? ((value - bid) / value) * 100 : 0
+
+  let bonus = marketBonus
+  if (equityPct >= 40) bonus += 12
+  else if (equityPct >= 25) bonus += 8
+  else if (equityPct >= 12) bonus += 4
+  else if (equityPct < 0) bonus -= 8
+
+  const d = daysUntil(r.auctionDate)
+  if (d <= 21) bonus += 6
+  else if (d <= 45) bonus += 3
+
+  return Math.max(0, Math.min(100, Math.round(base + bonus)))
+}
+
 
 interface Watch {
   id: string
@@ -84,7 +147,26 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
   if (auction?.error) notes.push(`auction scan: ${auction.error}`)
   if (permits?.error) notes.push(`permits: ${permits.error}`)
 
-  const records: any[] = Array.isArray(auction?.records) ? auction.records : []
+  let records: any[] = Array.isArray(auction?.records) ? auction.records : []
+
+  // Thin first pass → one wider second pass, then dedupe so nothing is counted twice.
+  if (records.length < THIN_RESULT_COUNT && (w.days_ahead || 0) < WIDE_DAYS_AHEAD) {
+    const wide = await withTimeout(
+      callFn('auction-radar', {
+        city: w.city, state: w.state, county: w.county, zip: w.zip,
+        daysAhead: WIDE_DAYS_AHEAD, maxPrice: w.max_price, nonce: Date.now() + 1,
+      }),
+      110_000, { error: 'wide auction scan timed out' },
+    )
+    if (Array.isArray(wide?.records)) {
+      const byKey = new Map<string, any>()
+      for (const r of [...records, ...wide.records]) {
+        if (r?.address) byKey.set(addrKey(r.address), r)
+      }
+      records = [...byKey.values()]
+      notes.push(`wide ${WIDE_DAYS_AHEAD}-day pass`)
+    }
+  }
 
   // ── 2. Diff against what this watch has already reported ────────────────────
   const { data: seenRows } = await admin
@@ -93,11 +175,18 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
 
   const fresh = records.filter(r => r.address && !seen.has(addrKey(r.address)))
 
-  // ── 3. Qualify + enrich ─────────────────────────────────────────────────────
+  // ── 3. Read the market, then qualify + enrich ───────────────────────────────
+  const marketZip = w.zip || fresh.find(r => /^\d{5}$/.test(r.zip || ''))?.zip || ''
+  const market = await readMarket(marketZip)
+  if (market) notes.push(`market: ${market.label}`)
+
+  for (const r of fresh) r.__rank = dealRank(r, market?.bonus || 0)
+
   const qualifying = fresh
-    .filter(r => (r.score || 0) >= AUTO_ADD_SCORE)
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .filter(r => (r.__rank || 0) >= AUTO_ADD_SCORE)
+    .sort((a, b) => (b.__rank || 0) - (a.__rank || 0))
     .slice(0, MAX_AUTO_ADD_PER_WATCH)
+
 
   for (const r of qualifying.slice(0, MAX_ENRICH_PER_WATCH)) {
     const scan = await withTimeout(
@@ -128,12 +217,12 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
         const appended = appendPipelineLead(nextPipeline, {
           id: leadId,
           stage: 'new',
-          priority: r.score >= 78 ? 'hot' : r.score >= 62 ? 'warm' : 'cold',
+          priority: r.__rank >= 78 ? 'hot' : r.__rank >= 62 ? 'warm' : 'cold',
           address: r.address, city: r.city || '', state: r.state || '',
           zip: r.zip || '', county: r.county || w.county || '',
           signalType: 'auction',
           signalLabel: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
-          investorScore: r.score || 0,
+          investorScore: r.__rank || r.score || 0,
           severity: daysUntil(r.auctionDate) <= 21 ? 'high' : 'medium',
           source: r.sourceLabel || 'Research agent',
           estimatedARV: r.estimatedValue || 0,
@@ -142,11 +231,14 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
           maxOffer: r.estimatedValue ? Math.round(r.estimatedValue * 0.7) : 0,
           notes: [
             'Found automatically by the research agent.',
+            `Agent rank ${r.__rank || 0}/100 (source score ${r.score || 0}).`,
+            market ? `Market here: ${market.label}.` : '',
             r.description, r.caseNumber && `Case #${r.caseNumber}`,
             r.trustee && `Trustee: ${r.trustee}`, r.sourceUrl,
             distressNotes.length ? `\nDistress signals:\n${distressNotes.join('\n')}` : '',
           ].filter(Boolean).join('\n'),
           tags: ['auction', 'agent', r.auctionType].filter(Boolean),
+
         })
 
         if (!appended) continue
@@ -178,9 +270,10 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
     await admin.from('research_agent_seen').upsert(
       fresh.map(r => ({
         watch_id: w.id, addr_key: addrKey(r.address), address: r.address,
-        source: 'auction-radar', score: r.score || 0, grade: r.grade || '',
+        source: 'auction-radar', score: r.__rank || r.score || 0, grade: r.grade || '',
         auto_added: !!r.__autoAdded,
       })),
+
       { onConflict: 'watch_id,addr_key', ignoreDuplicates: true },
     )
   }
@@ -195,16 +288,21 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
       idempotencyKey: `agent-digest-${w.id}-${new Date().toISOString().slice(0, 10)}-${toReport.length}${force ? `-test-${Date.now()}` : ''}`,
       templateData: {
         areaLabel, appUrl: APP_URL,
+        marketLabel: market?.label || '',
         scannedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         scanned: records.length, newCount: fresh.length, addedCount,
-        records: toReport.slice(0, 20).map(r => ({
-          address: r.address, city: r.city, state: r.state,
-          grade: r.grade, score: r.score,
-          signal: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
-          autoAdded: !!r.__autoAdded, sequenceStarted: !!r.__sequenceStarted,
-          sourceUrl: r.sourceUrl,
-        })),
+        records: toReport
+          .slice()
+          .sort((a, b) => (b.__rank || b.score || 0) - (a.__rank || a.score || 0))
+          .slice(0, 20).map(r => ({
+            address: r.address, city: r.city, state: r.state,
+            grade: r.grade, score: r.__rank || r.score,
+            signal: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
+            autoAdded: !!r.__autoAdded, sequenceStarted: !!r.__sequenceStarted,
+            sourceUrl: r.sourceUrl,
+          })),
       },
+
     })
     emailed = !send?.error && send?.success !== false
     if (!emailed) notes.push(`digest not sent (${send?.error || send?.reason || 'unknown'})`)

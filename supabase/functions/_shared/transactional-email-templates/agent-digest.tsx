@@ -24,11 +24,13 @@ interface Props {
   addedCount?: number
   records?: AgentItem[]
   appUrl?: string
+  marketLabel?: string
 }
 
 const Email = ({
   areaLabel = 'your watch areas', scannedAt = '', scanned = 0,
   newCount = 0, addedCount = 0, records = [], appUrl = 'https://sgcflip.com',
+  marketLabel = '',
 }: Props) => (
   <Html lang="en" dir="ltr">
     <Head />
@@ -39,6 +41,7 @@ const Email = ({
           <Text style={brand}>SGC BUILT · FlipScan Pro</Text>
           <Heading style={h1}>Research agent — daily run</Heading>
           <Text style={sub}>{areaLabel}{scannedAt ? ` · ${scannedAt}` : ''}</Text>
+          {marketLabel ? <Text style={meta}>Market right now: {marketLabel}</Text> : null}
           <Text style={meta}>
             <b>{scanned}</b> records scanned · <b>{newCount}</b> new ·{' '}
             <b>{addedCount}</b> auto-added to Pipeline with follow-up running
