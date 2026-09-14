@@ -420,6 +420,8 @@ export default function AuctionRadar() {
         debug: { sweep: true, markets: markets.length, failures },
         scannedAt: new Date().toISOString(),
       })
+      setRestored(null)
+      setAskSave({ label, count: merged.length })
       if (merged.length) toast.success(`${merged.length} distressed / auction records across ${markets.length} markets`)
       else toast.warning('No verifiable auction records in those markets yet')
     } catch (e: any) {
