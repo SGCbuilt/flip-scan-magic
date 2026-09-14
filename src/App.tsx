@@ -337,7 +337,7 @@ function Topbar({
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
     drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
     auction:  'Auction Radar',
-    pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences',
+    pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences', agent: 'Research Agent',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
     financial:'Financial Tools', market: 'Market Trends', analyzer: 'Area Intelligence', reference: 'Lead Sources',
