@@ -395,6 +395,37 @@ export default function AuctionRadar() {
     })()
   }, [])
 
+  // Live updates — the panel refreshes itself the moment a follow row changes.
+  useEffect(() => {
+    const channel = supabase
+      .channel('property-follows-live')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'property_follows' }, (payload: any) => {
+        setLiveAt(new Date().toISOString())
+        setFollows(prev => {
+          if (payload.eventType === 'DELETE') return prev.filter(f => f.id !== payload.old?.id)
+          const row = payload.new
+          if (!row) return prev
+          const i = prev.findIndex(f => f.id === row.id)
+          if (i === -1) return [row, ...prev]
+          const next = [...prev]
+          next[i] = { ...next[i], ...row }
+          return next
+        })
+      })
+      .subscribe(status => setLive(status === 'SUBSCRIBED'))
+    return () => { supabase.removeChannel(channel) }
+  }, [])
+
+  const sinceLabel = (iso?: string | null) => {
+    if (!iso) return 'not checked yet'
+    const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000)
+    if (mins < 1) return 'just now'
+    if (mins < 60) return `${mins} min ago`
+    const hrs = Math.round(mins / 60)
+    if (hrs < 24) return `${hrs} hr ago`
+    return `${Math.round(hrs / 24)} d ago`
+  }
+
   const followedKeys = useMemo(
     () => new Set(follows.filter(f => f.active).map(f => f.addr_key)),
     [follows],
