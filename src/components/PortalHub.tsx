@@ -186,7 +186,7 @@ export default function PortalHub({ onNavigate }: Props) {
                     <ArrowUpRight className="h-4 w-4 tile-arrow absolute bottom-6 right-6 transition-all" style={{ color: '#94A3B8' }} />
                   </>
                 )
-                const cls = 'group relative bg-white hover:bg-[#FAFBFC] transition-colors p-8 flex flex-col min-h-[200px] cursor-pointer border-none text-left w-full'
+                const cls = 'portal-tile group relative bg-white p-8 flex flex-col min-h-[200px] cursor-pointer border-none text-left w-full'
                 if (external && href) {
                   return (
                     <a key={href} href={href} target="_blank" rel="noopener noreferrer" className={cls}>
@@ -210,8 +210,22 @@ export default function PortalHub({ onNavigate }: Props) {
       </div>
 
       <style>{`
+        .portal-tile {
+          transition: transform .18s cubic-bezier(.22,1,.36,1), box-shadow .18s ease, background-color .18s ease;
+          will-change: transform;
+        }
+        .portal-tile:hover {
+          background: #FAFBFC;
+          transform: translateY(-6px);
+          box-shadow: 0 18px 34px rgba(15, 36, 96, 0.14);
+          z-index: 1;
+        }
+        .portal-tile:active { transform: translateY(-2px); box-shadow: 0 8px 18px rgba(15, 36, 96, 0.12); }
         .group:hover .tile-title { color: #C9A84C; }
         .group:hover .tile-arrow { color: #C9A84C; transform: translate(4px, -4px); }
+        @media (prefers-reduced-motion: reduce) {
+          .portal-tile, .portal-tile:hover, .portal-tile:active { transition: none; transform: none; }
+        }
       `}</style>
     </div>
   )
