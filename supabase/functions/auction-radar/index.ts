@@ -260,8 +260,30 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   const searchErrors: string[] = []
 
   // Throttled: Firecrawl rate-limits bursts, and a 429 wipes the whole scan.
+  let cachedQueries = 0
+  const collect = (arr: any[]) => {
+    for (const r of arr) {
+      const url = r.url || ''
+      if (!url || seen.has(url)) continue
+      if (!isAllowedAuctionSource(url)) continue
+      seen.add(url)
+      const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
+      hits.push({ title: r.title || '', description: body, url })
+    }
+  }
+
   const runQuery = async (q: string, attempt = 0): Promise<void> => {
     try {
+      if (attempt === 0) {
+        const cached = await cacheGet(`search:${q}`)
+        if (cached) {
+          try {
+            collect(JSON.parse(cached))
+            ok++; cachedQueries++
+            return
+          } catch { /* bad cache row — fall through to a live search */ }
+        }
+      }
       const res = await fetch(FIRECRAWL_SEARCH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -279,18 +301,19 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       ok++
       const data = await res.json()
       const arr: any[] = data?.data?.web || data?.data || data?.results || []
-      for (const r of arr) {
-        const url = r.url || ''
-        if (!url || seen.has(url)) continue
-        if (!isAllowedAuctionSource(url)) continue
-        seen.add(url)
-        const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
-        hits.push({ title: r.title || '', description: body, url })
+      if (arr.length) {
+        const slim = arr.map((r: any) => ({
+          url: r.url || '', title: r.title || '',
+          description: String(r.markdown || r.description || r.snippet || '').slice(0, 3500),
+        }))
+        await cachePut(`search:${q}`, JSON.stringify(slim))
       }
+      collect(arr)
     } catch (e) {
       searchErrors.push(String(e).slice(0, 140))
     }
   }
+
 
   for (let i = 0; i < queries.length; i += 3) {
     await Promise.all(queries.slice(i, i + 3).map(q => runQuery(q)))
