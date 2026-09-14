@@ -166,6 +166,8 @@ export default function AuctionRadar() {
   const [minGradeScore, setMinGradeScore] = useState(0)
   const [showDebug, setShowDebug] = useState(false)
   const [added, setAdded] = useState<Record<string, boolean>>({})
+  const [customCity, setCustomCity] = useState(false)
+  const [batch, setBatch] = useState<{ done: number; total: number } | null>(null)
 
   // ── Deep Scan memos (session cache, keyed by record id) ─────────────────
   const [memos, setMemos] = useState<Record<string, Memo>>({})
