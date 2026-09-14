@@ -137,11 +137,18 @@ export default function AuctionRadar() {
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
 
   // ── Email alerts ────────────────────────────────────────────────────────
-  const [watch, setWatch] = useState<any | null>(null)
+  const [watches, setWatches] = useState<any[]>([])
   const [wEmail, setWEmail] = useState('')
-  const [wBusy, setWBusy] = useState(false)
+  const [wBusy, setWBusy] = useState<string | null>(null)
   const [wNote, setWNote] = useState('')
   const [showAlerts, setShowAlerts] = useState(false)
+
+  const DEFAULT_WATCHES = [
+    { label: 'Chatham County, NC', city: '', state: 'NC', county: 'Chatham', zip: '' },
+    { label: 'North Carolina (statewide)', city: '', state: 'NC', county: '', zip: '' },
+    { label: 'Virginia (statewide)', city: '', state: 'VA', county: '', zip: '' },
+    { label: 'Tennessee (statewide)', city: '', state: 'TN', county: '', zip: '' },
+  ]
 
   useEffect(() => {
     (async () => {
@@ -149,51 +156,71 @@ export default function AuctionRadar() {
       if (!u?.user) return
       if (!wEmail) setWEmail(u.user.email || '')
       const { data } = await supabase.from('auction_watches')
-        .select('*').order('created_at', { ascending: true }).limit(1)
-      if (data?.length) { setWatch(data[0]); setWEmail(data[0].notify_email) }
+        .select('*').order('created_at', { ascending: true })
+      if (data?.length) {
+        setWatches(data)
+        const em = data.find((w: any) => w.notify_email)?.notify_email
+        if (em) setWEmail(em)
+      }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function saveWatch(active: boolean) {
-    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
-    setWBusy(true); setWNote('')
-    try {
-      if (watch) {
-        const { data, error } = await supabase.from('auction_watches')
-          .update({ active, notify_email: wEmail.trim() }).eq('id', watch.id).select().single()
-        if (error) throw error
-        setWatch(data)
-      } else {
-        const { data: u } = await supabase.auth.getUser()
-        if (!u?.user) throw new Error('Sign in first')
-        const { data, error } = await supabase.from('auction_watches').insert({
-          user_id: u.user.id, label: 'Chatham County auctions',
-          city: '', state: 'NC', county: 'Chatham', zip: '',
-          days_ahead: 90, max_price: 0, notify_email: wEmail.trim(), active,
-        }).select().single()
-        if (error) throw error
-        setWatch(data)
-      }
-      toast.success(active ? 'Chatham County alerts are on' : 'Alerts paused')
-    } catch (e: any) { toast.error(e?.message || 'Could not save the alert') }
-    finally { setWBusy(false) }
+  async function ensureWatches(): Promise<any[]> {
+    if (watches.length) return watches
+    const { data: u } = await supabase.auth.getUser()
+    if (!u?.user) throw new Error('Sign in first')
+    const rows = DEFAULT_WATCHES.map(w => ({
+      ...w, user_id: u.user.id, days_ahead: 90, max_price: 0,
+      notify_email: wEmail.trim(), active: false,
+    }))
+    const { data, error } = await supabase.from('auction_watches').insert(rows).select()
+    if (error) throw error
+    setWatches(data || [])
+    return data || []
   }
 
-  async function testAlert() {
-    if (!watch) { toast.info('Turn alerts on first'); return }
-    setWBusy(true); setWNote('')
+  async function toggleWatch(w: any) {
+    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
+    setWBusy(w.id); setWNote('')
+    try {
+      const { data, error } = await supabase.from('auction_watches')
+        .update({ active: !w.active, notify_email: wEmail.trim() }).eq('id', w.id).select().single()
+      if (error) throw error
+      setWatches(ws => ws.map(x => x.id === w.id ? data : x))
+      toast.success(!w.active ? `${w.label} alerts are on` : `${w.label} alerts paused`)
+    } catch (e: any) { toast.error(e?.message || 'Could not save the alert') }
+    finally { setWBusy(null) }
+  }
+
+  async function turnAllOn() {
+    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
+    setWBusy('all'); setWNote('')
+    try {
+      const ws = await ensureWatches()
+      const { data, error } = await supabase.from('auction_watches')
+        .update({ active: true, notify_email: wEmail.trim() })
+        .in('id', ws.map((w: any) => w.id)).select()
+      if (error) throw error
+      setWatches(data || [])
+      toast.success('VA, NC & TN auction alerts are on')
+    } catch (e: any) { toast.error(e?.message || 'Could not save the alerts') }
+    finally { setWBusy(null) }
+  }
+
+  async function testAlert(w: any) {
+    setWBusy(w.id); setWNote('')
     try {
       const { data, error } = await supabase.functions.invoke('auction-watch-run', {
-        body: { watchId: watch.id, force: true },
+        body: { watchId: w.id, force: true },
       })
       if (error) throw error
       const r = data?.results?.[0]
-      setWNote(r?.note || 'Check complete')
+      setWNote(`${w.label}: ${r?.note || 'check complete'}`)
       if (r?.emailed) toast.success(`Test email sent to ${wEmail}`)
       else toast.info('Check ran — nothing new to send right now')
     } catch (e: any) { toast.error(e?.message || 'Alert check failed') }
-    finally { setWBusy(false) }
+    finally { setWBusy(null) }
   }
 
   // ── Deep Scan ───────────────────────────────────────────────────────────
