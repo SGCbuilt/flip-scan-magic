@@ -6,7 +6,7 @@
  * an official / auction-platform source link. Nothing is fabricated; when a
  * source yields nothing the panel says so and shows what was scanned.
  */
-import { useState, useMemo } from 'react'
+import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../integrations/supabase/client'
 import { toast } from '../lib/toast'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
@@ -123,6 +123,119 @@ export default function AuctionRadar() {
   const [showDebug, setShowDebug] = useState(false)
   const [added, setAdded] = useState<Record<string, boolean>>({})
 
+  // ── Deep Scan memos (session cache, keyed by record id) ─────────────────
+  const [memos, setMemos] = useState<Record<string, Memo>>({})
+  const [openMemo, setOpenMemo] = useState<Record<string, boolean>>({})
+  const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
+
+  // ── Email alerts ────────────────────────────────────────────────────────
+  const [watch, setWatch] = useState<any | null>(null)
+  const [wEmail, setWEmail] = useState('')
+  const [wBusy, setWBusy] = useState(false)
+  const [wNote, setWNote] = useState('')
+  const [showAlerts, setShowAlerts] = useState(false)
+
+  useEffect(() => {
+    (async () => {
+      const { data: u } = await supabase.auth.getUser()
+      if (!u?.user) return
+      if (!wEmail) setWEmail(u.user.email || '')
+      const { data } = await supabase.from('auction_watches')
+        .select('*').order('created_at', { ascending: true }).limit(1)
+      if (data?.length) { setWatch(data[0]); setWEmail(data[0].notify_email) }
+    })()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  async function saveWatch(active: boolean) {
+    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
+    setWBusy(true); setWNote('')
+    try {
+      if (watch) {
+        const { data, error } = await supabase.from('auction_watches')
+          .update({ active, notify_email: wEmail.trim() }).eq('id', watch.id).select().single()
+        if (error) throw error
+        setWatch(data)
+      } else {
+        const { data: u } = await supabase.auth.getUser()
+        if (!u?.user) throw new Error('Sign in first')
+        const { data, error } = await supabase.from('auction_watches').insert({
+          user_id: u.user.id, label: 'Chatham County auctions',
+          city: '', state: 'NC', county: 'Chatham', zip: '',
+          days_ahead: 90, max_price: 0, notify_email: wEmail.trim(), active,
+        }).select().single()
+        if (error) throw error
+        setWatch(data)
+      }
+      toast.success(active ? 'Chatham County alerts are on' : 'Alerts paused')
+    } catch (e: any) { toast.error(e?.message || 'Could not save the alert') }
+    finally { setWBusy(false) }
+  }
+
+  async function testAlert() {
+    if (!watch) { toast.info('Turn alerts on first'); return }
+    setWBusy(true); setWNote('')
+    try {
+      const { data, error } = await supabase.functions.invoke('auction-watch-run', {
+        body: { watchId: watch.id, force: true },
+      })
+      if (error) throw error
+      const r = data?.results?.[0]
+      setWNote(r?.note || 'Check complete')
+      if (r?.emailed) toast.success(`Test email sent to ${wEmail}`)
+      else toast.info('Check ran — nothing new to send right now')
+    } catch (e: any) { toast.error(e?.message || 'Alert check failed') }
+    finally { setWBusy(false) }
+  }
+
+  // ── Deep Scan ───────────────────────────────────────────────────────────
+  async function deepScanOne(r: AuctionRecord): Promise<void> {
+    if (memos[r.id]?.text) { setOpenMemo(o => ({ ...o, [r.id]: true })); return }
+    setMemos(m => ({ ...m, [r.id]: { loading: true } }))
+    setOpenMemo(o => ({ ...o, [r.id]: true }))
+    try {
+      const deal = {
+        address: `${r.address}, ${r.city}, ${r.state} ${r.zip}`.trim(),
+        listPrice: r.openingBid || 0,
+        arv: r.estimatedValue || 0,
+        beds: r.beds || 0, baths: r.baths || 0, sqft: r.sqft || 0,
+        yearBuilt: r.yearBuilt || null,
+        propertyType: 'Single Family',
+        daysOnMarket: 0,
+        estRehabCost: 0,
+        seventyPctMax: r.estimatedValue ? Math.round(r.estimatedValue * 0.7) : 0,
+        currentFlipProfit: r.equityDollars || 0,
+        currentROI: 0,
+        flipScore: r.score,
+        auctionType: r.auctionType,
+        auctionDate: r.auctionDate,
+        sourceUrl: r.sourceUrl,
+      }
+      const { data, error } = await supabase.functions.invoke('deep-scan', {
+        body: { address: r.address, city: r.city, state: r.state, zip: r.zip, deal },
+      })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      const text: string = data?.summary || ''
+      if (!text.trim()) throw new Error('No memo returned for this address')
+      setMemos(m => ({ ...m, [r.id]: { loading: false, text, scan: data, at: new Date().toISOString() } }))
+    } catch (e: any) {
+      setMemos(m => ({ ...m, [r.id]: { loading: false, error: e?.message || 'Deep Scan failed' } }))
+    }
+  }
+
+  async function deepScanAllVisible() {
+    const todo = filtered.filter(r => !memos[r.id]?.text && !memos[r.id]?.loading)
+    if (!todo.length) { toast.info('Every visible listing already has a memo'); return }
+    setBulk({ done: 0, total: todo.length })
+    for (let i = 0; i < todo.length; i += 3) {
+      await Promise.all(todo.slice(i, i + 3).map(r => deepScanOne(r)))
+      setBulk({ done: Math.min(i + 3, todo.length), total: todo.length })
+    }
+    setBulk(null)
+    toast.success('Deep Scan finished for the visible listings')
+  }
+
   async function runScan() {
     setLoading(true); setErr(''); setResult(null)
     try {
@@ -176,8 +289,13 @@ export default function AuctionRadar() {
       estimatedRehab: 0,
       estimatedProfit: r.equityDollars || 0,
       maxOffer: r.estimatedValue ? Math.round(r.estimatedValue * 0.7) : 0,
-      notes: [r.description, r.caseNumber && `Case #${r.caseNumber}`, r.trustee && `Trustee: ${r.trustee}`, r.sourceUrl]
-        .filter(Boolean).join('\n'),
+      notes: [
+        r.description,
+        r.caseNumber && `Case #${r.caseNumber}`,
+        r.trustee && `Trustee: ${r.trustee}`,
+        r.sourceUrl,
+        memos[r.id]?.text && `\n— INVESTOR MEMO (Deep Scan) —\n${memos[r.id].text}`,
+      ].filter(Boolean).join('\n'),
       tags: ['auction', r.auctionType],
       assignedTo: '',
     })
