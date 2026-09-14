@@ -264,9 +264,12 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
 }
 
 // ── Layer 3: AI normalization ─────────────────────────────────────────────
-async function extractAuctions(area: string, state: string, county: string, hits: Array<{ title: string; description: string; url: string }>) {
+async function extractFromSource(
+  area: string, state: string, county: string,
+  src: { url: string; title: string; text: string },
+) {
   const key = Deno.env.get('LOVABLE_API_KEY')
-  if (!key || hits.length === 0) return { records: [], aiUsed: false }
+  if (!key) return { records: [], aiUsed: false }
 
   const system = `You extract UPCOMING or RECENT real-estate AUCTION / FORECLOSURE SALE records from raw web content (trustee sale notices, sheriff sales, tax foreclosure lists, public notices, auction platforms).
 
@@ -289,10 +292,13 @@ For each record extract:
 
   const user = `TARGET AREA: ${area}${county ? ` (${county} County)` : ''}, ${state}
 TODAY: ${new Date().toISOString().slice(0, 10)}
+SOURCE PAGE: ${src.title || '(untitled)'}
+SOURCE URL: ${src.url}
 
-RAW SOURCES (JSON):
-${JSON.stringify(hits.slice(0, 20), null, 2)}
+PAGE CONTENT:
+${src.text}
 
+Extract every distinct property sale listed on this page (there may be many, or none).
 Respond ONLY with JSON: {"records":[{...}]}`
 
   try {
