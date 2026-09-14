@@ -225,7 +225,7 @@ async function fetchPropertyHistory(address: string, city: string, state: string
 
   // Value through the years: one row per year with whatever evidence exists
   const thisYear = new Date().getFullYear()
-  const years = new Set<number>", ".length ? new Set<number>() : new Set<number>()
+  const years = new Set<number>()
   assessments.forEach(a => years.add(a.year))
   sales.forEach(s => { const y = Number(s.date.slice(0, 4)); if (y > 1900) years.add(y) })
   if (current?.estimate) years.add(thisYear)
