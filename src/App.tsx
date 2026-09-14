@@ -186,6 +186,14 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
   onToggle:  () => void
 }) {
   const [hoveredTip, setHoveredTip] = useState<string | null>(null)
+  const [closedSections, setClosedSections] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('fscan_nav_closed') || '{}') } catch { return {} }
+  })
+  const toggleSection = (name: string) => setClosedSections(prev => {
+    const next = { ...prev, [name]: !prev[name] }
+    try { localStorage.setItem('fscan_nav_closed', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
 
   return (
     <aside
