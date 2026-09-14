@@ -276,6 +276,27 @@ export default function AuctionRadar() {
           </div>
         )}
 
+        {result && (() => {
+          const h = result.sourceHealth
+          if (!h) return null
+          const msgs: string[] = []
+          if (h.firecrawl !== 'ok') {
+            msgs.push(HEALTH_MSG[h.firecrawl === 'missing_key' ? 'missing_key_fc' : h.firecrawl === 'bad_key' ? 'bad_key_fc' : h.firecrawl] || HEALTH_MSG.error)
+          }
+          if (h.rentcast !== 'ok') {
+            msgs.push(HEALTH_MSG[h.rentcast === 'missing_key' ? 'missing_key_rc' : h.rentcast === 'bad_key' ? 'bad_key_rc' : 'forbidden'])
+          }
+          if (!msgs.length) return null
+          return (
+            <div className="rounded-xl border p-4 mb-4" style={{ background: '#FFFBEB', borderColor: '#FDE68A' }}>
+              <div className="text-xs font-bold mb-1" style={{ color: '#92400E' }}>⚠ Some auction sources were unavailable on this scan</div>
+              {msgs.map((m, i) => (
+                <div key={i} className="text-[11px] leading-relaxed" style={{ color: '#92400E' }}>• {m}</div>
+              ))}
+            </div>
+          )
+        })()}
+
         {result && (
           <>
             {/* Stats */}
