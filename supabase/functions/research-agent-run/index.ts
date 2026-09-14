@@ -260,7 +260,7 @@ Deno.serve(async (req) => {
   if (!active.length) return json({ ran: 0, results: [], paused: true, note: 'Agent is paused' })
 
   const results: any[] = []
-  for (const w of watches as Watch[]) {
+  for (const w of active) {
     try { results.push(await runWatch(admin, w, !!body.force)) }
     catch (e) { results.push({ watchId: w.id, error: String((e as Error)?.message || e) }) }
   }
