@@ -10,6 +10,7 @@ import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../integrations/supabase/client'
 import { toast } from '../lib/toast'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
+import sgcLogo from '../assets/sgc-logo.png'
 import {
   loadSearchLog, saveSearch, deleteSearch, syncSearchLog,
   type SavedAuctionSearch,
@@ -154,6 +155,51 @@ function urgencyColor(rec: AuctionRecord) {
   return '#1B3A8C'
 }
 
+function AuctionSearchProgress({ progress, batch }: { progress: number; batch: { done: number; total: number } | null }) {
+  const safeProgress = Math.max(0, Math.min(96, Math.round(progress)))
+  const stage = batch
+    ? `Checking market ${Math.min(batch.done + 1, batch.total)} of ${batch.total}`
+    : safeProgress < 28
+      ? 'Connecting to county auction sources'
+      : safeProgress < 55
+        ? 'Reading trustee and tax-sale notices'
+        : safeProgress < 78
+          ? 'Verifying addresses and auction dates'
+          : 'Scoring the strongest opportunities'
+
+  return (
+    <div className="auction-search-progress rounded-xl border mb-4 overflow-hidden" role="status" aria-live="polite"
+      aria-label={`Auction search ${safeProgress} percent complete`}>
+      <div className="flex flex-col sm:flex-row items-center gap-5 px-5 py-6 sm:px-8">
+        <div className="auction-logo-build" aria-hidden="true">
+          <img src={sgcLogo} alt="" className="auction-logo-ghost" />
+          <div className="auction-logo-fill" style={{ clipPath: `inset(${100 - safeProgress}% 0 0 0)` }}>
+            <img src={sgcLogo} alt="" />
+          </div>
+          <div className="auction-logo-scanline" style={{ bottom: `${safeProgress}%` }} />
+        </div>
+
+        <div className="w-full min-w-0 flex-1">
+          <div className="flex items-end justify-between gap-3 mb-2">
+            <div>
+              <div className="text-sm font-black" style={{ color: NAVY }}>Building your auction search</div>
+              <div className="text-[11px] mt-0.5" style={{ color: '#64748B' }}>{stage}</div>
+            </div>
+            <div className="text-xl font-black tabular-nums" style={{ color: NAVY_2 }}>{safeProgress}%</div>
+          </div>
+          <div className="auction-progress-track" aria-hidden="true">
+            <div className="auction-progress-fill" style={{ width: `${safeProgress}%` }} />
+          </div>
+          <div className="flex items-center gap-2 mt-2 text-[10px] font-semibold" style={{ color: '#8B8F9A' }}>
+            <span className="auction-search-dot" />
+            Every address and sale date is being verified against its source
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 export default function AuctionRadar() {
   const [city, setCity] = useState('Norfolk')
   const [stateCode, setStateCode] = useState('VA')
@@ -172,6 +218,20 @@ export default function AuctionRadar() {
   const [added, setAdded] = useState<Record<string, boolean>>({})
   const [customCity, setCustomCity] = useState(false)
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null)
+  const [scanProgress, setScanProgress] = useState(0)
+
+  useEffect(() => {
+    if (!loading) { setScanProgress(0); return }
+    setScanProgress(6)
+    const timer = window.setInterval(() => {
+      setScanProgress(current => current >= 92 ? current : Math.min(92, current + Math.max(1, Math.round((92 - current) / 9))))
+    }, 650)
+    return () => window.clearInterval(timer)
+  }, [loading])
+
+  const displayedScanProgress = batch?.total
+    ? Math.max(scanProgress, 6 + (batch.done / batch.total) * 88)
+    : scanProgress
 
   // ── Saved search log ────────────────────────────────────────────────────
   const [savedLog, setSavedLog] = useState<SavedAuctionSearch[]>(() => loadSearchLog())
@@ -771,9 +831,7 @@ export default function AuctionRadar() {
         )}
 
         {loading && (
-          <div className="rounded-xl border p-8 text-center text-sm" style={{ background: 'white', borderColor: '#E5E9F0', color: '#64748B' }}>
-            Searching trustee, sheriff, tax-sale and public-notice sources…
-          </div>
+          <AuctionSearchProgress progress={displayedScanProgress} batch={batch} />
         )}
 
         {result && (() => {
