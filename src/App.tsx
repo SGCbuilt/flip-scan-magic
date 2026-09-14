@@ -91,8 +91,8 @@ const NAV: NavSection[] = [
       { id: 'velocity', label: 'Neighborhood',     icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
       { id: 'stack',    label: 'List Stack',       icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
       { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
-      { id: 'deals',    label: 'Deal Scanner',     icon: '🔍', tip: 'MLS + off-market search with flip scoring' },
-      { id: 'hunt',     label: 'Deal Hunter',      icon: '🎰', tip: 'Advanced criteria-based property hunting' },
+      { id: 'deals',    label: 'Deal Search',     icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
+
       { id: 'auction',  label: 'Auction Radar',    icon: '⚖️', tip: 'Trustee, sheriff & tax-foreclosure sales with dates and equity spread' },
       { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
@@ -128,8 +128,8 @@ const NAV: NavSection[] = [
     color:   'rgba(255,255,255,0.5)',
     items: [
       { id: 'financial',  label: 'Financial Tools',  icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
-      { id: 'market',     label: 'Market Trends',    icon: '📈', tip: 'Area market stats, DOM, price trends' },
-      { id: 'analyzer',   label: 'Area Intelligence', icon: '🔬', tip: 'Claude AI market analysis by location' },
+      { id: 'market',     label: 'Market Intel',     icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
+
       { id: 'reference',  label: 'Lead Sources',     icon: '📚', tip: 'Guide to all data sources and gov APIs' },
     ],
   },
@@ -838,8 +838,29 @@ export default function App() {
         )}
 
         {/* Content */}
-        <main className="flex-1 overflow-hidden" style={{ background: '#F8FAFC' }}>
+        <main className="flex-1 overflow-hidden flex flex-col" style={{ background: '#F8FAFC' }}>
+          {(['deals','hunt','market','analyzer'] as string[]).includes(activeTab) && (
+            <div className="flex-shrink-0 flex items-center gap-2 px-4 py-2 border-b" style={{ background: '#FFFFFF', borderColor: '#E2E8F0' }}>
+              {(activeTab === 'deals' || activeTab === 'hunt'
+                ? [{ id: 'deals', label: 'Quick scan' }, { id: 'hunt', label: 'Advanced hunt' }]
+                : [{ id: 'market', label: 'Area trends' }, { id: 'analyzer', label: 'AI area analysis' }]
+              ).map(m => (
+                <button
+                  key={m.id}
+                  onClick={() => setActiveTab(m.id as TabId)}
+                  className="px-3 py-1.5 rounded-md text-xs font-semibold transition-colors"
+                  style={activeTab === m.id
+                    ? { background: '#0F2460', color: '#FFFFFF' }
+                    : { background: '#F1F5F9', color: '#475569' }}
+                >
+                  {m.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <div className="flex-1 overflow-hidden">
           <ErrorBoundary label="Portal Hub">       {activeTab === 'hub'       && <PortalHub onNavigate={(t) => setActiveTab(t as TabId)} />} </ErrorBoundary>
+
           <ErrorBoundary label="Morning Brief">    {activeTab === 'home'      && <DailyDigest />}            </ErrorBoundary>
           <ErrorBoundary label="KPI Dashboard">    {activeTab === 'kpi'       && <KPIDashboard />}           </ErrorBoundary>
           <ErrorBoundary label="Lead Radar">       {activeTab === 'radar'     && <LeadRadar />}              </ErrorBoundary>
@@ -874,7 +895,9 @@ export default function App() {
           <ErrorBoundary label="Area Intelligence">{activeTab === 'analyzer'  && <MarketAnalyzer />}         </ErrorBoundary>
           <ErrorBoundary label="Lead Sources">     {activeTab === 'reference' && <ReferenceHub />}           </ErrorBoundary>
           <ErrorBoundary label="Settings">         {activeTab === 'settings'  && <Settings />}               </ErrorBoundary>
+          </div>
         </main>
+
       </div>
 
       {selected && <PropertyModal property={selected} params={params} onClose={() => setSelected(null)} />}
