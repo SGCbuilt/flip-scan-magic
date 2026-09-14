@@ -324,10 +324,10 @@ Respond ONLY with JSON: {"records":[{...}]}`
     const raw: any[] = Array.isArray(parsed.records) ? parsed.records : []
 
     const records = raw.map((r: any, i: number) => {
-      const url = String(r.url || '')
+      const url = isAllowedAuctionSource(String(r.url || '')) ? String(r.url) : src.url
       const date = parseDate(String(r.auctionDate || '')) || parseDate(`${r.description || ''}`)
       const addr = String(r.address || '').trim()
-      const text = `${r.auctionType || ''} ${r.description || ''} ${r.title || ''}`
+      const text = `${r.auctionType || ''} ${r.description || ''} ${r.title || ''} ${src.title}`
       return {
         id: `web-${i}-${addr.slice(0, 24)}`,
         address: addr,
