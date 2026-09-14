@@ -10,6 +10,10 @@ import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../integrations/supabase/client'
 import { toast } from '../lib/toast'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
+import {
+  loadSearchLog, saveSearch, deleteSearch, syncSearchLog,
+  type SavedAuctionSearch,
+} from '../lib/auctionSearchLog'
 
 const NAVY = '#0F2460'
 const NAVY_2 = '#1B3A8C'
