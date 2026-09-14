@@ -225,18 +225,42 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2">
-        {NAV.map(section => (
-          <div key={section.section} className="mb-1">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-1.5">
+        {NAV.map((section, si) => {
+          const hasActive = section.items.some(i => i.id === activeTab)
+          const open      = !closedSections[section.section] || hasActive
+          return (
+          <div key={section.section} className="mb-0.5">
             {!collapsed && (
-              <div className="px-3 pt-3 pb-1 text-[9px] font-bold tracking-widest uppercase"
-                style={{ color: 'rgba(255,255,255,0.28)' }}>
-                {section.section}
+              <button
+                onClick={() => toggleSection(section.section)}
+                className="w-full flex items-center gap-2 cursor-pointer bg-transparent border-none text-left"
+                style={{ padding: '10px 12px 6px' }}
+                aria-expanded={open}>
+                {section.step ? (
+                  <span className="flex items-center justify-center flex-shrink-0 rounded-md text-[9px] font-black"
+                    style={{ width: 16, height: 16, background: section.color + '26', color: section.color }}>
+                    {section.step}
+                  </span>
+                ) : (
+                  <span className="flex-shrink-0 rounded-full" style={{ width: 5, height: 5, marginLeft: 5, marginRight: 5, background: section.color + '99' }} />
+                )}
+                <span className="flex-1 text-[9.5px] font-bold tracking-widest uppercase truncate"
+                  style={{ color: hasActive ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.38)' }}>
+                  {section.section}
+                </span>
+                <span className="text-[8px] leading-none transition-transform"
+                  style={{ color: 'rgba(255,255,255,0.3)', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>▾</span>
+              </button>
+            )}
+            {!collapsed && open && section.caption && (
+              <div className="text-[9px] leading-tight px-3 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)', paddingLeft: 34 }}>
+                {section.caption}
               </div>
             )}
-            {collapsed && <div className="my-2 mx-3 h-px" style={{ background: 'rgba(255,255,255,0.08)' }}/>}
+            {collapsed && si > 0 && <div className="my-2 mx-3 h-px" style={{ background: 'rgba(255,255,255,0.08)' }}/>}
 
-            {section.items.map(item => {
+            {(collapsed || open) && section.items.map(item => {
               const badge  = item.badge?.()
               const active = activeTab === item.id
               return (
@@ -245,35 +269,36 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
                   onClick={() => onTab(item.id)}
                   onMouseEnter={() => setHoveredTip(collapsed ? item.label + ' — ' + item.tip : null)}
                   onMouseLeave={() => setHoveredTip(null)}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? item.label : item.tip}
                   className="w-full flex items-center gap-2.5 cursor-pointer border-none transition-all relative group" aria-label={item.label}
                   style={{
                     padding:    collapsed ? '8px 0' : '7px 10px 7px 12px',
-                    margin:     '1px 4px',
-                    width:      'calc(100% - 8px)',
+                    margin:     '1px 6px',
+                    width:      'calc(100% - 12px)',
                     borderRadius: 8,
                     background: active
-                      ? 'rgba(255,255,255,0.12)'
+                      ? 'linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05))'
                       : 'transparent',
+                    boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,0.08)' : 'none',
                     justifyContent: collapsed ? 'center' : 'flex-start',
                   }}>
 
                   {/* Active indicator */}
                   {active && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-                      style={{ background: '#60A5FA' }}/>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
+                      style={{ width: 3, height: 18, background: section.color }}/>
                   )}
 
                   {/* Icon */}
                   <span className="text-base leading-none flex-shrink-0"
-                    style={{ opacity: active ? 1 : 0.65, filter: active ? 'none' : 'grayscale(0.3)' }}>
+                    style={{ opacity: active ? 1 : 0.6, filter: active ? 'none' : 'grayscale(0.4)' }}>
                     {item.icon}
                   </span>
 
                   {/* Label */}
                   {!collapsed && (
-                    <span className="text-xs font-medium flex-1 text-left truncate"
-                      style={{ color: active ? 'white' : 'rgba(255,255,255,0.65)', fontWeight: active ? 600 : 400 }}>
+                    <span className="text-xs flex-1 text-left truncate"
+                      style={{ color: active ? 'white' : 'rgba(255,255,255,0.62)', fontWeight: active ? 600 : 400, letterSpacing: '0.01em' }}>
                       {item.label}
                     </span>
                   )}
@@ -298,8 +323,9 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
               )
             })}
           </div>
-        ))}
+        )})}
       </div>
+
 
       {/* Collapse toggle */}
       <button
