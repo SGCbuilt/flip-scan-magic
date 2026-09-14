@@ -452,11 +452,11 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const targets = [...hits].sort((a, b) => scoreHit(b) - scoreHit(a)).slice(0, limit)
   let okCount = 0
   const pages: Array<{ url: string; title: string; text: string }> = []
-  const attempts: Array<{ url: string; status: string; chars: number }> = []
+  const attempts: Array<{ url: string; status: string; chars: number; via: string }> = []
 
   const scrapeOne = async (h: { url: string; title: string }): Promise<void> => {
     const r = await scrapeUrl(h.url)
-    attempts.push({ url: h.url, status: r.status, chars: r.chars })
+    attempts.push({ url: h.url, status: r.status, chars: r.chars, via: r.via })
     if (!r.text) return
     okCount++
     pages.push({ url: h.url, title: h.title, text: r.text })
