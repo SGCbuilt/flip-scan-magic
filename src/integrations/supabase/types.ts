@@ -38,6 +38,27 @@ export type Database = {
         }
         Relationships: []
       }
+      auction_scrape_cache: {
+        Row: {
+          content: string
+          fetched_at: string
+          id: string
+          url: string
+        }
+        Insert: {
+          content: string
+          fetched_at?: string
+          id?: string
+          url: string
+        }
+        Update: {
+          content?: string
+          fetched_at?: string
+          id?: string
+          url?: string
+        }
+        Relationships: []
+      }
       auction_seen: {
         Row: {
           addr_key: string

@@ -211,7 +211,7 @@ function countySlug(county: string): string {
 
 async function fetchPlatformPages(state: string, county: string) {
   const slug = countySlug(county)
-  const attempts: Array<{ platform: string; url: string; status: string; chars: number }> = []
+  const attempts: Array<{ platform: string; url: string; status: string; chars: number; via: string }> = []
   const pages: Array<{ url: string; title: string; text: string; platform: string }> = []
   if (!slug) {
     return {
@@ -233,7 +233,7 @@ async function fetchPlatformPages(state: string, county: string) {
 
   await Promise.all(targets.map(async t => {
     const r = await scrapeUrl(t.url)
-    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars })
+    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars, via: r.via })
     if (r.text) {
       pages.push({ url: t.url, title: t.title, text: r.text, platform: t.platform })
       platforms.push({ platform: t.platform, url: t.url, status: 'fetched', records: 0 })
@@ -260,8 +260,30 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   const searchErrors: string[] = []
 
   // Throttled: Firecrawl rate-limits bursts, and a 429 wipes the whole scan.
+  let cachedQueries = 0
+  const collect = (arr: any[]) => {
+    for (const r of arr) {
+      const url = r.url || ''
+      if (!url || seen.has(url)) continue
+      if (!isAllowedAuctionSource(url)) continue
+      seen.add(url)
+      const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
+      hits.push({ title: r.title || '', description: body, url })
+    }
+  }
+
   const runQuery = async (q: string, attempt = 0): Promise<void> => {
     try {
+      if (attempt === 0) {
+        const cached = await cacheGet(`search:${q}`)
+        if (cached) {
+          try {
+            collect(JSON.parse(cached))
+            ok++; cachedQueries++
+            return
+          } catch { /* bad cache row — fall through to a live search */ }
+        }
+      }
       const res = await fetch(FIRECRAWL_SEARCH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -279,31 +301,137 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       ok++
       const data = await res.json()
       const arr: any[] = data?.data?.web || data?.data || data?.results || []
-      for (const r of arr) {
-        const url = r.url || ''
-        if (!url || seen.has(url)) continue
-        if (!isAllowedAuctionSource(url)) continue
-        seen.add(url)
-        const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
-        hits.push({ title: r.title || '', description: body, url })
+      if (arr.length) {
+        const slim = arr.map((r: any) => ({
+          url: r.url || '', title: r.title || '',
+          description: String(r.markdown || r.description || r.snippet || '').slice(0, 3500),
+        }))
+        await cachePut(`search:${q}`, JSON.stringify(slim))
       }
+      collect(arr)
     } catch (e) {
       searchErrors.push(String(e).slice(0, 140))
     }
   }
+
 
   for (let i = 0; i < queries.length; i += 3) {
     await Promise.all(queries.slice(i, i + 3).map(q => runQuery(q)))
     if (i + 3 < queries.length) await new Promise(r => setTimeout(r, 700))
   }
 
-  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
+  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
-// Shared single-page scrape (Firecrawl). Never throws — returns a status string.
-async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; status: string; chars: number }> {
+// ── Scrape cache (12h TTL) ────────────────────────────────────────────────
+// Avoids re-fetching (and re-paying for) the same URL/query within a short
+// window. Service-role only; never throws — a cache miss is always safe.
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+
+function cacheHeaders() {
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  return { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' }
+}
+
+async function cacheGet(key: string): Promise<string | null> {
+  const base = Deno.env.get('SUPABASE_URL')
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!base || !svc) return null
+  try {
+    const res = await fetch(
+      `${base}/rest/v1/auction_scrape_cache?url=eq.${encodeURIComponent(key)}&select=content,fetched_at`,
+      { headers: cacheHeaders() },
+    )
+    if (!res.ok) return null
+    const rows = await res.json()
+    const row = Array.isArray(rows) ? rows[0] : null
+    if (!row) return null
+    if (Date.now() - new Date(row.fetched_at).getTime() > CACHE_TTL_MS) return null
+    return String(row.content || '') || null
+  } catch { return null }
+}
+
+async function cachePut(key: string, content: string): Promise<void> {
+  const base = Deno.env.get('SUPABASE_URL')
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!base || !svc || !content) return
+  try {
+    await fetch(`${base}/rest/v1/auction_scrape_cache?on_conflict=url`, {
+      method: 'POST',
+      headers: { ...cacheHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ url: key, content: content.slice(0, 200000), fetched_at: new Date().toISOString() }),
+    })
+  } catch { /* cache is best-effort */ }
+}
+
+// ── Free HTML → text ──────────────────────────────────────────────────────
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6]|table)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim()
+}
+
+// Client-rendered shell: almost no text but a root mount node / heavy scripts.
+function looksLikeJsShell(html: string, text: string): boolean {
+  if (text.length >= 300) return false
+  const hasRoot = /<div[^>]+id=["'](root|app|__next)["']/i.test(html)
+  const scriptCount = (html.match(/<script/gi) || []).length
+  return hasRoot || scriptCount >= 3
+}
+
+type ScrapeResult = { text: string; status: string; chars: number; via: 'cache' | 'free-fetch' | 'firecrawl' | 'none' }
+
+// Shared single-page scrape: cache → free plain fetch → Firecrawl fallback.
+// Never throws — returns a status string.
+async function scrapeUrl(url: string, attempt = 0): Promise<ScrapeResult> {
+  if (attempt === 0) {
+    const cached = await cacheGet(url)
+    if (cached && cached.length > 200) {
+      return { text: cached.slice(0, 14000), status: 'ok (cached)', chars: cached.length, via: 'cache' }
+    }
+
+    // Step 1 — free plain HTTP fetch.
+    try {
+      const ctrl = new AbortController()
+      const to = setTimeout(() => ctrl.abort(), 20000)
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; SGCflipBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+        redirect: 'follow',
+        signal: ctrl.signal,
+      })
+      clearTimeout(to)
+      // A genuine 404/410 means the page doesn't exist — paying Firecrawl to
+      // confirm that would just burn a credit.
+      if (res.status === 404 || res.status === 410) {
+        return { text: '', status: `HTTP ${res.status} (free) — page not found`, chars: 0, via: 'free-fetch' }
+      }
+      if (res.ok) {
+        const html = await res.text()
+        const text = htmlToText(html)
+        if (text.length > 200 && !looksLikeJsShell(html, text)) {
+          await cachePut(url, text.slice(0, 40000))
+          return { text: text.slice(0, 14000), status: 'ok (free)', chars: text.length, via: 'free-fetch' }
+        }
+      }
+    } catch { /* fall through to Firecrawl */ }
+  }
+
+  // Step 2 — paid Firecrawl fallback.
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { text: '', status: 'FIRECRAWL_API_KEY missing', chars: 0 }
+  if (!key) return { text: '', status: 'free fetch unusable · FIRECRAWL_API_KEY missing', chars: 0, via: 'none' }
   try {
     const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
       method: 'POST',
@@ -316,23 +444,25 @@ async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; stat
         await new Promise(r => setTimeout(r, 2500))
         return scrapeUrl(url, attempt + 1)
       }
-      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 }
+      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0, via: 'firecrawl' }
     }
     const data = await res.json()
     const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
-    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length }
-    return { text: md.slice(0, 14000), status: 'ok', chars: md.length }
+    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length, via: 'firecrawl' }
+    await cachePut(url, md.slice(0, 40000))
+    return { text: md.slice(0, 14000), status: 'ok', chars: md.length, via: 'firecrawl' }
   } catch (e) {
-    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0 }
+    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0, via: 'firecrawl' }
   }
 }
+
 
 // ── Layer 2b: open each notice page and read the whole list ───────────────
 // Search snippets rarely contain the property rows; the actual addresses and
 // sale dates live on the page itself, so we scrape the most promising pages.
 async function scrapeNoticePages(hits: Array<{ title: string; description: string; url: string }>, limit = 8) {
-  const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { pages: [], scraped: 0, scrapeOk: 0 }
+  // No Firecrawl key check here any more — the free fetch path works without it.
+
 
   // Prioritise pages whose title/url smells like an actual sale list.
   const scoreHit = (h: { title: string; url: string }) => {
@@ -350,11 +480,11 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const targets = [...hits].sort((a, b) => scoreHit(b) - scoreHit(a)).slice(0, limit)
   let okCount = 0
   const pages: Array<{ url: string; title: string; text: string }> = []
-  const attempts: Array<{ url: string; status: string; chars: number }> = []
+  const attempts: Array<{ url: string; status: string; chars: number; via: string }> = []
 
   const scrapeOne = async (h: { url: string; title: string }): Promise<void> => {
     const r = await scrapeUrl(h.url)
-    attempts.push({ url: h.url, status: r.status, chars: r.chars })
+    attempts.push({ url: h.url, status: r.status, chars: r.chars, via: r.via })
     if (!r.text) return
     okCount++
     pages.push({ url: h.url, title: h.title, text: r.text })
@@ -679,6 +809,18 @@ Deno.serve(async (req) => {
     })
     const platformOk = platformDetail.some(p => p.status === 'fetched' || p.status === 'found via targeted search')
 
+    // Cost accounting: how many page reads were free vs paid this scan.
+    const allAttempts = [...((scrape as any).attempts || []), ...platform.attempts] as Array<{ via?: string }>
+    const viaCount = (v: string) => allAttempts.filter(a => a.via === v).length
+    const costSummary = {
+      freeFetch: viaCount('free-fetch'),
+      cached: viaCount('cache'),
+      firecrawl: viaCount('firecrawl'),
+      searchQueriesBilled: Math.max(0, (search.debug.queriesRun || 0) - (((search.debug as any).queriesCached) || 0)),
+      searchQueriesCached: ((search.debug as any).queriesCached) || 0,
+    }
+    const costNote = `${costSummary.freeFetch} free, ${costSummary.cached} cached, ${costSummary.firecrawl} firecrawl · ${costSummary.searchQueriesBilled} search queries billed`
+
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
       { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
@@ -689,7 +831,9 @@ Deno.serve(async (req) => {
         platformDirect: platformDetail,
         health: platformOk ? 'ok' : 'no_platform_data',
       },
+      { name: 'Page reads (cost)', note: costNote, count: costSummary.freeFetch + costSummary.cached + costSummary.firecrawl, costSummary },
     ]
+
 
     return new Response(JSON.stringify({
       area, state, county, daysAhead,
@@ -706,6 +850,7 @@ Deno.serve(async (req) => {
         scrapeAttempts: (scrape as any).attempts || [],
         platformAttempts: platform.attempts,
         platformDirect: platformDetail,
+        costSummary,
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
