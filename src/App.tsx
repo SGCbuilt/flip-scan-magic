@@ -13,6 +13,7 @@ import PropertyModal     from './components/PropertyModal'
 import MarketPanel       from './components/MarketPanel'
 import DealHunter        from './components/DealHunter'
 import ChathamPermits    from './components/ChathamPermits'
+import AuctionRadar      from './components/AuctionRadar'
 import ReferenceHub      from './components/ReferenceHub'
 import MarketAnalyzer    from './components/MarketAnalyzer'
 import FinancialTools    from './components/FinancialTools'
@@ -51,7 +52,7 @@ type TabId =
   | 'hub' | 'home' | 'kpi'
   | 'radar' | 'velocity' | 'stack' | 'drive'
   | 'pipeline' | 'tasks' | 'drip' | 'project' | 'pl'
-  | 'deals' | 'hunt' | 'chatham'
+  | 'deals' | 'hunt' | 'chatham' | 'auction'
   | 'wholesale' | 'buyers'
   | 'financial' | 'market' | 'analyzer' | 'reference'
   | 'settings'
@@ -91,6 +92,7 @@ const NAV: NavSection[] = [
       { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
       { id: 'deals',    label: 'Deal Scanner',     icon: '🔍', tip: 'MLS + off-market search with flip scoring' },
       { id: 'hunt',     label: 'Deal Hunter',      icon: '🎰', tip: 'Advanced criteria-based property hunting' },
+      { id: 'auction',  label: 'Auction Radar',    icon: '⚖️', tip: 'Trustee, sheriff & tax-foreclosure sales with dates and equity spread' },
       { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
   },
