@@ -585,6 +585,19 @@ export default function App() {
     return !hasKey
   })
 
+  // Track narrow screens — sidebar becomes an overlay drawer on phones
+  useEffect(() => {
+    const onResize = () => {
+      const narrow = window.innerWidth < 768
+      setIsNarrow(prev => {
+        if (prev !== narrow) setSidebarHidden(narrow)
+        return narrow
+      })
+    }
+    window.addEventListener('resize', onResize)
+    return () => window.removeEventListener('resize', onResize)
+  }, [])
+
   // Refresh badge every 60s
   useEffect(() => {
     const upd = () => { const s = getTaskStats(); setTaskBadge(s.overdue + s.dueToday) }
