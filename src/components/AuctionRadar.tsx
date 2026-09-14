@@ -391,20 +391,36 @@ export default function AuctionRadar() {
         {/* Search panel */}
         <div className="rounded-xl border p-4 mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
-            <div className="col-span-2 md:col-span-2">
-              <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>City</label>
-              <input value={city} onChange={e => setCity(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && runScan()}
-                placeholder="Norfolk"
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
-                style={{ borderColor: '#D1D9E6', color: NAVY }} />
-            </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>State</label>
-              <input value={stateCode} onChange={e => setStateCode(e.target.value.toUpperCase().slice(0, 2))}
-                placeholder="VA"
-                className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
-                style={{ borderColor: '#D1D9E6', color: NAVY }} />
+              <select value={stateCode}
+                onChange={e => { setStateCode(e.target.value); setCity(''); setCustomCity(false) }}
+                className="w-full mt-1 px-2 py-2 text-sm rounded-lg border outline-none cursor-pointer"
+                style={{ borderColor: '#D1D9E6', color: NAVY, background: 'white' }}>
+                {MARKET_STATES.map(s => <option key={s} value={s}>{STATE_NAME[s]} ({s})</option>)}
+              </select>
+            </div>
+            <div className="col-span-2 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>City / market</label>
+              {customCity ? (
+                <input value={city} autoFocus onChange={e => setCity(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && runScan()}
+                  placeholder="Type any city"
+                  className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
+                  style={{ borderColor: '#D1D9E6', color: NAVY }} />
+              ) : (
+                <select value={city}
+                  onChange={e => {
+                    if (e.target.value === '__custom') { setCustomCity(true); setCity('') }
+                    else setCity(e.target.value)
+                  }}
+                  className="w-full mt-1 px-2 py-2 text-sm rounded-lg border outline-none cursor-pointer"
+                  style={{ borderColor: '#D1D9E6', color: NAVY, background: 'white' }}>
+                  <option value="">Statewide — all of {STATE_NAME[stateCode] || stateCode}</option>
+                  {(MARKETS[stateCode] || []).map(c => <option key={c} value={c}>{c}</option>)}
+                  <option value="__custom">Other city…</option>
+                </select>
+              )}
             </div>
             <div>
               <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>County</label>
@@ -429,6 +445,12 @@ export default function AuctionRadar() {
               </select>
             </div>
           </div>
+
+          {customCity && (
+            <button onClick={() => { setCustomCity(false); setCity('') }}
+              className="mt-2 text-[11px] underline bg-transparent border-none cursor-pointer p-0"
+              style={{ color: NAVY_2 }}>← back to the market list</button>
+          )}
 
           <div className="flex flex-wrap items-end gap-3 mt-3">
             <div>
