@@ -288,16 +288,21 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
       idempotencyKey: `agent-digest-${w.id}-${new Date().toISOString().slice(0, 10)}-${toReport.length}${force ? `-test-${Date.now()}` : ''}`,
       templateData: {
         areaLabel, appUrl: APP_URL,
+        marketLabel: market?.label || '',
         scannedAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         scanned: records.length, newCount: fresh.length, addedCount,
-        records: toReport.slice(0, 20).map(r => ({
-          address: r.address, city: r.city, state: r.state,
-          grade: r.grade, score: r.score,
-          signal: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
-          autoAdded: !!r.__autoAdded, sequenceStarted: !!r.__sequenceStarted,
-          sourceUrl: r.sourceUrl,
-        })),
+        records: toReport
+          .slice()
+          .sort((a, b) => (b.__rank || b.score || 0) - (a.__rank || a.score || 0))
+          .slice(0, 20).map(r => ({
+            address: r.address, city: r.city, state: r.state,
+            grade: r.grade, score: r.__rank || r.score,
+            signal: `${r.auctionType || 'Auction'}${r.auctionDate ? ` · sale ${r.auctionDate}` : ''}`,
+            autoAdded: !!r.__autoAdded, sequenceStarted: !!r.__sequenceStarted,
+            sourceUrl: r.sourceUrl,
+          })),
       },
+
     })
     emailed = !send?.error && send?.success !== false
     if (!emailed) notes.push(`digest not sent (${send?.error || send?.reason || 'unknown'})`)
