@@ -69,14 +69,17 @@ interface NavItem {
 
 interface NavSection {
   section: string
-  color:   string
+  step?:   string   // stage number in the deal flow
+  caption: string   // what this stage is for
+  color:   string   // stage accent
   items:   NavItem[]
 }
 
 const NAV: NavSection[] = [
   {
     section: 'Command',
-    color:   'rgba(255,255,255,0.5)',
+    caption: 'Start here each morning',
+    color:   '#94A3B8',
     items: [
       { id: 'hub',  label: 'Portal Hub',     icon: '🏛️', tip: 'SGC-style command center — every tool in one grid' },
       { id: 'home', label: 'Morning Brief',  icon: '☀️', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Daily digest — leads, tasks, stale pipeline' },
@@ -84,63 +87,73 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    section: 'Find Deals',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Find',
+    step:    '1',
+    caption: 'Source new opportunities',
+    color:   '#60A5FA',
     items: [
-      { id: 'radar',    label: 'Lead Radar',      icon: '📡', tip: '11 gov APIs — Norfolk, VB, Charlotte, Raleigh…' },
-      { id: 'velocity', label: 'Neighborhood',     icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
-      { id: 'stack',    label: 'List Stack',       icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
-      { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
-      { id: 'deals',    label: 'Deal Search',     icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
-
+      { id: 'deals',    label: 'Deal Search',      icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
       { id: 'auction',  label: 'Auction Radar',    icon: '⚖️', tip: 'Trustee, sheriff & tax-foreclosure sales with dates and equity spread' },
+      { id: 'radar',    label: 'Lead Radar',       icon: '📡', tip: '11 gov APIs — Norfolk, VB, Charlotte, Raleigh…' },
+      { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
       { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
   },
   {
-    section: 'Work Deals',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Analyze',
+    step:    '2',
+    caption: 'Check the numbers and the area',
+    color:   '#38BDF8',
     items: [
-      { id: 'pipeline', label: 'Pipeline CRM',     icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
-      { id: 'tasks',    label: 'Tasks',             icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
-      { id: 'drip',     label: 'Drip Sequences',   icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
-      { id: 'agent',    label: 'Research Agent',   icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
+      { id: 'financial', label: 'Financial Tools', icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
+      { id: 'market',    label: 'Market Intel',    icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
+      { id: 'velocity',  label: 'Neighborhood',    icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
+      { id: 'stack',     label: 'List Stack',      icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
+      { id: 'reference', label: 'Lead Sources',    icon: '📚', tip: 'Guide to all data sources and gov APIs' },
+    ],
+  },
+  {
+    section: 'Engage',
+    step:    '3',
+    caption: 'Work the leads to a contract',
+    color:   '#34D399',
+    items: [
+      { id: 'pipeline', label: 'Pipeline CRM',   icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
+      { id: 'tasks',    label: 'Tasks',          icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
+      { id: 'drip',     label: 'Drip Sequences', icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
+      { id: 'agent',    label: 'Research Agent', icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
     ],
   },
   {
     section: 'Execute',
-    color:   'rgba(255,255,255,0.5)',
+    step:    '4',
+    caption: 'Run the job, track the money',
+    color:   '#FBBF24',
     items: [
-      { id: 'project', label: 'Project Clock',     icon: '⏱️', tip: 'Construction timeline tracker — carry cost clock' },
-      { id: 'pl',      label: 'Deal P&L',          icon: '📒', tip: 'Actuals vs estimates — costing intelligence' },
+      { id: 'project', label: 'Project Clock', icon: '⏱️', tip: 'Construction timeline tracker — carry cost clock' },
+      { id: 'pl',      label: 'Deal P&L',      icon: '📒', tip: 'Actuals vs estimates — costing intelligence' },
     ],
   },
   {
-    section: 'Wholesale',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Exit',
+    step:    '5',
+    caption: 'Assign or sell the deal',
+    color:   '#F472B6',
     items: [
-      { id: 'wholesale', label: 'Wholesale',       icon: '🏷️', tip: 'Deal listings, PDF generator, email blast' },
-      { id: 'buyers',    label: 'Buyer List',      icon: '👥', tip: 'Buy box matching + one-click deal blast' },
-    ],
-  },
-  {
-    section: 'Research',
-    color:   'rgba(255,255,255,0.5)',
-    items: [
-      { id: 'financial',  label: 'Financial Tools',  icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
-      { id: 'market',     label: 'Market Intel',     icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
-
-      { id: 'reference',  label: 'Lead Sources',     icon: '📚', tip: 'Guide to all data sources and gov APIs' },
+      { id: 'wholesale', label: 'Wholesale',  icon: '🏷️', tip: 'Deal listings, PDF generator, email blast' },
+      { id: 'buyers',    label: 'Buyer List', icon: '👥', tip: 'Buy box matching + one-click deal blast' },
     ],
   },
   {
     section: 'System',
-    color:   'rgba(255,255,255,0.5)',
+    caption: 'Keys, sync and preferences',
+    color:   '#94A3B8',
     items: [
       { id: 'settings', label: 'Settings',  icon: '⚙️', tip: 'API keys, cloud sync, SMS templates, direct mail' },
     ],
   },
 ]
+
 
 // ── Deal Scanner defaults ─────────────────────────────────────────────────────
 const DEFAULT_PARAMS: SearchParams = {
@@ -173,12 +186,20 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
   onToggle:  () => void
 }) {
   const [hoveredTip, setHoveredTip] = useState<string | null>(null)
+  const [closedSections, setClosedSections] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem('fscan_nav_closed') || '{}') } catch { return {} }
+  })
+  const toggleSection = (name: string) => setClosedSections(prev => {
+    const next = { ...prev, [name]: !prev[name] }
+    try { localStorage.setItem('fscan_nav_closed', JSON.stringify(next)) } catch { /* ignore */ }
+    return next
+  })
 
   return (
     <aside
       className="flex flex-col flex-shrink-0 h-full overflow-hidden transition-all duration-200 relative"
       style={{
-        width:      collapsed ? 56 : 220,
+        width:      collapsed ? 56 : 236,
         background: '#0F2460',
         borderRight:'1px solid rgba(255,255,255,0.07)',
       }}>
@@ -204,18 +225,42 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
       </div>
 
       {/* Nav */}
-      <div className="flex-1 overflow-y-auto overflow-x-hidden py-2">
-        {NAV.map(section => (
-          <div key={section.section} className="mb-1">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden py-1.5">
+        {NAV.map((section, si) => {
+          const hasActive = section.items.some(i => i.id === activeTab)
+          const open      = !closedSections[section.section] || hasActive
+          return (
+          <div key={section.section} className="mb-0.5">
             {!collapsed && (
-              <div className="px-3 pt-3 pb-1 text-[9px] font-bold tracking-widest uppercase"
-                style={{ color: 'rgba(255,255,255,0.28)' }}>
-                {section.section}
+              <button
+                onClick={() => toggleSection(section.section)}
+                className="w-full flex items-center gap-2 cursor-pointer bg-transparent border-none text-left"
+                style={{ padding: '10px 12px 6px' }}
+                aria-expanded={open}>
+                {section.step ? (
+                  <span className="flex items-center justify-center flex-shrink-0 rounded-md text-[9px] font-black"
+                    style={{ width: 16, height: 16, background: section.color + '26', color: section.color }}>
+                    {section.step}
+                  </span>
+                ) : (
+                  <span className="flex-shrink-0 rounded-full" style={{ width: 5, height: 5, marginLeft: 5, marginRight: 5, background: section.color + '99' }} />
+                )}
+                <span className="flex-1 text-[9.5px] font-bold tracking-widest uppercase truncate"
+                  style={{ color: hasActive ? 'rgba(255,255,255,0.72)' : 'rgba(255,255,255,0.38)' }}>
+                  {section.section}
+                </span>
+                <span className="text-[8px] leading-none transition-transform"
+                  style={{ color: 'rgba(255,255,255,0.3)', transform: open ? 'rotate(0deg)' : 'rotate(-90deg)' }}>▾</span>
+              </button>
+            )}
+            {!collapsed && open && section.caption && (
+              <div className="text-[9px] leading-tight px-3 pb-1.5" style={{ color: 'rgba(255,255,255,0.25)', paddingLeft: 34 }}>
+                {section.caption}
               </div>
             )}
-            {collapsed && <div className="my-2 mx-3 h-px" style={{ background: 'rgba(255,255,255,0.08)' }}/>}
+            {collapsed && si > 0 && <div className="my-2 mx-3 h-px" style={{ background: 'rgba(255,255,255,0.08)' }}/>}
 
-            {section.items.map(item => {
+            {(collapsed || open) && section.items.map(item => {
               const badge  = item.badge?.()
               const active = activeTab === item.id
               return (
@@ -224,35 +269,36 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
                   onClick={() => onTab(item.id)}
                   onMouseEnter={() => setHoveredTip(collapsed ? item.label + ' — ' + item.tip : null)}
                   onMouseLeave={() => setHoveredTip(null)}
-                  title={collapsed ? item.label : undefined}
+                  title={collapsed ? item.label : item.tip}
                   className="w-full flex items-center gap-2.5 cursor-pointer border-none transition-all relative group" aria-label={item.label}
                   style={{
                     padding:    collapsed ? '8px 0' : '7px 10px 7px 12px',
-                    margin:     '1px 4px',
-                    width:      'calc(100% - 8px)',
+                    margin:     '1px 6px',
+                    width:      'calc(100% - 12px)',
                     borderRadius: 8,
                     background: active
-                      ? 'rgba(255,255,255,0.12)'
+                      ? 'linear-gradient(90deg, rgba(255,255,255,0.14), rgba(255,255,255,0.05))'
                       : 'transparent',
+                    boxShadow: active ? 'inset 0 0 0 1px rgba(255,255,255,0.08)' : 'none',
                     justifyContent: collapsed ? 'center' : 'flex-start',
                   }}>
 
                   {/* Active indicator */}
                   {active && (
-                    <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-full"
-                      style={{ background: '#60A5FA' }}/>
+                    <div className="absolute left-0 top-1/2 -translate-y-1/2 rounded-full"
+                      style={{ width: 3, height: 18, background: section.color }}/>
                   )}
 
                   {/* Icon */}
                   <span className="text-base leading-none flex-shrink-0"
-                    style={{ opacity: active ? 1 : 0.65, filter: active ? 'none' : 'grayscale(0.3)' }}>
+                    style={{ opacity: active ? 1 : 0.6, filter: active ? 'none' : 'grayscale(0.4)' }}>
                     {item.icon}
                   </span>
 
                   {/* Label */}
                   {!collapsed && (
-                    <span className="text-xs font-medium flex-1 text-left truncate"
-                      style={{ color: active ? 'white' : 'rgba(255,255,255,0.65)', fontWeight: active ? 600 : 400 }}>
+                    <span className="text-xs flex-1 text-left truncate"
+                      style={{ color: active ? 'white' : 'rgba(255,255,255,0.62)', fontWeight: active ? 600 : 400, letterSpacing: '0.01em' }}>
                       {item.label}
                     </span>
                   )}
@@ -277,8 +323,9 @@ function Sidebar({ activeTab, onTab, collapsed, onToggle }: {
               )
             })}
           </div>
-        ))}
+        )})}
       </div>
+
 
       {/* Collapse toggle */}
       <button
@@ -335,12 +382,12 @@ function Topbar({
   const tabTitles: Partial<Record<TabId, string>> = {
     home:     'Morning Brief', kpi: 'KPI Dashboard',
     radar:    'Lead Radar',    velocity: 'Neighborhood Velocity', stack: 'List Stack',
-    drive:    'Drive for Dollars', deals: 'Deal Scanner', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
+    drive:    'Drive for Dollars', deals: 'Deal Search', hunt: 'Deal Hunter', chatham: 'Chatham Permits',
     auction:  'Auction Radar',
     pipeline: 'Pipeline CRM', tasks: 'Tasks', drip: 'Drip Sequences', agent: 'Research Agent',
     project:  'Project Clock', pl: 'Deal P&L',
     wholesale:'Wholesale', buyers: 'Buyer List',
-    financial:'Financial Tools', market: 'Market Trends', analyzer: 'Area Intelligence', reference: 'Lead Sources',
+    financial:'Financial Tools', market: 'Market Intel', analyzer: 'Area Intelligence', reference: 'Lead Sources',
   }
 
   const title = tabTitles[activeTab as TabId] || ''
