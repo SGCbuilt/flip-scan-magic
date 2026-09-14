@@ -51,7 +51,7 @@ export type AppState = 'idle' | 'loading' | 'results' | 'error'
 type TabId =
   | 'hub' | 'home' | 'kpi'
   | 'radar' | 'velocity' | 'stack' | 'drive'
-  | 'pipeline' | 'tasks' | 'drip' | 'project' | 'pl'
+  | 'pipeline' | 'tasks' | 'drip' | 'agent' | 'project' | 'pl'
   | 'deals' | 'hunt' | 'chatham' | 'auction'
   | 'wholesale' | 'buyers'
   | 'financial' | 'market' | 'analyzer' | 'reference'
