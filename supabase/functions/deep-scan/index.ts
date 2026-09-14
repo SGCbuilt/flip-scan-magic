@@ -128,7 +128,7 @@ interface Body {
   ownerName?: string
   parcelId?: string
   deal?: Record<string, unknown>
-  mode?: 'full' | 'permits' | 'distress' | 'summary'
+  mode?: 'full' | 'permits' | 'distress' | 'summary' | 'history' | 'photos'
   context?: Record<string, unknown>
 }
 
@@ -146,6 +146,133 @@ async function invoke(fn: string, body: unknown): Promise<any> {
   })
   const text = await res.text()
   try { return JSON.parse(text) } catch { return { error: text } }
+}
+
+// Bound any step so one slow source can never hang the whole scan.
+function withTimeout<T>(p: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    p,
+    new Promise<T>(resolve => setTimeout(() => resolve(fallback), ms)),
+  ])
+}
+
+// ── PROPERTY HISTORY: sales, tax assessments, value through the years ─────
+export interface HistoryResult {
+  facts: Record<string, unknown> | null
+  sales: Array<{ date: string; event: string; price: number | null }>
+  assessments: Array<{ year: number; value: number | null; land: number | null; improvements: number | null }>
+  taxes: Array<{ year: number; total: number | null }>
+  valueSeries: Array<{ year: number; assessed: number | null; sale: number | null; estimate: number | null }>
+  current: { estimate: number | null; low: number | null; high: number | null; comparables: number } | null
+  appreciation: { fromYear: number; toYear: number; pct: number; cagrPct: number } | null
+  owner: { name: string | null; occupied: boolean | null; tenureYears: number | null }
+  source: string
+  note?: string
+}
+
+const EMPTY_HISTORY: HistoryResult = {
+  facts: null, sales: [], assessments: [], taxes: [], valueSeries: [],
+  current: null, appreciation: null,
+  owner: { name: null, occupied: null, tenureYears: null },
+  source: 'unavailable', note: 'No property record returned',
+}
+
+async function fetchPropertyHistory(address: string, city: string, state: string, zip: string): Promise<HistoryResult> {
+  const full = [address, city, state, zip].filter(Boolean).join(', ')
+  const [recRes, avmRes] = await Promise.all([
+    withTimeout(invoke('rentcast', { endpoint: 'properties', params: { address: full } }), 20000, { error: 'timeout' }),
+    withTimeout(invoke('rentcast', { endpoint: 'avm', params: { address: full } }), 20000, { error: 'timeout' }),
+  ])
+
+  const rec = Array.isArray(recRes) ? recRes[0] : (recRes && !recRes.error ? recRes : null)
+  if (!rec && (!avmRes || avmRes.error)) {
+    return { ...EMPTY_HISTORY, note: String(recRes?.error || avmRes?.error || 'No property record found') }
+  }
+
+  const num = (v: unknown) => (typeof v === 'number' && isFinite(v) ? v : null)
+
+  // Sale / listing history
+  const sales: HistoryResult['sales'] = []
+  const hist = rec?.history && typeof rec.history === 'object' ? rec.history : {}
+  for (const [k, v] of Object.entries<any>(hist)) {
+    const date = String(v?.date || k).slice(0, 10)
+    sales.push({ date, event: String(v?.event || 'Sale'), price: num(v?.price) })
+  }
+  if (rec?.lastSaleDate && !sales.some(s => s.date === String(rec.lastSaleDate).slice(0, 10))) {
+    sales.push({ date: String(rec.lastSaleDate).slice(0, 10), event: 'Sale', price: num(rec.lastSalePrice) })
+  }
+  sales.sort((a, b) => a.date.localeCompare(b.date))
+
+  // Tax assessments and property taxes by year
+  const assessments: HistoryResult['assessments'] = Object.values<any>(rec?.taxAssessments || {})
+    .map(a => ({ year: Number(a?.year), value: num(a?.value), land: num(a?.land), improvements: num(a?.improvements) }))
+    .filter(a => a.year > 1900)
+    .sort((a, b) => a.year - b.year)
+
+  const taxes: HistoryResult['taxes'] = Object.values<any>(rec?.propertyTaxes || {})
+    .map(t => ({ year: Number(t?.year), total: num(t?.total) }))
+    .filter(t => t.year > 1900)
+    .sort((a, b) => a.year - b.year)
+
+  const current = avmRes && !avmRes.error
+    ? {
+        estimate: num(avmRes.price),
+        low: num(avmRes.priceRangeLow),
+        high: num(avmRes.priceRangeHigh),
+        comparables: Array.isArray(avmRes.comparables) ? avmRes.comparables.length : 0,
+      }
+    : null
+
+  // Value through the years: one row per year with whatever evidence exists
+  const thisYear = new Date().getFullYear()
+  const years = new Set<number>", ".length ? new Set<number>() : new Set<number>()
+  assessments.forEach(a => years.add(a.year))
+  sales.forEach(s => { const y = Number(s.date.slice(0, 4)); if (y > 1900) years.add(y) })
+  if (current?.estimate) years.add(thisYear)
+  const valueSeries = [...years].sort((a, b) => a - b).map(year => ({
+    year,
+    assessed: assessments.find(a => a.year === year)?.value ?? null,
+    sale: sales.filter(s => s.date.startsWith(String(year)) && s.price).slice(-1)[0]?.price ?? null,
+    estimate: year === thisYear ? (current?.estimate ?? null) : null,
+  }))
+
+  // Appreciation from the earliest known value to the most recent known value
+  const pts = valueSeries
+    .map(v => ({ year: v.year, val: v.sale ?? v.estimate ?? v.assessed }))
+    .filter(p => p.val && p.val > 0) as Array<{ year: number; val: number }>
+  let appreciation: HistoryResult['appreciation'] = null
+  if (pts.length >= 2) {
+    const a = pts[0], b = pts[pts.length - 1]
+    const span = Math.max(1, b.year - a.year)
+    appreciation = {
+      fromYear: a.year, toYear: b.year,
+      pct: Math.round(((b.val - a.val) / a.val) * 1000) / 10,
+      cagrPct: Math.round(((Math.pow(b.val / a.val, 1 / span) - 1) * 100) * 10) / 10,
+    }
+  }
+
+  const lastSaleYear = sales.filter(s => s.price).slice(-1)[0]?.date?.slice(0, 4)
+  const owner = {
+    name: rec?.owner?.names?.[0] || rec?.owner?.name || null,
+    occupied: typeof rec?.ownerOccupied === 'boolean' ? rec.ownerOccupied : null,
+    tenureYears: lastSaleYear ? thisYear - Number(lastSaleYear) : null,
+  }
+
+  const facts = rec
+    ? {
+        formattedAddress: rec.formattedAddress, propertyType: rec.propertyType,
+        bedrooms: rec.bedrooms, bathrooms: rec.bathrooms, squareFootage: rec.squareFootage,
+        lotSize: rec.lotSize, yearBuilt: rec.yearBuilt, county: rec.county,
+        lastSaleDate: rec.lastSaleDate, lastSalePrice: rec.lastSalePrice,
+        features: rec.features || null, zoning: rec.zoning || null,
+      }
+    : null
+
+  return {
+    facts, sales, assessments, taxes, valueSeries, current, appreciation, owner,
+    source: rec ? 'rentcast' : (current ? 'rentcast-avm' : 'unavailable'),
+    note: rec ? undefined : 'Valuation only — no county record matched this address',
+  }
 }
 
 // ── PERMITS / VIOLATIONS via Firecrawl (multi-query, portal-aware) ────────
