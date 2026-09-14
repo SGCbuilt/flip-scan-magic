@@ -64,6 +64,106 @@ input[type="checkbox"] { accent-color: var(--sgc-navy); }
 }
 .fade-up { animation: fade-up 0.25s ease-out; }
 
+/* Auction Radar — logo builds as verified sources are searched */
+.auction-search-progress {
+  background: var(--sgc-white);
+  border-color: var(--sgc-gray-border);
+  box-shadow: 0 12px 30px rgba(15, 36, 96, 0.08);
+}
+
+.auction-logo-build {
+  position: relative;
+  width: 112px;
+  height: 112px;
+  flex: 0 0 112px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: var(--sgc-white);
+}
+
+.auction-logo-build img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.auction-logo-ghost {
+  position: absolute;
+  inset: 0;
+  opacity: 0.12;
+  filter: grayscale(1);
+}
+
+.auction-logo-fill {
+  position: absolute;
+  inset: 0;
+  transition: clip-path 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auction-logo-scanline {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  height: 2px;
+  background: var(--sgc-navy-light);
+  box-shadow: 0 0 10px rgba(42, 79, 173, 0.55);
+  transition: bottom 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: auction-scan-glow 1.2s ease-in-out infinite;
+}
+
+.auction-progress-track {
+  height: 7px;
+  width: 100%;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--sgc-navy-pale);
+}
+
+.auction-progress-fill {
+  position: relative;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--sgc-navy);
+  transition: width 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.auction-progress-fill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.55), transparent);
+  animation: auction-progress-sheen 1.5s ease-in-out infinite;
+}
+
+.auction-search-dot {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  border-radius: 50%;
+  background: var(--sgc-success);
+  animation: pulse-dot 1.4s ease-in-out infinite;
+}
+
+@keyframes auction-scan-glow {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@keyframes auction-progress-sheen {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auction-logo-fill,
+  .auction-logo-scanline,
+  .auction-progress-fill { transition-duration: 0.01ms; }
+  .auction-logo-scanline,
+  .auction-progress-fill::after,
+  .auction-search-dot { animation: none; }
+}
+
 .backdrop-blur-sm { backdrop-filter: blur(4px); }
 
 /* ── Sidebar layout ── */
