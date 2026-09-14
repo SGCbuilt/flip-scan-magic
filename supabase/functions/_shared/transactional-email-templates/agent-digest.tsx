@@ -24,6 +24,7 @@ interface Props {
   addedCount?: number
   records?: AgentItem[]
   appUrl?: string
+  marketLabel?: string
 }
 
 const Email = ({
