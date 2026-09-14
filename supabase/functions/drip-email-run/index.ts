@@ -118,12 +118,18 @@ Deno.serve(async (req) => {
   const { data: owners, error: ownersError } = await q
   if (ownersError) return json({ error: ownersError.message }, 500)
 
+  // Manual override — paused users get no autonomous emails at all.
+  const { data: pausedRows } = await admin
+    .from('agent_settings').select('user_id').eq('paused', true)
+  const pausedUsers = new Set((pausedRows || []).map((r: any) => r.user_id))
+
   const today = new Date().toISOString().split('T')[0]
   const results: any[] = []
   let sent = 0
 
   for (const row of owners || []) {
     const userId = (row as any).user_id as string
+    if (pausedUsers.has(userId)) continue
     const sequences = await readStore(admin, userId, DRIP_KEY)
     const pipeline = await readStore(admin, userId, PIPELINE_KEY)
     let dirty = false
