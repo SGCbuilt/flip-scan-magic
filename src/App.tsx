@@ -103,6 +103,7 @@ const NAV: NavSection[] = [
       { id: 'pipeline', label: 'Pipeline CRM',     icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
       { id: 'tasks',    label: 'Tasks',             icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
       { id: 'drip',     label: 'Drip Sequences',   icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
+      { id: 'agent',    label: 'Research Agent',   icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
     ],
   },
   {
