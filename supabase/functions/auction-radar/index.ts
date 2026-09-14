@@ -40,7 +40,11 @@ const TRUSTED_HOSTS = [
   'hutchenslawfirm.com', 'shapiroingle.com', 'sales.hutchenslawfirm.com',
   'trusteeservices.net', 'samuel-i-white.com', 'siwpc.net', 'glasserlaw.com',
   'zlsnc.com', 'nc.gov', 'virginia.gov',
+  // County auction platforms + statutory TN posting companies
+  'realauction.com', 'govease.com', 'lienhub.com',
+  'foreclosuretennessee.com', 'betterchoicenotices.com',
 ]
+
 
 function hostOf(url: string): string {
   try { return new URL(url).hostname.toLowerCase().replace(/^www\./, '') } catch { return '' }
@@ -183,8 +187,67 @@ function buildQueries(area: string, state: string, county: string) {
     `"notice of foreclosure sale" ${place} ${year} property address`,
     `${place} upcoming real estate auction list ${year} site:.gov`,
     `"public notice" foreclosure sale ${area} ${state} ${year}`,
+    // RealAuction runs county tax-deed / sheriff sales but has no single predictable
+    // URL per county, so we target it through search instead of a direct fetch.
+    `site:realauction.com ${county || area} county ${state} tax deed OR foreclosure OR sheriff sale`,
+    ...(state === 'TN' ? [
+      `site:foreclosuretennessee.com ${county || area} county tennessee`,
+      `site:betterchoicenotices.com ${county || area} tennessee foreclosure`,
+      `"${county || area} county" tennessee chancery OR "clerk and master" delinquent tax sale`,
+    ] : []),
   ]
 }
+
+// ── Layer 1.5: platform direct fetch ──────────────────────────────────────
+// Some counties run their sales on known platforms with predictable URLs.
+// We hit those directly instead of hoping a generic web search surfaces them.
+function countySlug(county: string): string {
+  return county.toLowerCase()
+    .replace(/\bcounty\b/g, '')
+    .replace(/[^a-z0-9\s-]/g, '')
+    .trim()
+    .replace(/\s+/g, '-')
+}
+
+async function fetchPlatformPages(state: string, county: string) {
+  const slug = countySlug(county)
+  const attempts: Array<{ platform: string; url: string; status: string; chars: number }> = []
+  const pages: Array<{ url: string; title: string; text: string; platform: string }> = []
+  if (!slug) {
+    return {
+      pages, attempts,
+      platforms: [
+        { platform: 'LienHub', status: 'skipped — no county supplied', records: 0 },
+        { platform: 'GovEase', status: 'skipped — no county supplied', records: 0 },
+      ],
+    }
+  }
+
+  const targets: Array<{ platform: string; url: string; title: string }> = []
+  if (state === 'FL') {
+    targets.push({ platform: 'LienHub', url: `https://lienhub.com/county/${slug}`, title: `LienHub — ${county} County tax deed / certificate sales` })
+  }
+  targets.push({ platform: 'GovEase', url: `https://www.govease.com/${slug}`, title: `GovEase — ${county} County tax sale` })
+
+  const platforms: Array<{ platform: string; status: string; records: number; url?: string }> = []
+
+  await Promise.all(targets.map(async t => {
+    const r = await scrapeUrl(t.url)
+    attempts.push({ platform: t.platform, url: t.url, status: r.status, chars: r.chars })
+    if (r.text) {
+      pages.push({ url: t.url, title: t.title, text: r.text, platform: t.platform })
+      platforms.push({ platform: t.platform, url: t.url, status: 'fetched', records: 0 })
+    } else {
+      // 404 / thin page / blocked — fall through silently to the search path.
+      platforms.push({ platform: t.platform, url: t.url, status: r.status, records: 0 })
+    }
+  }))
+
+  if (state !== 'FL') platforms.unshift({ platform: 'LienHub', status: 'skipped — Florida only', records: 0 })
+
+  return { pages, attempts, platforms }
+}
+
 
 async function searchAuctionNotices(area: string, state: string, county: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
@@ -237,6 +300,33 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
+// Shared single-page scrape (Firecrawl). Never throws — returns a status string.
+async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; status: string; chars: number }> {
+  const key = Deno.env.get('FIRECRAWL_API_KEY')
+  if (!key) return { text: '', status: 'FIRECRAWL_API_KEY missing', chars: 0 }
+  try {
+    const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+      body: JSON.stringify({ url, formats: ['markdown'], onlyMainContent: true, timeout: 25000 }),
+    })
+    if (!res.ok) {
+      const t = await res.text().catch(() => '')
+      if ((res.status === 429 || res.status >= 500) && attempt < 1) {
+        await new Promise(r => setTimeout(r, 2500))
+        return scrapeUrl(url, attempt + 1)
+      }
+      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 }
+    }
+    const data = await res.json()
+    const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
+    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length }
+    return { text: md.slice(0, 14000), status: 'ok', chars: md.length }
+  } catch (e) {
+    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0 }
+  }
+}
+
 // ── Layer 2b: open each notice page and read the whole list ───────────────
 // Search snippets rarely contain the property rows; the actual addresses and
 // sale dates live on the page itself, so we scrape the most promising pages.
@@ -251,6 +341,7 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
     if (/(sale|auction|foreclos|trustee|sheriff|tax)/.test(t)) s += 3
     if (/(list|upcoming|schedule|notice|calendar|properties)/.test(t)) s += 3
     if (/(bid4assets|auction\.com|taxva|kanialawfirm|publicnotice|column\.us)/.test(t)) s += 2
+    if (/(realauction|govease|lienhub|foreclosuretennessee|betterchoicenotices)/.test(t)) s += 4
     if (/\.gov/.test(t)) s += 2
     if (/(faq|how-to|blog|about|guide|glossary|law\.lis)/.test(t)) s -= 5
     return s
@@ -261,32 +352,14 @@ async function scrapeNoticePages(hits: Array<{ title: string; description: strin
   const pages: Array<{ url: string; title: string; text: string }> = []
   const attempts: Array<{ url: string; status: string; chars: number }> = []
 
-  const scrapeOne = async (h: { url: string; title: string }, attempt = 0): Promise<void> => {
-    try {
-      const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ url: h.url, formats: ['markdown'], onlyMainContent: true, timeout: 25000 }),
-      })
-      if (!res.ok) {
-        const t = await res.text().catch(() => '')
-        if ((res.status === 429 || res.status >= 500) && attempt < 1) {
-          await new Promise(r => setTimeout(r, 2500))
-          return scrapeOne(h, attempt + 1)
-        }
-        attempts.push({ url: h.url, status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 })
-        return
-      }
-      const data = await res.json()
-      const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
-      attempts.push({ url: h.url, status: md.length >= 200 ? 'ok' : 'too short', chars: md.length })
-      if (md.length < 200) return
-      okCount++
-      pages.push({ url: h.url, title: h.title, text: md.slice(0, 14000) })
-    } catch (e) {
-      attempts.push({ url: h.url, status: `error ${String(e).slice(0, 120)}`, chars: 0 })
-    }
+  const scrapeOne = async (h: { url: string; title: string }): Promise<void> => {
+    const r = await scrapeUrl(h.url)
+    attempts.push({ url: h.url, status: r.status, chars: r.chars })
+    if (!r.text) return
+    okCount++
+    pages.push({ url: h.url, title: h.title, text: r.text })
   }
+
 
   for (let i = 0; i < targets.length; i += 3) {
     await Promise.all(targets.slice(i, i + 3).map(h => scrapeOne(h)))
@@ -523,13 +596,15 @@ Deno.serve(async (req) => {
 
     const area = zip || (city ? `${city}${state ? ', ' + state : ''}` : state)
 
-    const [rc, search] = await Promise.all([
+    const [rc, search, platform] = await Promise.all([
       fromRentCast(loc, { maxPrice }),
       searchAuctionNotices(area, state, county),
+      fetchPlatformPages(state, county),
     ])
 
     const scrape = await scrapeNoticePages(search.hits, 8)
-    const ai = await extractAuctions(area, state, county, scrape.pages, search.hits)
+    const ai = await extractAuctions(area, state, county, [...platform.pages, ...scrape.pages], search.hits)
+
 
     // Validate web-derived records, keep rejects for transparency
     const rejected: Array<{ address: string; url: string; why: string }> = []
@@ -590,14 +665,36 @@ Deno.serve(async (req) => {
       : 'ok'
     const sourceHealth = { firecrawl: firecrawlHealth, rentcast: rentcastHealth, firecrawlError: searchErrs[0] || null, rentcastNote: rc.note }
 
+    // Per-platform attribution: how many validated records each platform gave us.
+    const countFor = (host: string) => webRecords.filter(r => String(r.sourceHost || '').endsWith(host)).length
+    const platformDetail = platform.platforms.map(p => {
+      const host = p.platform === 'LienHub' ? 'lienhub.com' : p.platform === 'GovEase' ? 'govease.com' : 'realauction.com'
+      return { ...p, records: countFor(host) }
+    })
+    // RealAuction has no predictable per-county URL — it comes in via targeted search.
+    platformDetail.push({
+      platform: 'RealAuction',
+      status: search.hits.some(h => hostOf(h.url).endsWith('realauction.com')) ? 'found via targeted search' : 'no realauction.com hits',
+      records: countFor('realauction.com'),
+    })
+    const platformOk = platformDetail.some(p => p.status === 'fetched' || p.status === 'found via targeted search')
+
     const sources = [
       { name: 'RentCast distressed listings', note: rc.note, count: rc.records.length },
       { name: 'Trustee / sheriff / tax-sale notices (web)', note: `${search.debug.queriesOk}/${search.debug.queriesRun} queries ok · ${search.debug.rawHits} official-host hits · ${scrape.scrapeOk}/${scrape.scraped} notice pages read`, count: webRecords.length },
+      {
+        name: 'County auction platforms (direct)',
+        note: platformDetail.map(p => `${p.platform}: ${p.status}${p.records ? ` · ${p.records} records` : ''}`).join(' · '),
+        count: platformDetail.reduce((s, p) => s + p.records, 0),
+        platformDirect: platformDetail,
+        health: platformOk ? 'ok' : 'no_platform_data',
+      },
     ]
 
     return new Response(JSON.stringify({
       area, state, county, daysAhead,
-      records, stats, sources, sourceHealth,
+      records, stats, sources,
+      sourceHealth: { ...sourceHealth, platformDirect: platformOk ? 'ok' : 'no_platform_data' },
       debug: {
         ...search.debug,
         aiUsed: ai.aiUsed,
@@ -607,9 +704,12 @@ Deno.serve(async (req) => {
         pagesRead: scrape.scrapeOk,
         pagesParsed: (ai as any).pagesParsed || 0,
         scrapeAttempts: (scrape as any).attempts || [],
+        platformAttempts: platform.attempts,
+        platformDirect: platformDetail,
         rejected,
         rawHostList: [...new Set(search.hits.map(h => hostOf(h.url)))],
       },
+
       scannedAt: new Date().toISOString(),
     }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } })
 
