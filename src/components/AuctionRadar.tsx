@@ -10,6 +10,10 @@ import { useState, useMemo, useEffect } from 'react'
 import { supabase } from '../integrations/supabase/client'
 import { toast } from '../lib/toast'
 import { addToPipeline, isInPipeline } from '../lib/pipeline'
+import {
+  loadSearchLog, saveSearch, deleteSearch, syncSearchLog,
+  type SavedAuctionSearch,
+} from '../lib/auctionSearchLog'
 
 const NAVY = '#0F2460'
 const NAVY_2 = '#1B3A8C'
@@ -169,6 +173,58 @@ export default function AuctionRadar() {
   const [customCity, setCustomCity] = useState(false)
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null)
 
+  // ── Saved search log ────────────────────────────────────────────────────
+  const [savedLog, setSavedLog] = useState<SavedAuctionSearch[]>(() => loadSearchLog())
+  const [showLog, setShowLog] = useState(false)
+  const [askSave, setAskSave] = useState<{ label: string; count: number } | null>(null)
+  const [restored, setRestored] = useState<string | null>(null)
+
+  useEffect(() => { syncSearchLog().then(setSavedLog).catch(() => {}) }, [])
+
+  function keepSearch() {
+    if (!result) { setAskSave(null); return }
+    const label = askSave?.label || result.area || 'Auction search'
+    const entry: SavedAuctionSearch = {
+      id: `as-${Date.now()}`,
+      label,
+      savedAt: new Date().toISOString(),
+      scannedAt: result.scannedAt,
+      count: result.records?.length || 0,
+      query: { city, state: stateCode, county, zip, daysAhead, maxPrice },
+      result,
+      memos,
+    }
+    setSavedLog(saveSearch(entry))
+    setRestored(entry.id)
+    setAskSave(null)
+    setShowLog(true)
+    toast.success('Search saved — reopen it any time, free')
+  }
+
+  function discardSearch() {
+    setAskSave(null)
+    setResult(null)
+    setMemos({})
+    setRestored(null)
+    toast.info('Search discarded')
+  }
+
+  function openSaved(e: SavedAuctionSearch) {
+    setResult(e.result)
+    setMemos(e.memos || {})
+    setRestored(e.id)
+    setAskSave(null)
+    setErr('')
+    toast.success(`Reopened “${e.label}” — no new cost`)
+  }
+
+  function removeSaved(e: SavedAuctionSearch) {
+    setSavedLog(deleteSearch(e.id))
+    if (restored === e.id) { setResult(null); setMemos({}); setRestored(null) }
+    toast.info('Saved search deleted')
+  }
+
+
   // ── Deep Scan memos (session cache, keyed by record id) ─────────────────
   const [memos, setMemos] = useState<Record<string, Memo>>({})
   const [openMemo, setOpenMemo] = useState<Record<string, boolean>>({})
@@ -323,7 +379,7 @@ export default function AuctionRadar() {
 
   // Sweep a list of markets, merging every result into one deduped board.
   async function sweep(markets: { city: string; state: string }[], label: string) {
-    setLoading(true); setErr(''); setResult(null)
+    setLoading(true); setErr(''); setResult(null); setAskSave(null)
     setBatch({ done: 0, total: markets.length })
     const merged: AuctionRecord[] = []
     const seen = new Set<string>()
@@ -364,6 +420,8 @@ export default function AuctionRadar() {
         debug: { sweep: true, markets: markets.length, failures },
         scannedAt: new Date().toISOString(),
       })
+      setRestored(null)
+      setAskSave({ label, count: merged.length })
       if (merged.length) toast.success(`${merged.length} distressed / auction records across ${markets.length} markets`)
       else toast.warning('No verifiable auction records in those markets yet')
     } catch (e: any) {
@@ -390,7 +448,7 @@ export default function AuctionRadar() {
   }
 
   async function runScan() {
-    setLoading(true); setErr(''); setResult(null)
+    setLoading(true); setErr(''); setResult(null); setAskSave(null)
     try {
       const { data, error } = await supabase.functions.invoke('auction-radar', {
         body: { city, state: stateCode, county, zip, daysAhead, maxPrice, nonce: Date.now() },
@@ -398,7 +456,12 @@ export default function AuctionRadar() {
       if (error) throw error
       if (data?.error) throw new Error(data.error)
       setResult(data as ScanResult)
+      setRestored(null)
       const n = data?.records?.length || 0
+      setAskSave({
+        label: (data as ScanResult)?.area || [city, stateCode].filter(Boolean).join(', ') || 'Auction search',
+        count: n,
+      })
       if (n) toast.success(`${n} auction / distressed record${n === 1 ? '' : 's'} found`)
       else toast.warning('No verifiable auction records for that area and window')
     } catch (e: any) {
@@ -569,6 +632,66 @@ export default function AuctionRadar() {
               </span>
             )}
           </div>
+        </div>
+
+        {/* Save-or-delete prompt after every scan */}
+        {askSave && (
+          <div className="rounded-xl border p-4 mb-4 flex flex-wrap items-center gap-3"
+            style={{ background: '#FFF8E8', borderColor: '#F0D9A0' }}>
+            <span className="flex-1 min-w-[220px] text-[12px] font-semibold" style={{ color: NAVY }}>
+              Keep this search? “{askSave.label}” · {askSave.count} listing{askSave.count === 1 ? '' : 's'}
+              <span className="block font-normal mt-0.5" style={{ color: '#64748B' }}>
+                Saved searches reopen instantly later with no new scan cost.
+              </span>
+            </span>
+            <button onClick={keepSearch}
+              className="px-4 py-2 rounded-lg text-[12px] font-bold text-white border-none cursor-pointer"
+              style={{ background: NAVY }}>💾 Save the full search</button>
+            <button onClick={discardSearch}
+              className="px-4 py-2 rounded-lg text-[12px] font-bold border cursor-pointer"
+              style={{ background: 'white', borderColor: '#C0341D', color: '#C0341D' }}>🗑 Delete it</button>
+          </div>
+        )}
+
+        {/* Saved search log */}
+        <div className="rounded-xl border mb-4" style={{ background: 'white', borderColor: '#E5E9F0' }}>
+          <button onClick={() => setShowLog(s => !s)}
+            className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
+            <span className="text-sm font-bold" style={{ color: NAVY }}>
+              🗂 Saved searches
+              <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
+                style={{ background: '#F1F5F9', color: '#64748B' }}>{savedLog.length}</span>
+            </span>
+            <span className="text-xs" style={{ color: '#94A3B8' }}>{showLog ? '▲' : '▼'}</span>
+          </button>
+          {showLog && (
+            <div className="px-4 pb-4">
+              {!savedLog.length ? (
+                <p className="text-[11px]" style={{ color: '#64748B' }}>
+                  Nothing saved yet. After a scan finishes, choose “Save the full search” to keep it here.
+                </p>
+              ) : savedLog.map(e => (
+                <div key={e.id} className="flex flex-wrap items-center gap-2 py-2 border-t" style={{ borderColor: '#EEF2F7' }}>
+                  <span className="flex-1 min-w-[180px] text-[12px] font-semibold" style={{ color: NAVY }}>
+                    {e.label}
+                    {restored === e.id && (
+                      <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: '#ECFDF5', color: '#0F7A3D' }}>OPEN</span>
+                    )}
+                    <span className="block font-normal text-[11px] mt-0.5" style={{ color: '#94A3B8' }}>
+                      {e.count} listing{e.count === 1 ? '' : 's'} · saved {new Date(e.savedAt).toLocaleString()}
+                    </span>
+                  </span>
+                  <button onClick={() => openSaved(e)}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer"
+                    style={{ background: NAVY_2 }}>Reopen</button>
+                  <button onClick={() => removeSaved(e)}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
+                    style={{ background: 'white', borderColor: '#C0341D', color: '#C0341D' }}>Delete</button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Email alerts */}
