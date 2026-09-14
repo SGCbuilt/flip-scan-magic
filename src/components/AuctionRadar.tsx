@@ -308,6 +308,85 @@ export default function AuctionRadar() {
     toast.success('Deep Scan finished for the visible listings')
   }
 
+  function buildStats(records: AuctionRecord[]) {
+    const sched = records.filter(r => r.auctionDate)
+    return {
+      total: records.length,
+      scheduled: sched.length,
+      within7: sched.filter(r => daysUntil(r.auctionDate!) <= 7 && daysUntil(r.auctionDate!) >= 0).length,
+      within30: sched.filter(r => daysUntil(r.auctionDate!) <= 30 && daysUntil(r.auctionDate!) >= 0).length,
+      avgScore: records.length ? Math.round(records.reduce((s, r) => s + (r.score || 0), 0) / records.length) : 0,
+    }
+  }
+
+  // Sweep a list of markets, merging every result into one deduped board.
+  async function sweep(markets: { city: string; state: string }[], label: string) {
+    setLoading(true); setErr(''); setResult(null)
+    setBatch({ done: 0, total: markets.length })
+    const merged: AuctionRecord[] = []
+    const seen = new Set<string>()
+    let health: SourceHealth | undefined
+    let failures = 0
+    try {
+      for (let i = 0; i < markets.length; i += 3) {
+        const chunk = markets.slice(i, i + 3)
+        const out = await Promise.all(chunk.map(async m => {
+          try {
+            const { data, error } = await supabase.functions.invoke('auction-radar', {
+              body: { city: m.city, state: m.state, county: '', zip: '', daysAhead, maxPrice, nonce: Date.now() },
+            })
+            if (error || data?.error) throw new Error(error?.message || data.error)
+            return data as ScanResult
+          } catch { failures++; return null }
+        }))
+        out.forEach(d => {
+          if (!d) return
+          if (d.sourceHealth) health = d.sourceHealth
+          ;(d.records || []).forEach(r => {
+            const k = (r.address || '').toLowerCase().replace(/[^a-z0-9]/g, '')
+            if (k && !seen.has(k)) { seen.add(k); merged.push(r) }
+          })
+        })
+        setBatch({ done: Math.min(i + 3, markets.length), total: markets.length })
+      }
+      setResult({
+        area: label,
+        records: merged,
+        stats: buildStats(merged),
+        sources: [{
+          name: `${markets.length - failures}/${markets.length} markets scanned`,
+          note: label,
+          count: merged.length,
+        }],
+        sourceHealth: health,
+        debug: { sweep: true, markets: markets.length, failures },
+        scannedAt: new Date().toISOString(),
+      })
+      if (merged.length) toast.success(`${merged.length} distressed / auction records across ${markets.length} markets`)
+      else toast.warning('No verifiable auction records in those markets yet')
+    } catch (e: any) {
+      setErr(e?.message || String(e))
+      toast.error('Market sweep failed')
+    } finally {
+      setBatch(null); setLoading(false)
+    }
+  }
+
+  function scanStateCities() {
+    const list = (MARKETS[stateCode] || []).map(c => ({ city: c, state: stateCode }))
+    if (!list.length) { toast.info('No saved city list for that state'); return }
+    sweep([{ city: '', state: stateCode }, ...list], `${STATE_NAME[stateCode] || stateCode} — all markets`)
+  }
+
+  function scanAllStates() {
+    const list: { city: string; state: string }[] = []
+    MARKET_STATES.forEach(s => {
+      list.push({ city: '', state: s })
+      ;(MARKETS[s] || []).forEach(c => list.push({ city: c, state: s }))
+    })
+    sweep(list, 'VA · NC · TN · FL — all markets')
+  }
+
   async function runScan() {
     setLoading(true); setErr(''); setResult(null)
     try {
