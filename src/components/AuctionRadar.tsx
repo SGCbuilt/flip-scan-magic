@@ -57,6 +57,7 @@ interface AuctionRecord {
 
 interface Memo {
   loading: boolean
+  stage?: string
   text?: string
   error?: string
   scan?: any
