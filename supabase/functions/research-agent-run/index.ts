@@ -23,7 +23,11 @@ const APP_URL = 'https://sgcflip.com'
 /** Grade B and up — the same 0-100 score auction-radar already assigns. */
 const AUTO_ADD_SCORE = 62
 const MAX_AUTO_ADD_PER_WATCH = 10
-const MAX_ENRICH_PER_WATCH = 3
+const MAX_ENRICH_PER_WATCH = 5
+/** Second, wider discovery pass fires when the first pass came back thin. */
+const THIN_RESULT_COUNT = 5
+const WIDE_DAYS_AHEAD = 180
+
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
