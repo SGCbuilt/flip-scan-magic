@@ -173,6 +173,58 @@ export default function AuctionRadar() {
   const [customCity, setCustomCity] = useState(false)
   const [batch, setBatch] = useState<{ done: number; total: number } | null>(null)
 
+  // ── Saved search log ────────────────────────────────────────────────────
+  const [savedLog, setSavedLog] = useState<SavedAuctionSearch[]>(() => loadSearchLog())
+  const [showLog, setShowLog] = useState(false)
+  const [askSave, setAskSave] = useState<{ label: string; count: number } | null>(null)
+  const [restored, setRestored] = useState<string | null>(null)
+
+  useEffect(() => { syncSearchLog().then(setSavedLog).catch(() => {}) }, [])
+
+  function keepSearch() {
+    if (!result) { setAskSave(null); return }
+    const label = askSave?.label || result.area || 'Auction search'
+    const entry: SavedAuctionSearch = {
+      id: `as-${Date.now()}`,
+      label,
+      savedAt: new Date().toISOString(),
+      scannedAt: result.scannedAt,
+      count: result.records?.length || 0,
+      query: { city, state: stateCode, county, zip, daysAhead, maxPrice },
+      result,
+      memos,
+    }
+    setSavedLog(saveSearch(entry))
+    setRestored(entry.id)
+    setAskSave(null)
+    setShowLog(true)
+    toast.success('Search saved — reopen it any time, free')
+  }
+
+  function discardSearch() {
+    setAskSave(null)
+    setResult(null)
+    setMemos({})
+    setRestored(null)
+    toast.info('Search discarded')
+  }
+
+  function openSaved(e: SavedAuctionSearch) {
+    setResult(e.result)
+    setMemos(e.memos || {})
+    setRestored(e.id)
+    setAskSave(null)
+    setErr('')
+    toast.success(`Reopened “${e.label}” — no new cost`)
+  }
+
+  function removeSaved(e: SavedAuctionSearch) {
+    setSavedLog(deleteSearch(e.id))
+    if (restored === e.id) { setResult(null); setMemos({}); setRestored(null) }
+    toast.info('Saved search deleted')
+  }
+
+
   // ── Deep Scan memos (session cache, keyed by record id) ─────────────────
   const [memos, setMemos] = useState<Record<string, Memo>>({})
   const [openMemo, setOpenMemo] = useState<Record<string, boolean>>({})
