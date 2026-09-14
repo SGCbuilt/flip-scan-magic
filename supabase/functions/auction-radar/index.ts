@@ -220,6 +220,49 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length } }
 }
 
+// ── Layer 2b: open each notice page and read the whole list ───────────────
+// Search snippets rarely contain the property rows; the actual addresses and
+// sale dates live on the page itself, so we scrape the most promising pages.
+async function scrapeNoticePages(hits: Array<{ title: string; description: string; url: string }>, limit = 8) {
+  const key = Deno.env.get('FIRECRAWL_API_KEY')
+  if (!key) return { pages: [], scraped: 0, scrapeOk: 0 }
+
+  // Prioritise pages whose title/url smells like an actual sale list.
+  const scoreHit = (h: { title: string; url: string }) => {
+    const t = `${h.title} ${h.url}`.toLowerCase()
+    let s = 0
+    if (/(sale|auction|foreclos|trustee|sheriff|tax)/.test(t)) s += 3
+    if (/(list|upcoming|schedule|notice|calendar|properties)/.test(t)) s += 3
+    if (/(bid4assets|auction\.com|taxva|kanialawfirm|publicnotice|column\.us)/.test(t)) s += 2
+    if (/\.gov/.test(t)) s += 2
+    if (/(faq|how-to|blog|about|guide|glossary|law\.lis)/.test(t)) s -= 5
+    return s
+  }
+
+  const targets = [...hits].sort((a, b) => scoreHit(b) - scoreHit(a)).slice(0, limit)
+  let okCount = 0
+  const pages: Array<{ url: string; title: string; text: string }> = []
+
+  await Promise.all(targets.map(async h => {
+    try {
+      const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
+        body: JSON.stringify({ url: h.url, formats: ['markdown'], onlyMainContent: true, waitFor: 1200 }),
+      })
+      if (!res.ok) return
+      const data = await res.json()
+      const md = String(data?.data?.markdown || data?.markdown || '')
+      if (md.length < 200) return
+      okCount++
+      // Keep the slices that actually look like sale rows (address + date nearby).
+      pages.push({ url: h.url, title: h.title, text: md.slice(0, 14000) })
+    } catch { /* page failed, skip */ }
+  }))
+
+  return { pages, scraped: targets.length, scrapeOk: okCount }
+}
+
 // ── Layer 3: AI normalization ─────────────────────────────────────────────
 async function extractAuctions(area: string, state: string, county: string, hits: Array<{ title: string; description: string; url: string }>) {
   const key = Deno.env.get('LOVABLE_API_KEY')
