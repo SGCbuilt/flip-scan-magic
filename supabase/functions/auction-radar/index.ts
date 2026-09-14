@@ -495,7 +495,8 @@ Deno.serve(async (req) => {
       searchAuctionNotices(area, state, county),
     ])
 
-    const ai = await extractAuctions(area, state, county, search.hits)
+    const scrape = await scrapeNoticePages(search.hits, 8)
+    const ai = await extractAuctions(area, state, county, scrape.pages, search.hits)
 
     // Validate web-derived records, keep rejects for transparency
     const rejected: Array<{ address: string; url: string; why: string }> = []
