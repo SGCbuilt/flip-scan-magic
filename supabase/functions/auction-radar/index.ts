@@ -413,6 +413,11 @@ async function scrapeUrl(url: string, attempt = 0): Promise<ScrapeResult> {
         signal: ctrl.signal,
       })
       clearTimeout(to)
+      // A genuine 404/410 means the page doesn't exist — paying Firecrawl to
+      // confirm that would just burn a credit.
+      if (res.status === 404 || res.status === 410) {
+        return { text: '', status: `HTTP ${res.status} (free) — page not found`, chars: 0, via: 'free-fetch' }
+      }
       if (res.ok) {
         const html = await res.text()
         const text = htmlToText(html)
