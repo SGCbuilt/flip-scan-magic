@@ -90,6 +90,42 @@ const TYPES = [
   'Bank / REO Auction', 'Pre-Foreclosure', 'Probate / Estate', 'Foreclosure Auction', 'Short Sale',
 ]
 
+// ── Target markets: curated city lists for the four operating states ──────
+const MARKET_STATES = ['VA', 'NC', 'TN', 'FL'] as const
+const STATE_NAME: Record<string, string> = {
+  VA: 'Virginia', NC: 'North Carolina', TN: 'Tennessee', FL: 'Florida',
+}
+const MARKETS: Record<string, string[]> = {
+  VA: [
+    'Norfolk', 'Virginia Beach', 'Chesapeake', 'Portsmouth', 'Suffolk', 'Hampton',
+    'Newport News', 'Williamsburg', 'Richmond', 'Petersburg', 'Hopewell', 'Colonial Heights',
+    'Chesterfield', 'Henrico', 'Charlottesville', 'Lynchburg', 'Roanoke', 'Danville',
+    'Martinsville', 'Harrisonburg', 'Staunton', 'Winchester', 'Fredericksburg',
+    'Manassas', 'Woodbridge', 'Alexandria', 'Arlington', 'Emporia', 'Franklin', 'Salem',
+  ],
+  NC: [
+    'Raleigh', 'Durham', 'Cary', 'Chapel Hill', 'Pittsboro', 'Siler City', 'Sanford',
+    'Apex', 'Garner', 'Clayton', 'Zebulon', 'Wake Forest', 'Burlington', 'Greensboro',
+    'High Point', 'Winston-Salem', 'Charlotte', 'Concord', 'Gastonia', 'Salisbury',
+    'Fayetteville', 'Wilmington', 'Jacksonville', 'Greenville', 'Rocky Mount',
+    'Wilson', 'Goldsboro', 'Kinston', 'Asheville', 'Hickory', 'Statesville',
+  ],
+  TN: [
+    'Nashville', 'Murfreesboro', 'Franklin', 'Hendersonville', 'Gallatin', 'Lebanon',
+    'Clarksville', 'Columbia', 'Cookeville', 'Memphis', 'Bartlett', 'Germantown',
+    'Jackson', 'Knoxville', 'Maryville', 'Oak Ridge', 'Sevierville', 'Morristown',
+    'Chattanooga', 'Cleveland', 'Johnson City', 'Kingsport', 'Bristol', 'Greeneville',
+  ],
+  FL: [
+    'Jacksonville', 'Orange Park', 'St. Augustine', 'Palm Coast', 'Daytona Beach',
+    'Ocala', 'Gainesville', 'Orlando', 'Kissimmee', 'Sanford', 'Deltona', 'Leesburg',
+    'Tampa', 'St. Petersburg', 'Clearwater', 'Brandon', 'Lakeland', 'Winter Haven',
+    'Sarasota', 'Bradenton', 'Port Charlotte', 'Cape Coral', 'Fort Myers', 'Naples',
+    'West Palm Beach', 'Port St. Lucie', 'Fort Lauderdale', 'Hollywood', 'Miami',
+    'Homestead', 'Pensacola', 'Tallahassee', 'Panama City',
+  ],
+}
+
 const GRADE_COLOR: Record<string, string> = {
   'A+': '#0F7A3D', 'A': '#0F7A3D', 'B+': '#1A7A4A', 'B': '#1B3A8C',
   'C+': '#C45E1A', 'C': '#C45E1A', 'D': '#94A3B8',
@@ -148,6 +184,7 @@ export default function AuctionRadar() {
     { label: 'North Carolina (statewide)', city: '', state: 'NC', county: '', zip: '' },
     { label: 'Virginia (statewide)', city: '', state: 'VA', county: '', zip: '' },
     { label: 'Tennessee (statewide)', city: '', state: 'TN', county: '', zip: '' },
+    { label: 'Florida (statewide)', city: '', state: 'FL', county: '', zip: '' },
   ]
 
   useEffect(() => {
