@@ -379,11 +379,19 @@ export default function AuctionRadar() {
     finally { setWBusy(null) }
   }
 
-  // ── Deep Scan ───────────────────────────────────────────────────────────
+  // ── Deep Scan (staged: each source is its own short call, so nothing times out)
   async function deepScanOne(r: AuctionRecord): Promise<void> {
     if (memos[r.id]?.text) { setOpenMemo(o => ({ ...o, [r.id]: true })); return }
-    setMemos(m => ({ ...m, [r.id]: { loading: true } }))
+    const setStage = (stage: string) => setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage } }))
+    setMemos(m => ({ ...m, [r.id]: { loading: true, stage: 'Pulling photos and property record…' } }))
     setOpenMemo(o => ({ ...o, [r.id]: true }))
+    const base = { address: r.address, city: r.city, state: r.state, zip: r.zip }
+    const call = async (mode: string, extra: Record<string, unknown> = {}) => {
+      const { data, error } = await supabase.functions.invoke('deep-scan', { body: { ...base, mode, ...extra } })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+      return data
+    }
     try {
       const deal = {
         address: `${r.address}, ${r.city}, ${r.state} ${r.zip}`.trim(),
@@ -402,18 +410,48 @@ export default function AuctionRadar() {
         auctionDate: r.auctionDate,
         sourceUrl: r.sourceUrl,
       }
-      const { data, error } = await supabase.functions.invoke('deep-scan', {
-        body: { address: r.address, city: r.city, state: r.state, zip: r.zip, deal },
+
+      const [photos, history] = await Promise.all([
+        call('photos').catch(e => ({ list: [], source: 'none', count: 0, error: e?.message })),
+        call('history').catch(e => ({ sales: [], assessments: [], taxes: [], valueSeries: [], error: e?.message })),
+      ])
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage: 'Checking permits, violations and distress signals…', scan: { photos, history } } }))
+
+      const [permits, distress] = await Promise.all([
+        call('permits').catch(e => ({ permits: [], violations: [], source: 'error', error: e?.message })),
+        call('distress').catch(e => ({ signals: [], source: 'error', error: e?.message })),
+      ])
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: true, stage: 'Writing the investor memo…', scan: { photos, history, permits, distress } } }))
+      setStage('Writing the investor memo…')
+
+      const sum = await call('summary', {
+        context: {
+          deal,
+          photosFound: photos?.count || 0,
+          permitsFound: permits?.permits?.length || 0,
+          violationsFound: permits?.violations?.length || 0,
+          distressSignals: (distress?.signals || []).flatMap((s: any) => s.flags || []),
+          propertyFacts: history?.facts || null,
+          saleHistory: history?.sales || [],
+          taxAssessmentHistory: history?.assessments || [],
+          propertyTaxHistory: history?.taxes || [],
+          valueThroughTheYears: history?.valueSeries || [],
+          currentValuation: history?.current || null,
+          appreciation: history?.appreciation || null,
+          ownership: history?.owner || null,
+        },
       })
-      if (error) throw error
-      if (data?.error) throw new Error(data.error)
-      const text: string = data?.summary || ''
+      const text: string = sum?.summary || ''
       if (!text.trim()) throw new Error('No memo returned for this address')
-      setMemos(m => ({ ...m, [r.id]: { loading: false, text, scan: data, at: new Date().toISOString() } }))
+      setMemos(m => ({
+        ...m,
+        [r.id]: { loading: false, text, scan: { photos, history, permits, distress, evaluation: sum?.evaluation }, at: new Date().toISOString() },
+      }))
     } catch (e: any) {
-      setMemos(m => ({ ...m, [r.id]: { loading: false, error: e?.message || 'Deep Scan failed' } }))
+      setMemos(m => ({ ...m, [r.id]: { ...(m[r.id] || {}), loading: false, stage: undefined, error: e?.message || 'Deep Scan failed' } }))
     }
   }
+
 
   async function deepScanAllVisible() {
     const todo = filtered.filter(r => !memos[r.id]?.text && !memos[r.id]?.loading)
