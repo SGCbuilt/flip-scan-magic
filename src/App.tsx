@@ -69,14 +69,17 @@ interface NavItem {
 
 interface NavSection {
   section: string
-  color:   string
+  step?:   string   // stage number in the deal flow
+  caption: string   // what this stage is for
+  color:   string   // stage accent
   items:   NavItem[]
 }
 
 const NAV: NavSection[] = [
   {
     section: 'Command',
-    color:   'rgba(255,255,255,0.5)',
+    caption: 'Start here each morning',
+    color:   '#94A3B8',
     items: [
       { id: 'hub',  label: 'Portal Hub',     icon: '🏛️', tip: 'SGC-style command center — every tool in one grid' },
       { id: 'home', label: 'Morning Brief',  icon: '☀️', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Daily digest — leads, tasks, stale pipeline' },
@@ -84,63 +87,73 @@ const NAV: NavSection[] = [
     ],
   },
   {
-    section: 'Find Deals',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Find',
+    step:    '1',
+    caption: 'Source new opportunities',
+    color:   '#60A5FA',
     items: [
-      { id: 'radar',    label: 'Lead Radar',      icon: '📡', tip: '11 gov APIs — Norfolk, VB, Charlotte, Raleigh…' },
-      { id: 'velocity', label: 'Neighborhood',     icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
-      { id: 'stack',    label: 'List Stack',       icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
-      { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
-      { id: 'deals',    label: 'Deal Search',     icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
-
+      { id: 'deals',    label: 'Deal Search',      icon: '🔍', tip: 'One search screen — quick scan or advanced hunt' },
       { id: 'auction',  label: 'Auction Radar',    icon: '⚖️', tip: 'Trustee, sheriff & tax-foreclosure sales with dates and equity spread' },
+      { id: 'radar',    label: 'Lead Radar',       icon: '📡', tip: '11 gov APIs — Norfolk, VB, Charlotte, Raleigh…' },
+      { id: 'drive',    label: 'Drive for Dollars',icon: '🚗', tip: 'Mobile capture — curb appeal + instant skip trace' },
       { id: 'chatham',  label: 'Chatham Permits',  icon: '🏛️', tip: 'Manual official Chatham County permit report organizer' },
     ],
   },
   {
-    section: 'Work Deals',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Analyze',
+    step:    '2',
+    caption: 'Check the numbers and the area',
+    color:   '#38BDF8',
     items: [
-      { id: 'pipeline', label: 'Pipeline CRM',     icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
-      { id: 'tasks',    label: 'Tasks',             icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
-      { id: 'drip',     label: 'Drip Sequences',   icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
-      { id: 'agent',    label: 'Research Agent',   icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
+      { id: 'financial', label: 'Financial Tools', icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
+      { id: 'market',    label: 'Market Intel',    icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
+      { id: 'velocity',  label: 'Neighborhood',    icon: '🗺️', tip: 'Velocity index — where to focus before the market' },
+      { id: 'stack',     label: 'List Stack',      icon: '⚡', tip: 'Cross-source signal stacking — triple-signal leads' },
+      { id: 'reference', label: 'Lead Sources',    icon: '📚', tip: 'Guide to all data sources and gov APIs' },
+    ],
+  },
+  {
+    section: 'Engage',
+    step:    '3',
+    caption: 'Work the leads to a contract',
+    color:   '#34D399',
+    items: [
+      { id: 'pipeline', label: 'Pipeline CRM',   icon: '🎯', tip: 'Kanban CRM — every lead from radar to closed' },
+      { id: 'tasks',    label: 'Tasks',          icon: '✅', badge: () => { const s = getTaskStats(); return (s.overdue + s.dueToday) || undefined }, tip: 'Auto-generated follow-up task command center' },
+      { id: 'drip',     label: 'Drip Sequences', icon: '🔄', badge: () => getDripStats().dueToday || undefined, tip: 'Automated 60-day multi-touch follow-up' },
+      { id: 'agent',    label: 'Research Agent', icon: '🤖', tip: 'Live feed of auto-queued leads, scores and emails sent — with a stop switch' },
     ],
   },
   {
     section: 'Execute',
-    color:   'rgba(255,255,255,0.5)',
+    step:    '4',
+    caption: 'Run the job, track the money',
+    color:   '#FBBF24',
     items: [
-      { id: 'project', label: 'Project Clock',     icon: '⏱️', tip: 'Construction timeline tracker — carry cost clock' },
-      { id: 'pl',      label: 'Deal P&L',          icon: '📒', tip: 'Actuals vs estimates — costing intelligence' },
+      { id: 'project', label: 'Project Clock', icon: '⏱️', tip: 'Construction timeline tracker — carry cost clock' },
+      { id: 'pl',      label: 'Deal P&L',      icon: '📒', tip: 'Actuals vs estimates — costing intelligence' },
     ],
   },
   {
-    section: 'Wholesale',
-    color:   'rgba(255,255,255,0.5)',
+    section: 'Exit',
+    step:    '5',
+    caption: 'Assign or sell the deal',
+    color:   '#F472B6',
     items: [
-      { id: 'wholesale', label: 'Wholesale',       icon: '🏷️', tip: 'Deal listings, PDF generator, email blast' },
-      { id: 'buyers',    label: 'Buyer List',      icon: '👥', tip: 'Buy box matching + one-click deal blast' },
-    ],
-  },
-  {
-    section: 'Research',
-    color:   'rgba(255,255,255,0.5)',
-    items: [
-      { id: 'financial',  label: 'Financial Tools',  icon: '💹', tip: 'Rehab estimator, flip calc, BRRRR, live rates' },
-      { id: 'market',     label: 'Market Intel',     icon: '📈', tip: 'Area trends plus AI area analysis in one place' },
-
-      { id: 'reference',  label: 'Lead Sources',     icon: '📚', tip: 'Guide to all data sources and gov APIs' },
+      { id: 'wholesale', label: 'Wholesale',  icon: '🏷️', tip: 'Deal listings, PDF generator, email blast' },
+      { id: 'buyers',    label: 'Buyer List', icon: '👥', tip: 'Buy box matching + one-click deal blast' },
     ],
   },
   {
     section: 'System',
-    color:   'rgba(255,255,255,0.5)',
+    caption: 'Keys, sync and preferences',
+    color:   '#94A3B8',
     items: [
       { id: 'settings', label: 'Settings',  icon: '⚙️', tip: 'API keys, cloud sync, SMS templates, direct mail' },
     ],
   },
 ]
+
 
 // ── Deal Scanner defaults ─────────────────────────────────────────────────────
 const DEFAULT_PARAMS: SearchParams = {
