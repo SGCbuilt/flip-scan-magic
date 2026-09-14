@@ -147,7 +147,26 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
   if (auction?.error) notes.push(`auction scan: ${auction.error}`)
   if (permits?.error) notes.push(`permits: ${permits.error}`)
 
-  const records: any[] = Array.isArray(auction?.records) ? auction.records : []
+  let records: any[] = Array.isArray(auction?.records) ? auction.records : []
+
+  // Thin first pass → one wider second pass, then dedupe so nothing is counted twice.
+  if (records.length < THIN_RESULT_COUNT && (w.days_ahead || 0) < WIDE_DAYS_AHEAD) {
+    const wide = await withTimeout(
+      callFn('auction-radar', {
+        city: w.city, state: w.state, county: w.county, zip: w.zip,
+        daysAhead: WIDE_DAYS_AHEAD, maxPrice: w.max_price, nonce: Date.now() + 1,
+      }),
+      110_000, { error: 'wide auction scan timed out' },
+    )
+    if (Array.isArray(wide?.records)) {
+      const byKey = new Map<string, any>()
+      for (const r of [...records, ...wide.records]) {
+        if (r?.address) byKey.set(addrKey(r.address), r)
+      }
+      records = [...byKey.values()]
+      notes.push(`wide ${WIDE_DAYS_AHEAD}-day pass`)
+    }
+  }
 
   // ── 2. Diff against what this watch has already reported ────────────────────
   const { data: seenRows } = await admin
@@ -156,11 +175,18 @@ async function runWatch(admin: any, w: Watch, force: boolean) {
 
   const fresh = records.filter(r => r.address && !seen.has(addrKey(r.address)))
 
-  // ── 3. Qualify + enrich ─────────────────────────────────────────────────────
+  // ── 3. Read the market, then qualify + enrich ───────────────────────────────
+  const marketZip = w.zip || fresh.find(r => /^\d{5}$/.test(r.zip || ''))?.zip || ''
+  const market = await readMarket(marketZip)
+  if (market) notes.push(`market: ${market.label}`)
+
+  for (const r of fresh) r.__rank = dealRank(r, market?.bonus || 0)
+
   const qualifying = fresh
-    .filter(r => (r.score || 0) >= AUTO_ADD_SCORE)
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .filter(r => (r.__rank || 0) >= AUTO_ADD_SCORE)
+    .sort((a, b) => (b.__rank || 0) - (a.__rank || 0))
     .slice(0, MAX_AUTO_ADD_PER_WATCH)
+
 
   for (const r of qualifying.slice(0, MAX_ENRICH_PER_WATCH)) {
     const scan = await withTimeout(
