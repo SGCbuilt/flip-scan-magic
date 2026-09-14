@@ -433,8 +433,8 @@ async function scrapeUrl(url: string, attempt = 0): Promise<ScrapeResult> {
 // Search snippets rarely contain the property rows; the actual addresses and
 // sale dates live on the page itself, so we scrape the most promising pages.
 async function scrapeNoticePages(hits: Array<{ title: string; description: string; url: string }>, limit = 8) {
-  const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { pages: [], scraped: 0, scrapeOk: 0 }
+  // No Firecrawl key check here any more — the free fetch path works without it.
+
 
   // Prioritise pages whose title/url smells like an actual sale list.
   const scoreHit = (h: { title: string; url: string }) => {
