@@ -302,6 +302,8 @@ export default function AuctionRadar() {
   const [follows, setFollows] = useState<any[]>([])
   const [fBusy, setFBusy] = useState<string | null>(null)
   const [showFollows, setShowFollows] = useState(false)
+  const [live, setLive] = useState(false)
+  const [liveAt, setLiveAt] = useState<string | null>(null)
 
   const DEFAULT_WATCHES = [
     { label: 'Chatham County, NC', city: '', state: 'NC', county: 'Chatham', zip: '' },
