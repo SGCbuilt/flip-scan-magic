@@ -300,10 +300,110 @@ async function searchAuctionNotices(area: string, state: string, county: string)
   return { hits, debug: { queriesRun: queries.length, queriesOk: ok, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
-// Shared single-page scrape (Firecrawl). Never throws — returns a status string.
-async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; status: string; chars: number }> {
+// ── Scrape cache (12h TTL) ────────────────────────────────────────────────
+// Avoids re-fetching (and re-paying for) the same URL/query within a short
+// window. Service-role only; never throws — a cache miss is always safe.
+const CACHE_TTL_MS = 12 * 60 * 60 * 1000
+
+function cacheHeaders() {
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
+  return { apikey: svc, Authorization: `Bearer ${svc}`, 'Content-Type': 'application/json' }
+}
+
+async function cacheGet(key: string): Promise<string | null> {
+  const base = Deno.env.get('SUPABASE_URL')
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!base || !svc) return null
+  try {
+    const res = await fetch(
+      `${base}/rest/v1/auction_scrape_cache?url=eq.${encodeURIComponent(key)}&select=content,fetched_at`,
+      { headers: cacheHeaders() },
+    )
+    if (!res.ok) return null
+    const rows = await res.json()
+    const row = Array.isArray(rows) ? rows[0] : null
+    if (!row) return null
+    if (Date.now() - new Date(row.fetched_at).getTime() > CACHE_TTL_MS) return null
+    return String(row.content || '') || null
+  } catch { return null }
+}
+
+async function cachePut(key: string, content: string): Promise<void> {
+  const base = Deno.env.get('SUPABASE_URL')
+  const svc = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+  if (!base || !svc || !content) return
+  try {
+    await fetch(`${base}/rest/v1/auction_scrape_cache?on_conflict=url`, {
+      method: 'POST',
+      headers: { ...cacheHeaders(), Prefer: 'resolution=merge-duplicates,return=minimal' },
+      body: JSON.stringify({ url: key, content: content.slice(0, 200000), fetched_at: new Date().toISOString() }),
+    })
+  } catch { /* cache is best-effort */ }
+}
+
+// ── Free HTML → text ──────────────────────────────────────────────────────
+function htmlToText(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6]|table)>/gi, '\n')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/[ \t\u00a0]+/g, ' ')
+    .replace(/\n\s*\n\s*\n+/g, '\n\n')
+    .trim()
+}
+
+// Client-rendered shell: almost no text but a root mount node / heavy scripts.
+function looksLikeJsShell(html: string, text: string): boolean {
+  if (text.length >= 300) return false
+  const hasRoot = /<div[^>]+id=["'](root|app|__next)["']/i.test(html)
+  const scriptCount = (html.match(/<script/gi) || []).length
+  return hasRoot || scriptCount >= 3
+}
+
+type ScrapeResult = { text: string; status: string; chars: number; via: 'cache' | 'free-fetch' | 'firecrawl' | 'none' }
+
+// Shared single-page scrape: cache → free plain fetch → Firecrawl fallback.
+// Never throws — returns a status string.
+async function scrapeUrl(url: string, attempt = 0): Promise<ScrapeResult> {
+  if (attempt === 0) {
+    const cached = await cacheGet(url)
+    if (cached && cached.length > 200) {
+      return { text: cached.slice(0, 14000), status: 'ok (cached)', chars: cached.length, via: 'cache' }
+    }
+
+    // Step 1 — free plain HTTP fetch.
+    try {
+      const ctrl = new AbortController()
+      const to = setTimeout(() => ctrl.abort(), 20000)
+      const res = await fetch(url, {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; SGCflipBot/1.0)',
+          'Accept': 'text/html,application/xhtml+xml',
+        },
+        redirect: 'follow',
+        signal: ctrl.signal,
+      })
+      clearTimeout(to)
+      if (res.ok) {
+        const html = await res.text()
+        const text = htmlToText(html)
+        if (text.length > 200 && !looksLikeJsShell(html, text)) {
+          await cachePut(url, text.slice(0, 40000))
+          return { text: text.slice(0, 14000), status: 'ok (free)', chars: text.length, via: 'free-fetch' }
+        }
+      }
+    } catch { /* fall through to Firecrawl */ }
+  }
+
+  // Step 2 — paid Firecrawl fallback.
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { text: '', status: 'FIRECRAWL_API_KEY missing', chars: 0 }
+  if (!key) return { text: '', status: 'free fetch unusable · FIRECRAWL_API_KEY missing', chars: 0, via: 'none' }
   try {
     const res = await fetch('https://api.firecrawl.dev/v2/scrape', {
       method: 'POST',
@@ -316,16 +416,18 @@ async function scrapeUrl(url: string, attempt = 0): Promise<{ text: string; stat
         await new Promise(r => setTimeout(r, 2500))
         return scrapeUrl(url, attempt + 1)
       }
-      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0 }
+      return { text: '', status: `HTTP ${res.status} ${t.slice(0, 120)}`, chars: 0, via: 'firecrawl' }
     }
     const data = await res.json()
     const md = String(data?.data?.markdown || data?.markdown || data?.data?.content || '')
-    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length }
-    return { text: md.slice(0, 14000), status: 'ok', chars: md.length }
+    if (md.length < 200) return { text: '', status: md.length ? 'too short' : 'empty', chars: md.length, via: 'firecrawl' }
+    await cachePut(url, md.slice(0, 40000))
+    return { text: md.slice(0, 14000), status: 'ok', chars: md.length, via: 'firecrawl' }
   } catch (e) {
-    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0 }
+    return { text: '', status: `error ${String(e).slice(0, 120)}`, chars: 0, via: 'firecrawl' }
   }
 }
+
 
 // ── Layer 2b: open each notice page and read the whole list ───────────────
 // Search snippets rarely contain the property rows; the actual addresses and
