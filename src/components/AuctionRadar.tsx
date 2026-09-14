@@ -137,11 +137,18 @@ export default function AuctionRadar() {
   const [bulk, setBulk] = useState<{ done: number; total: number } | null>(null)
 
   // ── Email alerts ────────────────────────────────────────────────────────
-  const [watch, setWatch] = useState<any | null>(null)
+  const [watches, setWatches] = useState<any[]>([])
   const [wEmail, setWEmail] = useState('')
-  const [wBusy, setWBusy] = useState(false)
+  const [wBusy, setWBusy] = useState<string | null>(null)
   const [wNote, setWNote] = useState('')
   const [showAlerts, setShowAlerts] = useState(false)
+
+  const DEFAULT_WATCHES = [
+    { label: 'Chatham County, NC', city: '', state: 'NC', county: 'Chatham', zip: '' },
+    { label: 'North Carolina (statewide)', city: '', state: 'NC', county: '', zip: '' },
+    { label: 'Virginia (statewide)', city: '', state: 'VA', county: '', zip: '' },
+    { label: 'Tennessee (statewide)', city: '', state: 'TN', county: '', zip: '' },
+  ]
 
   useEffect(() => {
     (async () => {
@@ -149,51 +156,71 @@ export default function AuctionRadar() {
       if (!u?.user) return
       if (!wEmail) setWEmail(u.user.email || '')
       const { data } = await supabase.from('auction_watches')
-        .select('*').order('created_at', { ascending: true }).limit(1)
-      if (data?.length) { setWatch(data[0]); setWEmail(data[0].notify_email) }
+        .select('*').order('created_at', { ascending: true })
+      if (data?.length) {
+        setWatches(data)
+        const em = data.find((w: any) => w.notify_email)?.notify_email
+        if (em) setWEmail(em)
+      }
     })()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  async function saveWatch(active: boolean) {
-    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
-    setWBusy(true); setWNote('')
-    try {
-      if (watch) {
-        const { data, error } = await supabase.from('auction_watches')
-          .update({ active, notify_email: wEmail.trim() }).eq('id', watch.id).select().single()
-        if (error) throw error
-        setWatch(data)
-      } else {
-        const { data: u } = await supabase.auth.getUser()
-        if (!u?.user) throw new Error('Sign in first')
-        const { data, error } = await supabase.from('auction_watches').insert({
-          user_id: u.user.id, label: 'Chatham County auctions',
-          city: '', state: 'NC', county: 'Chatham', zip: '',
-          days_ahead: 90, max_price: 0, notify_email: wEmail.trim(), active,
-        }).select().single()
-        if (error) throw error
-        setWatch(data)
-      }
-      toast.success(active ? 'Chatham County alerts are on' : 'Alerts paused')
-    } catch (e: any) { toast.error(e?.message || 'Could not save the alert') }
-    finally { setWBusy(false) }
+  async function ensureWatches(): Promise<any[]> {
+    if (watches.length) return watches
+    const { data: u } = await supabase.auth.getUser()
+    if (!u?.user) throw new Error('Sign in first')
+    const rows = DEFAULT_WATCHES.map(w => ({
+      ...w, user_id: u.user.id, days_ahead: 90, max_price: 0,
+      notify_email: wEmail.trim(), active: false,
+    }))
+    const { data, error } = await supabase.from('auction_watches').insert(rows).select()
+    if (error) throw error
+    setWatches(data || [])
+    return data || []
   }
 
-  async function testAlert() {
-    if (!watch) { toast.info('Turn alerts on first'); return }
-    setWBusy(true); setWNote('')
+  async function toggleWatch(w: any) {
+    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
+    setWBusy(w.id); setWNote('')
+    try {
+      const { data, error } = await supabase.from('auction_watches')
+        .update({ active: !w.active, notify_email: wEmail.trim() }).eq('id', w.id).select().single()
+      if (error) throw error
+      setWatches(ws => ws.map(x => x.id === w.id ? data : x))
+      toast.success(!w.active ? `${w.label} alerts are on` : `${w.label} alerts paused`)
+    } catch (e: any) { toast.error(e?.message || 'Could not save the alert') }
+    finally { setWBusy(null) }
+  }
+
+  async function turnAllOn() {
+    if (!wEmail.trim()) { toast.error('Enter an email address first'); return }
+    setWBusy('all'); setWNote('')
+    try {
+      const ws = await ensureWatches()
+      const { data, error } = await supabase.from('auction_watches')
+        .update({ active: true, notify_email: wEmail.trim() })
+        .in('id', ws.map((w: any) => w.id)).select()
+      if (error) throw error
+      setWatches(data || [])
+      toast.success('VA, NC & TN auction alerts are on')
+    } catch (e: any) { toast.error(e?.message || 'Could not save the alerts') }
+    finally { setWBusy(null) }
+  }
+
+  async function testAlert(w: any) {
+    setWBusy(w.id); setWNote('')
     try {
       const { data, error } = await supabase.functions.invoke('auction-watch-run', {
-        body: { watchId: watch.id, force: true },
+        body: { watchId: w.id, force: true },
       })
       if (error) throw error
       const r = data?.results?.[0]
-      setWNote(r?.note || 'Check complete')
+      setWNote(`${w.label}: ${r?.note || 'check complete'}`)
       if (r?.emailed) toast.success(`Test email sent to ${wEmail}`)
       else toast.info('Check ran — nothing new to send right now')
     } catch (e: any) { toast.error(e?.message || 'Alert check failed') }
-    finally { setWBusy(false) }
+    finally { setWBusy(null) }
   }
 
   // ── Deep Scan ───────────────────────────────────────────────────────────
@@ -394,10 +421,10 @@ export default function AuctionRadar() {
           <button onClick={() => setShowAlerts(s => !s)}
             className="w-full flex items-center justify-between px-4 py-3 bg-transparent border-none cursor-pointer text-left">
             <span className="text-sm font-bold" style={{ color: NAVY }}>
-              🔔 Email alerts — Chatham County, NC
+              🔔 Email alerts — VA · NC · TN
               <span className="ml-2 text-[10px] font-bold px-2 py-0.5 rounded"
-                style={{ background: watch?.active ? '#ECFDF5' : '#F1F5F9', color: watch?.active ? '#0F7A3D' : '#64748B' }}>
-                {watch?.active ? 'ON' : 'OFF'}
+                style={{ background: watches.some(w => w.active) ? '#ECFDF5' : '#F1F5F9', color: watches.some(w => w.active) ? '#0F7A3D' : '#64748B' }}>
+                {watches.filter(w => w.active).length ? `${watches.filter(w => w.active).length} ON` : 'OFF'}
               </span>
             </span>
             <span className="text-xs" style={{ color: '#94A3B8' }}>{showAlerts ? '▲' : '▼'}</span>
@@ -405,10 +432,10 @@ export default function AuctionRadar() {
           {showAlerts && (
             <div className="px-4 pb-4">
               <p className="text-[11px] mb-3 leading-relaxed" style={{ color: '#64748B' }}>
-                Once a day at 7:00 AM Eastern the radar checks Chatham County and emails you only the
+                Once a day at 7:00 AM Eastern the radar checks each area below and emails you only the
                 listings it has never reported before. Nothing new means no email.
               </p>
-              <div className="flex flex-wrap items-end gap-2">
+              <div className="flex flex-wrap items-end gap-2 mb-3">
                 <div className="flex-1 min-w-[220px]">
                   <label className="text-[10px] font-bold uppercase tracking-wider" style={{ color: '#94A3B8' }}>Send alerts to</label>
                   <input value={wEmail} onChange={e => setWEmail(e.target.value)}
@@ -416,23 +443,42 @@ export default function AuctionRadar() {
                     className="w-full mt-1 px-3 py-2 text-sm rounded-lg border outline-none"
                     style={{ borderColor: '#D1D9E6', color: NAVY }} />
                 </div>
-                <button onClick={() => saveWatch(!(watch?.active))} disabled={wBusy}
+                <button onClick={turnAllOn} disabled={!!wBusy}
                   className="px-4 py-2 rounded-lg text-[11px] font-bold text-white border-none cursor-pointer"
-                  style={{ background: wBusy ? '#94A3B8' : watch?.active ? '#C0341D' : NAVY }}>
-                  {wBusy ? 'Working…' : watch?.active ? 'Turn alerts off' : 'Turn alerts on'}
+                  style={{ background: wBusy ? '#94A3B8' : NAVY }}>
+                  {wBusy === 'all' ? 'Working…' : watches.length ? 'Turn all on' : 'Set up VA · NC · TN alerts'}
                 </button>
-                {watch && (
-                  <button onClick={testAlert} disabled={wBusy}
-                    className="px-4 py-2 rounded-lg text-[11px] font-bold border cursor-pointer"
+              </div>
+              {watches.map(w => (
+                <div key={w.id} className="flex flex-wrap items-center gap-2 py-2 border-t" style={{ borderColor: '#EEF2F7' }}>
+                  <span className="flex-1 min-w-[160px] text-[12px] font-semibold" style={{ color: NAVY }}>
+                    {w.label}
+                    <span className="ml-2 text-[10px] font-bold px-1.5 py-0.5 rounded"
+                      style={{ background: w.active ? '#ECFDF5' : '#F1F5F9', color: w.active ? '#0F7A3D' : '#64748B' }}>
+                      {w.active ? 'ON' : 'OFF'}
+                    </span>
+                  </span>
+                  <button onClick={() => toggleWatch(w)} disabled={!!wBusy}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold border-none cursor-pointer"
+                    style={{ background: wBusy === w.id ? '#94A3B8' : w.active ? '#C0341D' : NAVY, color: 'white' }}>
+                    {wBusy === w.id ? 'Working…' : w.active ? 'Turn off' : 'Turn on'}
+                  </button>
+                  <button onClick={() => testAlert(w)} disabled={!!wBusy}
+                    className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
                     style={{ borderColor: '#D1D9E6', color: NAVY_2, background: 'white' }}>
                     Run check now
                   </button>
-                )}
-              </div>
-              {(wNote || watch?.last_run_note) && (
+                  {w.last_run_note && (
+                    <div className="w-full text-[10px]" style={{ color: '#94A3B8' }}>
+                      Last check: {w.last_run_note}
+                      {w.last_run_at ? ` · ${new Date(w.last_run_at).toLocaleString()}` : ''}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {wNote && (
                 <div className="text-[11px] mt-2" style={{ color: '#64748B' }}>
-                  Last check: {wNote || watch?.last_run_note}
-                  {watch?.last_run_at && !wNote ? ` · ${new Date(watch.last_run_at).toLocaleString()}` : ''}
+                  Last check: {wNote}
                 </div>
               )}
             </div>
