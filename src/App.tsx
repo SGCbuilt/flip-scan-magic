@@ -696,7 +696,7 @@ export default function App() {
       {!sidebarHidden && isNarrow && (
         <div className="fixed inset-0 z-[200] flex" onClick={() => setSidebarHidden(true)}>
           <div className="absolute inset-0" style={{ background: 'rgba(15,36,96,0.55)' }} />
-          <div className="relative h-full" onClick={e => e.stopPropagation()}>
+          <div className="relative h-full flex-shrink-0" style={{ width: 236 }} onClick={e => e.stopPropagation()}>
             <Sidebar
               activeTab={activeTab}
               onTab={(id) => { setActiveTab(id); setSidebarHidden(true) }}
