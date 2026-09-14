@@ -54,6 +54,65 @@ function daysUntil(iso?: string | null): number {
   return Math.round((new Date(iso + 'T12:00:00Z').getTime() - Date.now()) / 86400000)
 }
 
+/**
+ * Market read for the watch area — pulled from the existing rentcast proxy,
+ * never a new service. Returns a short human label plus a −6…+8 adjustment
+ * that nudges ranking toward markets that actually move.
+ */
+async function readMarket(zip: string): Promise<{ label: string; bonus: number } | null> {
+  if (!/^\d{5}$/.test(zip || '')) return null
+  const res = await withTimeout(
+    callFn('rentcast', { endpoint: 'markets', params: { zipCode: zip, dataType: 'Sale' } }),
+    25_000, null,
+  )
+  const sale = res?.saleData || res?.data?.saleData
+  if (!sale) return null
+
+  const dom = Number(sale.averageDaysOnMarket || 0)
+  const psf = Number(sale.averagePricePerSquareFoot || 0)
+  const price = Number(sale.averagePrice || 0)
+  if (!dom && !price) return null
+
+  let bonus = 0
+  if (dom && dom <= 30) bonus += 8
+  else if (dom && dom <= 60) bonus += 4
+  else if (dom > 120) bonus -= 6
+  if (price >= 200_000) bonus += 2
+
+  const label = [
+    price ? `avg sale $${Math.round(price / 1000)}K` : '',
+    psf ? `$${Math.round(psf)}/sqft` : '',
+    dom ? `${Math.round(dom)} days on market` : '',
+  ].filter(Boolean).join(' · ')
+
+  return { label, bonus }
+}
+
+/**
+ * Composite deal score — the auction-radar score is the base (that scoring is
+ * untouched); equity spread, sale urgency and market speed adjust the ranking
+ * so the strongest deal in the strongest market rises to the top.
+ */
+function dealRank(r: any, marketBonus: number): number {
+  const base = Number(r.score || 0)
+  const value = Number(r.estimatedValue || 0)
+  const bid = Number(r.openingBid || 0)
+  const equityPct = value > 0 && bid > 0 ? ((value - bid) / value) * 100 : 0
+
+  let bonus = marketBonus
+  if (equityPct >= 40) bonus += 12
+  else if (equityPct >= 25) bonus += 8
+  else if (equityPct >= 12) bonus += 4
+  else if (equityPct < 0) bonus -= 8
+
+  const d = daysUntil(r.auctionDate)
+  if (d <= 21) bonus += 6
+  else if (d <= 45) bonus += 3
+
+  return Math.max(0, Math.min(100, Math.round(base + bonus)))
+}
+
+
 interface Watch {
   id: string
   user_id: string
