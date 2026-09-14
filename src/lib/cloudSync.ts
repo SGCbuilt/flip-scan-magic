@@ -124,6 +124,10 @@ export async function hydratFromCloud(): Promise<{ synced: number; errors: numbe
       .eq('user_id', userId)
     if (error || !rows) return { synced: 0, errors: 1 }
 
+    // Keys the research agent writes to server-side. For these we merge in
+    // cloud records this browser has never seen; local edits always win.
+    const AGENT_WRITTEN: string[] = ['flipscan_pipeline_v2', 'flipscan_drip_v1']
+
     for (const row of rows as { key: string; data: any; updated_at: string }[]) {
       if (!SYNC_KEYS.includes(row.key as SyncKey)) continue
       try {
@@ -134,11 +138,21 @@ export async function hydratFromCloud(): Promise<{ synced: number; errors: numbe
         if (localEmpty && row.data?.length > 0) {
           localStorage.setItem(row.key, JSON.stringify(row.data))
           synced++
+        } else if (AGENT_WRITTEN.includes(row.key) && Array.isArray(row.data) && row.data.length > 0) {
+          const local: any[] = JSON.parse(localRaw || '[]')
+          const known = new Set(local.map((r: any) => r?.id))
+          const incoming = row.data.filter((r: any) => r?.id && !known.has(r.id))
+          if (incoming.length > 0) {
+            const merged = [...incoming, ...local]
+            localStorage.setItem(row.key, JSON.stringify(merged))
+            synced++
+          }
         }
       } catch {
         errors++
       }
     }
+
   } catch {
     errors++
   }

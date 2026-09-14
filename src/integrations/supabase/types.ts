@@ -385,6 +385,53 @@ export type Database = {
         }
         Relationships: []
       }
+      research_agent_seen: {
+        Row: {
+          addr_key: string
+          address: string
+          auto_added: boolean
+          created_at: string
+          first_seen_at: string
+          grade: string
+          id: string
+          score: number
+          source: string
+          watch_id: string
+        }
+        Insert: {
+          addr_key: string
+          address?: string
+          auto_added?: boolean
+          created_at?: string
+          first_seen_at?: string
+          grade?: string
+          id?: string
+          score?: number
+          source?: string
+          watch_id: string
+        }
+        Update: {
+          addr_key?: string
+          address?: string
+          auto_added?: boolean
+          created_at?: string
+          first_seen_at?: string
+          grade?: string
+          id?: string
+          score?: number
+          source?: string
+          watch_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "research_agent_seen_watch_id_fkey"
+            columns: ["watch_id"]
+            isOneToOne: false
+            referencedRelation: "auction_watches"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       suppressed_emails: {
         Row: {
           created_at: string

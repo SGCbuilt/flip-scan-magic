@@ -15,6 +15,10 @@ import {
   DripSequence, DripTouch, TouchType, DripTemplate,
 } from '../lib/drip'
 import { getPipeline } from '../lib/pipeline'
+import { supabase } from '../integrations/supabase/client'
+import { hydratFromCloud } from '../lib/cloudSync'
+import { toast } from '../lib/toast'
+
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const TYPE_CONFIG: Record<TouchType, { icon: string; label: string; color: string; bg: string }> = {
@@ -504,9 +508,43 @@ export default function DripSequences() {
   const [sequences, setSequences] = useState<DripSequence[]>([])
   const [showNew,   setShowNew]   = useState(false)
   const [filter,    setFilter]    = useState<'all' | 'active' | 'due' | 'converted'>('active')
+  const [agentBusy, setAgentBusy] = useState<'' | 'research' | 'email'>('')
+  const [agentNote, setAgentNote] = useState('')
 
   const refresh = () => setSequences(getDripSequences())
   useEffect(() => { refresh() }, [])
+
+  async function runAgent(which: 'research' | 'email') {
+    setAgentBusy(which)
+    setAgentNote(which === 'research' ? 'Searching and filing new leads…' : 'Writing and sending due emails…')
+    try {
+      const fn = which === 'research' ? 'research-agent-run' : 'drip-email-run'
+      const { data, error } = await supabase.functions.invoke(fn, { body: {} })
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      await hydratFromCloud()
+      refresh()
+
+      if (which === 'research') {
+        const added = data?.addedTotal || 0
+        const note = `${data?.ran || 0} area${(data?.ran || 0) === 1 ? '' : 's'} checked · ${added} new lead${added === 1 ? '' : 's'} filed`
+        setAgentNote(note)
+        toast.success(note)
+      } else {
+        const note = `${data?.sent || 0} email${(data?.sent || 0) === 1 ? '' : 's'} written and sent`
+        setAgentNote(note)
+        toast.success(note)
+      }
+    } catch (e: any) {
+      const msg = e?.message || 'The agent could not finish that run'
+      setAgentNote(msg)
+      toast.error?.(msg)
+    } finally {
+      setAgentBusy('')
+    }
+  }
+
 
   const stats   = getDripStats()
   const dueToday = getDueTodayDrip()
@@ -563,7 +601,31 @@ export default function DripSequences() {
             + New Sequence
           </button>
         </div>
+
+        {/* Agent strip */}
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+          <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-1 rounded"
+            style={{ background: '#EEF2FB', color: 'var(--sgc-navy)' }}>
+            🤖 Agent
+          </span>
+          <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
+            {agentNote || 'Runs itself daily: finds new leads, files them here, writes and sends the email touches. Calls, texts and mail still wait for you.'}
+          </span>
+          <div className="ml-auto flex gap-2">
+            <button onClick={() => runAgent('research')} disabled={!!agentBusy}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-bold border cursor-pointer"
+              style={{ background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-navy)', opacity: agentBusy ? 0.6 : 1 }}>
+              {agentBusy === 'research' ? 'Searching…' : 'Find leads now'}
+            </button>
+            <button onClick={() => runAgent('email')} disabled={!!agentBusy}
+              className="px-3 py-1.5 rounded-lg text-[11px] font-bold border-none cursor-pointer text-white"
+              style={{ background: 'var(--sgc-navy)', opacity: agentBusy ? 0.6 : 1 }}>
+              {agentBusy === 'email' ? 'Sending…' : 'Send due emails now'}
+            </button>
+          </div>
+        </div>
       </div>
+
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5">
