@@ -170,9 +170,9 @@ function LiveRatesBar({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((item, i) => (
-          <div key={item.label} className={`p-3 text-center ${i < items.length - 1 ? 'border-r' : ''}`}
+          <div key={item.label} className={`p-2 sm:p-3 text-center border-b lg:border-b-0 ${i < items.length - 1 ? 'border-r' : ''}`}
             style={{ borderColor: 'var(--sgc-gray-border)', background: i % 2 === 0 ? 'white' : 'var(--sgc-gray-light)' }}>
             <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{item.label}</div>
             <div className="text-xl font-black leading-none" style={{ color: item.val ? item.color : 'var(--sgc-gray-mid)' }}>
@@ -240,7 +240,7 @@ function FlipAnalyzer({ rates }: { rates: LiveRates }) {
   return (
     <div className="space-y-5">
       {/* Input grid */}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Acquisition */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>📋 Acquisition</div>
@@ -316,7 +316,7 @@ function FlipAnalyzer({ rates }: { rates: LiveRates }) {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         {/* P&L breakdown */}
         <Card accent={isProfitable ? '#1A7A4A' : '#C0341D'}>
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: isProfitable ? '#1A7A4A' : '#C0341D' }}>
@@ -445,7 +445,7 @@ function BRRRRAnalyzer({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Property */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>🏠 Property</div>
@@ -488,7 +488,7 @@ function BRRRRAnalyzer({ rates }: { rates: LiveRates }) {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Cash flow */}
         <Card accent={monthlyCF > 0 ? '#1A7A4A' : '#C0341D'}>
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: monthlyCF > 0 ? '#1A7A4A' : '#C0341D' }}>
@@ -602,7 +602,7 @@ function MortgageCalc({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         {/* Inputs */}
         <Card accent="#1B3A8C">
           <Sec icon="🏦" label="Mortgage Calculator" />
@@ -726,7 +726,7 @@ function MAOCalculator({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         <Card accent="#1B3A8C">
           <Sec icon="🎯" label="MAO / Max Offer Calculator" />
           <div className="space-y-3">
@@ -795,7 +795,7 @@ function MarketConditions({ rates }: { rates: LiveRates }) {
     <div className="space-y-5">
       <Sec icon="📡" label="Live Market Conditions — Real Data from Federal Reserve / Freddie Mac" />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Mortgage rates */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>
@@ -953,18 +953,18 @@ export default function FinancialTools() {
     <div className="h-full flex flex-col overflow-hidden" style={{ background: 'var(--sgc-gray-light)' }}>
 
       {/* Header with live rates */}
-      <div className="flex-shrink-0 border-b bg-white px-5 pt-4 pb-0" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-        <div className="flex items-center justify-between mb-3">
-          <div>
+      <div className="flex-shrink-0 border-b bg-white px-3 sm:px-5 pt-3 sm:pt-4 pb-0" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="min-w-0">
             <div className="text-base font-bold" style={{ color: 'var(--sgc-navy)' }}>💹 Financial Tools</div>
-            <div className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
+            <div className="text-[11px] sm:text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>
               Real data — Freddie Mac · Federal Reserve · FRED · All calculations use live rates
             </div>
           </div>
           <button onClick={loadRates} disabled={rates.loading}
-            className="text-xs px-3 py-1.5 rounded-lg border cursor-pointer"
+            className="text-xs px-3 py-1.5 rounded-lg border cursor-pointer flex-shrink-0 whitespace-nowrap"
             style={{ borderColor: 'var(--sgc-navy)30', color: 'var(--sgc-navy)', background: 'var(--sgc-navy-pale)' }}>
-            {rates.loading ? '⟳ Loading...' : '↻ Refresh Rates'}
+            {rates.loading ? '⟳ Loading...' : '↻ Refresh'}
           </button>
         </div>
 
@@ -974,10 +974,10 @@ export default function FinancialTools() {
         </div>
 
         {/* Tab bar */}
-        <div className="flex gap-1">
+        <div className="flex gap-1 overflow-x-auto -mx-3 px-3 sm:mx-0 sm:px-0" style={{ scrollbarWidth: 'none' }}>
           {TABS.map(t => (
             <button key={t.id} onClick={() => setTab(t.id)}
-              className="flex items-center gap-1.5 px-4 py-2.5 border-b-2 text-xs font-semibold cursor-pointer border-none bg-transparent transition-all"
+              className="flex items-center gap-1.5 px-3 sm:px-4 py-2.5 border-b-2 text-xs font-semibold cursor-pointer border-none bg-transparent transition-all whitespace-nowrap flex-shrink-0"
               style={tab === t.id
                 ? { borderBottomColor: 'var(--sgc-navy)', color: 'var(--sgc-navy)', borderBottomWidth: 2 }
                 : { borderBottomColor: 'transparent', color: 'var(--sgc-gray-mid)', borderBottomWidth: 2 }}>
@@ -988,7 +988,7 @@ export default function FinancialTools() {
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-y-auto p-5">
+      <div className="flex-1 overflow-y-auto p-3 sm:p-5">
         {tab === 'flip'     && <FlipAnalyzer     rates={rates} />}
         {tab === 'brrrr'    && <BRRRRAnalyzer     rates={rates} />}
         {tab === 'mortgage' && <MortgageCalc      rates={rates} />}
