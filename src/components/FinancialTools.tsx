@@ -170,9 +170,9 @@ function LiveRatesBar({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="rounded-xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
-      <div className="grid" style={{ gridTemplateColumns: 'repeat(5, 1fr)' }}>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         {items.map((item, i) => (
-          <div key={item.label} className={`p-3 text-center ${i < items.length - 1 ? 'border-r' : ''}`}
+          <div key={item.label} className={`p-2 sm:p-3 text-center border-b lg:border-b-0 ${i < items.length - 1 ? 'border-r' : ''}`}
             style={{ borderColor: 'var(--sgc-gray-border)', background: i % 2 === 0 ? 'white' : 'var(--sgc-gray-light)' }}>
             <div className="text-[10px] font-semibold mb-1" style={{ color: 'var(--sgc-gray-mid)' }}>{item.label}</div>
             <div className="text-xl font-black leading-none" style={{ color: item.val ? item.color : 'var(--sgc-gray-mid)' }}>
