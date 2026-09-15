@@ -240,7 +240,7 @@ function FlipAnalyzer({ rates }: { rates: LiveRates }) {
   return (
     <div className="space-y-5">
       {/* Input grid */}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Acquisition */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>📋 Acquisition</div>
@@ -316,7 +316,7 @@ function FlipAnalyzer({ rates }: { rates: LiveRates }) {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         {/* P&L breakdown */}
         <Card accent={isProfitable ? '#1A7A4A' : '#C0341D'}>
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: isProfitable ? '#1A7A4A' : '#C0341D' }}>
@@ -445,7 +445,7 @@ function BRRRRAnalyzer({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Property */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>🏠 Property</div>
@@ -488,7 +488,7 @@ function BRRRRAnalyzer({ rates }: { rates: LiveRates }) {
       </div>
 
       {/* Results */}
-      <div className="grid grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 lg:gap-5">
         {/* Cash flow */}
         <Card accent={monthlyCF > 0 ? '#1A7A4A' : '#C0341D'}>
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: monthlyCF > 0 ? '#1A7A4A' : '#C0341D' }}>
@@ -602,7 +602,7 @@ function MortgageCalc({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         {/* Inputs */}
         <Card accent="#1B3A8C">
           <Sec icon="🏦" label="Mortgage Calculator" />
@@ -726,7 +726,7 @@ function MAOCalculator({ rates }: { rates: LiveRates }) {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 lg:gap-5">
         <Card accent="#1B3A8C">
           <Sec icon="🎯" label="MAO / Max Offer Calculator" />
           <div className="space-y-3">
@@ -795,7 +795,7 @@ function MarketConditions({ rates }: { rates: LiveRates }) {
     <div className="space-y-5">
       <Sec icon="📡" label="Live Market Conditions — Real Data from Federal Reserve / Freddie Mac" />
 
-      <div className="grid grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {/* Mortgage rates */}
         <Card accent="#1B3A8C">
           <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: '#1B3A8C' }}>
