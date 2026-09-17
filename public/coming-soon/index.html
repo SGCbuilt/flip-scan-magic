@@ -36,6 +36,10 @@
   --off-white: #F8F9FC;
   --ok: #0F7A4A;
   --ok-bg: #E6F7EF;
+  --caution: #9A6B00;
+  --caution-bg: #FFF4D6;
+  --risk: #B42318;
+  --risk-bg: #FEE8E5;
   --radius: 14px;
   --radius-lg: 20px;
   --radius-sm: 10px;
@@ -563,73 +567,73 @@ a:hover { color: var(--gold-dark); }
   gap: 0.8rem;
 }
 .tool-card {
-  position: relative;
-  min-height: 188px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-height: 0;
   border-radius: 14px;
   overflow: hidden;
-  background: var(--navy-deep);
+  background: var(--white);
   border: 1px solid rgba(15, 36, 96, 0.1);
   box-shadow: var(--shadow-sm);
-  isolation: isolate;
 }
-.tool-card img {
-  position: absolute;
-  inset: 0;
+.tool-photo {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  min-height: 104px;
+  background: var(--surface);
+  overflow: hidden;
+}
+.tool-photo img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   transform: scale(1.02);
 }
-.tool-card::after {
+.tool-photo::after {
   content: "";
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg, rgba(8, 21, 54, 0.06) 0%, rgba(8, 21, 54, 0.35) 38%, rgba(8, 21, 54, 0.88) 100%);
-  z-index: -1;
+  background: linear-gradient(180deg, rgba(8, 21, 54, 0.02) 0%, rgba(8, 21, 54, 0.16) 100%);
+  pointer-events: none;
 }
 .tool-info {
-  position: relative;
-  z-index: 1;
-  min-height: 188px;
-  padding: 0.8rem;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  color: var(--white);
+  padding: 0.72rem;
+  display: grid;
+  gap: 0.55rem;
+  color: var(--ink);
 }
 .tool-topline {
   display: flex;
   justify-content: space-between;
   gap: 0.5rem;
-  align-items: center;
+  align-items: flex-start;
 }
-.tool-name,
-.tool-status,
-.tool-meta,
-.tool-list,
-.tool-note { text-shadow: 0 1px 10px rgba(8, 21, 54, 0.35); }
 .tool-name {
   font-size: 0.62rem;
   font-weight: 800;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--gold-soft);
+  color: var(--navy);
 }
 .tool-status {
   font-size: 0.58rem;
   font-weight: 700;
-  color: var(--navy-deep);
-  background: rgba(232, 212, 138, 0.9);
+  color: var(--muted);
+  background: var(--surface);
   border-radius: 999px;
   padding: 0.15rem 0.42rem;
   white-space: nowrap;
 }
-.tool-main { display: grid; gap: 0.45rem; }
+.tool-status.good { color: var(--ok); background: var(--ok-bg); }
+.tool-status.caution { color: var(--caution); background: var(--caution-bg); }
+.tool-status.risk { color: var(--risk); background: var(--risk-bg); }
+.tool-main { display: grid; gap: 0.48rem; }
 .tool-address {
   margin: 0;
   font-size: 0.86rem;
   font-weight: 750;
   line-height: 1.2;
+  color: var(--ink);
 }
 .tool-meta {
   display: flex;
@@ -637,34 +641,57 @@ a:hover { color: var(--gold-dark); }
   gap: 0.3rem;
 }
 .tool-meta span {
-  font-size: 0.66rem;
+  font-size: 0.62rem;
   font-weight: 700;
-  color: rgba(255,255,255,0.88);
-  background: rgba(255,255,255,0.14);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: var(--navy);
+  background: var(--surface);
+  border: 1px solid var(--line-soft);
   border-radius: 999px;
   padding: 0.16rem 0.42rem;
 }
 .score-ring {
-  width: 42px;
-  height: 42px;
+  width: 44px;
+  height: 44px;
   border-radius: 50%;
   display: grid;
   place-items: center;
   color: var(--navy-deep);
-  background: conic-gradient(var(--gold-bright) calc(var(--score) * 1%), rgba(255,255,255,0.26) 0);
-  box-shadow: 0 8px 18px rgba(8, 21, 54, 0.25);
+  background: conic-gradient(var(--rating-color, var(--gold-bright)) calc(var(--score) * 1%), var(--line) 0);
+  box-shadow: 0 8px 18px rgba(15, 36, 96, 0.14);
   flex-shrink: 0;
 }
+.score-ring.good { --rating-color: var(--ok); }
+.score-ring.caution { --rating-color: #D99A00; }
+.score-ring.risk { --rating-color: var(--risk); }
 .score-ring span {
-  width: 30px;
-  height: 30px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   display: grid;
   place-items: center;
-  background: rgba(255,255,255,0.94);
-  font-size: 0.7rem;
+  background: var(--white);
+  font-size: 0.68rem;
   font-weight: 800;
+}
+.tool-facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.35rem;
+  padding: 0.48rem;
+  border-radius: 10px;
+  background: var(--surface);
+}
+.tool-facts span {
+  min-width: 0;
+  font-size: 0.62rem;
+  line-height: 1.25;
+  color: var(--muted);
+}
+.tool-facts strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.68rem;
+  line-height: 1.2;
 }
 .tool-list {
   margin: 0;
@@ -672,20 +699,20 @@ a:hover { color: var(--gold-dark); }
   list-style: none;
   display: grid;
   gap: 0.22rem;
-  color: rgba(255,255,255,0.88);
-  font-size: 0.66rem;
+  color: var(--muted);
+  font-size: 0.64rem;
   line-height: 1.25;
 }
 .tool-list li::before {
   content: "•";
-  color: var(--gold-soft);
+  color: var(--gold-dark);
   font-weight: 900;
   margin-right: 0.32rem;
 }
 .tool-note {
   margin: 0;
-  color: rgba(255,255,255,0.72);
-  font-size: 0.64rem;
+  color: var(--muted);
+  font-size: 0.62rem;
   font-weight: 600;
 }
 .showcase-note {
@@ -747,8 +774,9 @@ a:hover { color: var(--gold-dark); }
 @media (max-width: 559px) {
   .showcase-body { padding: 0.75rem; }
   .tool-grid { grid-template-columns: 1fr; }
-  .tool-card { min-height: 150px; }
-  .tool-info { min-height: 150px; }
+  .tool-photo { min-height: 92px; }
+  .tool-info { padding: 0.68rem; }
+  .tool-facts { grid-template-columns: 1fr 1fr; }
 }
 
 /* ── Features ── */
@@ -1339,70 +1367,74 @@ a:hover { color: var(--gold-dark); }
             <div class="showcase-body">
               <div class="tool-grid">
                 <article class="tool-card">
-                  <img src="/coming-soon/images/auction-home.jpg" alt="Distressed auction property preview" width="1024" height="768" />
+                  <div class="tool-photo"><img src="/coming-soon/images/auction-home.jpg" alt="Distressed auction property preview" width="1024" height="768" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
                       <span class="tool-name">Auction Radar</span>
-                      <span class="tool-status">Sale date found</span>
+                      <span class="tool-status good">Positive</span>
                     </div>
                     <div class="tool-main">
                       <div class="tool-topline">
                         <h3 class="tool-address">814 Cedar Ave</h3>
-                        <div class="score-ring" style="--score: 88"><span>88</span></div>
+                        <div class="score-ring good" style="--score: 88"><span>88</span></div>
                       </div>
-                      <div class="tool-meta"><span>Ask $142k</span><span>ARV $245k</span><span>Mar 19</span></div>
-                      <ul class="tool-list"><li>Tax-sale notice verified</li><li>Equity spread $73k</li></ul>
+                      <div class="tool-meta"><span>Norfolk, VA</span><span>Sale Mar 19</span><span>County notice</span></div>
+                      <div class="tool-facts"><span><strong>$142k</strong> opening bid</span><span><strong>$245k</strong> ARV</span><span><strong>$31k</strong> rehab</span><span><strong>$72k</strong> equity spread</span></div>
+                      <ul class="tool-list"><li>Owner: Marvin Cole Trust</li><li>Signal: tax-sale notice + vacant mail flag</li></ul>
                     </div>
                   </div>
                 </article>
                 <article class="tool-card">
-                  <img src="/coming-soon/images/deep-scan-home.jpg" alt="Deep property scan house preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-photo"><img src="/coming-soon/images/deep-scan-home.jpg" alt="Deep property scan house preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
                       <span class="tool-name">Deep Scan</span>
-                      <span class="tool-status">Memo ready</span>
+                      <span class="tool-status caution">Caution</span>
                     </div>
                     <div class="tool-main">
                       <div class="tool-topline">
                         <h3 class="tool-address">29 Pine Hill Rd</h3>
-                        <div class="score-ring" style="--score: 91"><span>91</span></div>
+                        <div class="score-ring caution" style="--score: 64"><span>64</span></div>
                       </div>
-                      <div class="tool-meta"><span>Owner found</span><span>1978 build</span><span>$52k rehab</span></div>
-                      <ul class="tool-list"><li>Sale and tax history</li><li>Flip verdict complete</li></ul>
+                      <div class="tool-meta"><span>Durham, NC</span><span>1978 build</span><span>3 bd / 2 ba</span></div>
+                      <div class="tool-facts"><span><strong>$198k</strong> last sale</span><span><strong>$286k</strong> value</span><span><strong>$52k</strong> rehab</span><span><strong>41 days</strong> market pace</span></div>
+                      <ul class="tool-list"><li>Owner: Elise Morgan</li><li>Signal: permit history + narrow margin</li></ul>
                     </div>
                   </div>
                 </article>
                 <article class="tool-card">
-                  <img src="/coming-soon/images/drive-home.jpg" alt="Drive for Dollars curbside property preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-photo"><img src="/coming-soon/images/drive-home.jpg" alt="Drive for Dollars curbside property preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
                       <span class="tool-name">Drive for Dollars</span>
-                      <span class="tool-status">GPS saved</span>
+                      <span class="tool-status good">Positive</span>
                     </div>
                     <div class="tool-main">
                       <div class="tool-topline">
                         <h3 class="tool-address">406 Maple Ct</h3>
-                        <div class="score-ring" style="--score: 84"><span>84</span></div>
+                        <div class="score-ring good" style="--score: 84"><span>84</span></div>
                       </div>
-                      <div class="tool-meta"><span>3 photos</span><span>Skip trace</span><span>Comps pulled</span></div>
-                      <ul class="tool-list"><li>Curb note captured</li><li>Sent to market view</li></ul>
+                      <div class="tool-meta"><span>Chatham, VA</span><span>GPS 18 ft</span><span>3 photos</span></div>
+                      <div class="tool-facts"><span><strong>$96k</strong> est. value</span><span><strong>$22k</strong> repairs</span><span><strong>1,240</strong> sq ft</span><span><strong>Vacant</strong> curb note</span></div>
+                      <ul class="tool-list"><li>Owner: Carter Family LLC</li><li>Next: send to market view + skip trace</li></ul>
                     </div>
                   </div>
                 </article>
                 <article class="tool-card">
-                  <img src="/coming-soon/images/pipeline-home.jpg" alt="Pipeline lead property preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-photo"><img src="/coming-soon/images/pipeline-home.jpg" alt="Pipeline lead property preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
                       <span class="tool-name">Pipeline + Outreach</span>
-                      <span class="tool-status">Email sent</span>
+                      <span class="tool-status risk">Red flag</span>
                     </div>
                     <div class="tool-main">
                       <div class="tool-topline">
                         <h3 class="tool-address">1180 Willow Bend</h3>
-                        <div class="score-ring" style="--score: 79"><span>79</span></div>
+                        <div class="score-ring risk" style="--score: 38"><span>38</span></div>
                       </div>
-                      <div class="tool-meta"><span>Warm lead</span><span>Buyer fit</span><span>$41k spread</span></div>
-                      <ul class="tool-list"><li>Follow-up sequence active</li><li>Showing packet ready</li></ul>
+                      <div class="tool-meta"><span>Tampa, FL</span><span>Email sent</span><span>Buyer list checked</span></div>
+                      <div class="tool-facts"><span><strong>$318k</strong> asking</span><span><strong>$342k</strong> ARV</span><span><strong>$44k</strong> rehab</span><span><strong>-$20k</strong> margin</span></div>
+                      <ul class="tool-list"><li>Owner: Harbor Bend Holdings</li><li>Signal: too tight — hold for price drop</li></ul>
                     </div>
                   </div>
                 </article>
