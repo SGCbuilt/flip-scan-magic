@@ -1232,7 +1232,7 @@ a:hover { color: var(--gold-dark); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   .hero-mesh, .hero-glow-a, .hero-glow-b,
-  .desk-card, .float-card, .badge-dot, .live-dot, .packet-bar span {
+  .showcase-card, .float-card, .badge-dot, .live-dot {
     animation: none !important;
   }
   .feature-card:hover, .step-card:hover, .btn:active {
@@ -1328,44 +1328,86 @@ a:hover { color: var(--gold-dark); }
           </ul>
         </div>
 
-        <div class="hero-visual" aria-hidden="true">
-          <div class="desk-card">
-            <div class="desk-shine"></div>
-            <div class="desk-top">
-              <div class="desk-dots"><span></span><span></span><span></span></div>
-              <span class="desk-label">Match desk · Preview</span>
-              <span class="desk-live"><span class="live-dot"></span> Live scoring</span>
+        <div class="hero-visual">
+          <div class="showcase-card">
+            <div class="showcase-shine" aria-hidden="true"></div>
+            <div class="showcase-top">
+              <div class="showcase-dots" aria-hidden="true"><span></span><span></span><span></span></div>
+              <span class="showcase-label">FlipScan Pro · Live preview</span>
+              <span class="showcase-live"><span class="live-dot" aria-hidden="true"></span> Complete flow</span>
             </div>
-            <div class="desk-body">
-              <div class="match-row">
-                <div class="deal-chip">
-                  <span class="chip-kicker">Deal</span>
-                  <strong>123 Oak St · SFH</strong>
-                  <span class="chip-meta">Ask $185k · ARV $275k</span>
-                </div>
-                <div class="match-flow">
-                  <div class="flow-line"></div>
-                  <div class="flow-badge">94</div>
-                </div>
-                <div class="buyer-chip">
-                  <span class="chip-kicker gold">Best match</span>
-                  <strong>Buyer · Mid-south</strong>
-                  <span class="chip-meta fit">Buy box hit · Criteria fit</span>
-                </div>
+            <div class="showcase-body">
+              <div class="tool-grid">
+                <article class="tool-card">
+                  <img src="/coming-soon/images/auction-home.jpg" alt="Distressed auction property preview" width="1024" height="768" />
+                  <div class="tool-info">
+                    <div class="tool-topline">
+                      <span class="tool-name">Auction Radar</span>
+                      <span class="tool-status">Sale date found</span>
+                    </div>
+                    <div class="tool-main">
+                      <div class="tool-topline">
+                        <h3 class="tool-address">814 Cedar Ave</h3>
+                        <div class="score-ring" style="--score: 88"><span>88</span></div>
+                      </div>
+                      <div class="tool-meta"><span>Ask $142k</span><span>ARV $245k</span><span>Mar 19</span></div>
+                      <ul class="tool-list"><li>Tax-sale notice verified</li><li>Equity spread $73k</li></ul>
+                    </div>
+                  </div>
+                </article>
+                <article class="tool-card">
+                  <img src="/coming-soon/images/deep-scan-home.jpg" alt="Deep property scan house preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-info">
+                    <div class="tool-topline">
+                      <span class="tool-name">Deep Scan</span>
+                      <span class="tool-status">Memo ready</span>
+                    </div>
+                    <div class="tool-main">
+                      <div class="tool-topline">
+                        <h3 class="tool-address">29 Pine Hill Rd</h3>
+                        <div class="score-ring" style="--score: 91"><span>91</span></div>
+                      </div>
+                      <div class="tool-meta"><span>Owner found</span><span>1978 build</span><span>$52k rehab</span></div>
+                      <ul class="tool-list"><li>Sale and tax history</li><li>Flip verdict complete</li></ul>
+                    </div>
+                  </div>
+                </article>
+                <article class="tool-card">
+                  <img src="/coming-soon/images/drive-home.jpg" alt="Drive for Dollars curbside property preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-info">
+                    <div class="tool-topline">
+                      <span class="tool-name">Drive for Dollars</span>
+                      <span class="tool-status">GPS saved</span>
+                    </div>
+                    <div class="tool-main">
+                      <div class="tool-topline">
+                        <h3 class="tool-address">406 Maple Ct</h3>
+                        <div class="score-ring" style="--score: 84"><span>84</span></div>
+                      </div>
+                      <div class="tool-meta"><span>3 photos</span><span>Skip trace</span><span>Comps pulled</span></div>
+                      <ul class="tool-list"><li>Curb note captured</li><li>Sent to market view</li></ul>
+                    </div>
+                  </div>
+                </article>
+                <article class="tool-card">
+                  <img src="/coming-soon/images/pipeline-home.jpg" alt="Pipeline lead property preview" width="1024" height="768" loading="lazy" />
+                  <div class="tool-info">
+                    <div class="tool-topline">
+                      <span class="tool-name">Pipeline + Outreach</span>
+                      <span class="tool-status">Email sent</span>
+                    </div>
+                    <div class="tool-main">
+                      <div class="tool-topline">
+                        <h3 class="tool-address">1180 Willow Bend</h3>
+                        <div class="score-ring" style="--score: 79"><span>79</span></div>
+                      </div>
+                      <div class="tool-meta"><span>Warm lead</span><span>Buyer fit</span><span>$41k spread</span></div>
+                      <ul class="tool-list"><li>Follow-up sequence active</li><li>Showing packet ready</li></ul>
+                    </div>
+                  </div>
+                </article>
               </div>
-              <div class="packet">
-                <div class="packet-head">
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2.5" y="1.5" width="11" height="13" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M5 5h6M5 8h6M5 11h3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
-                  <span>Showing Packet</span>
-                </div>
-                <ul>
-                  <li>Comps &amp; rent context</li>
-                  <li>Deal math &amp; risk flags</li>
-                  <li>Rehab notes · Clear ask</li>
-                </ul>
-                <div class="packet-bar" role="presentation"><span></span></div>
-              </div>
-              <p class="desk-note">One investor. One packet. Criteria fit.</p>
+              <p class="showcase-note">Four complete functions. Fake demo data. Real product flow.</p>
             </div>
           </div>
           <div class="float-card float-a">
