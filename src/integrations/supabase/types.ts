@@ -543,6 +543,42 @@ export type Database = {
         }
         Relationships: []
       }
+      waitlist_leads: {
+        Row: {
+          company: string | null
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          markets: string
+          message: string | null
+          motion: string
+          phone: string | null
+        }
+        Insert: {
+          company?: string | null
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          markets: string
+          message?: string | null
+          motion: string
+          phone?: string | null
+        }
+        Update: {
+          company?: string | null
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          markets?: string
+          message?: string | null
+          motion?: string
+          phone?: string | null
+        }
+        Relationships: []
+      }
       watchlists: {
         Row: {
           alert_price: number | null

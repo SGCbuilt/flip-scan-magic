@@ -19,4 +19,6 @@ project_id = "lxdohdgfrrasymqlghfg"
     verify_jwt = false
   [functions.drip-email-run]
     verify_jwt = false
+  [functions.waitlist-signup]
+    verify_jwt = false
 

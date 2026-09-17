@@ -14,6 +14,60 @@ import {
 } from '../lib/buyerList'
 import { getWholesaleDeals } from '../lib/wholesalePDF'
 import { generateWholesaleEmail } from '../lib/wholesalePDF'
+import { supabase } from '@/integrations/supabase/client'
+
+// ── Waitlist signups from the coming-soon page ────────────────────────────────
+interface WaitlistLead {
+  id: string; full_name: string; email: string; phone: string | null
+  markets: string; motion: string; company: string | null; message: string | null
+  created_at: string
+}
+
+function WaitlistPanel() {
+  const [leads,  setLeads]  = useState<WaitlistLead[]>([])
+  const [open,   setOpen]   = useState(false)
+  const [loaded, setLoaded] = useState(false)
+
+  useEffect(() => {
+    supabase.from('waitlist_leads').select('*').order('created_at', { ascending: false }).limit(100)
+      .then(({ data }) => { setLeads((data as WaitlistLead[]) || []); setLoaded(true) })
+  }, [])
+
+  if (!loaded || leads.length === 0) return null
+
+  return (
+    <div className="mb-4 bg-white rounded-2xl border overflow-hidden" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+      <button onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-4 py-3 border-none cursor-pointer bg-transparent">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-bold" style={{ color: 'var(--sgc-navy)' }}>📥 Waitlist signups</span>
+          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full" style={{ background: '#EEF2FB', color: '#1B3A8C' }}>{leads.length}</span>
+        </div>
+        <span className="text-xs" style={{ color: 'var(--sgc-gray-mid)' }}>{open ? '▲ Hide' : '▼ Show'}</span>
+      </button>
+      {open && (
+        <div className="border-t divide-y" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+          {leads.map(l => (
+            <div key={l.id} className="px-4 py-3 flex items-start justify-between gap-3" style={{ borderColor: 'var(--sgc-gray-border)' }}>
+              <div className="min-w-0">
+                <div className="text-xs font-bold" style={{ color: 'var(--sgc-black)' }}>
+                  {l.full_name} {l.company ? <span style={{ color: 'var(--sgc-gray-mid)', fontWeight: 400 }}>· {l.company}</span> : null}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  {l.email}{l.phone ? ` · ${l.phone}` : ''} · {l.markets} · {l.motion}
+                </div>
+                {l.message && <div className="text-[11px] mt-1 italic" style={{ color: 'var(--sgc-gray-mid)' }}>"{l.message}"</div>}
+              </div>
+              <div className="text-[10px] flex-shrink-0" style={{ color: 'var(--sgc-gray-mid)' }}>
+                {new Date(l.created_at).toLocaleDateString()}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const fmt$ = (n: number) => n >= 1000 ? `$${Math.round(n/1000)}k` : n > 0 ? `$${n}` : '—'
 
@@ -622,6 +676,7 @@ export default function BuyerList() {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-5">
+        <WaitlistPanel />
         {buyers.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center max-w-lg mx-auto px-8">
             <div className="text-5xl mb-4">👥</div>
