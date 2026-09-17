@@ -561,10 +561,53 @@ a:hover { color: var(--gold-dark); }
   animation: badgePulse 2s ease-out infinite;
 }
 .showcase-body { padding: 1rem; position: relative; z-index: 2; }
-.tool-grid {
+.gallery-shell { display: grid; gap: 0.75rem; }
+.gallery-window { position: relative; }
+.gallery-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+}
+.gallery-arrow {
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--white);
+  color: var(--navy);
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.8rem;
+  place-items: center;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.18s var(--ease), border-color 0.18s var(--ease), box-shadow 0.18s var(--ease);
+}
+.gallery-arrow:hover {
+  transform: translateY(-1px);
+  border-color: rgba(15, 36, 96, 0.25);
+  box-shadow: var(--shadow);
+}
+.gallery-arrow:active { transform: translateY(0); }
+.gallery-count {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  flex: 1;
+}
+.gallery-dot {
+  width: 7px;
+  height: 7px;
+  border: 0;
+  padding: 0;
+  border-radius: 999px;
+  background: #C7CEDC;
+  cursor: pointer;
+  transition: width 0.2s var(--ease), background 0.2s var(--ease);
+}
+.gallery-dot.is-active {
+  width: 22px;
+  background: var(--navy);
 }
 .tool-card {
   display: grid;
@@ -576,10 +619,12 @@ a:hover { color: var(--gold-dark); }
   border: 1px solid rgba(15, 36, 96, 0.1);
   box-shadow: var(--shadow-sm);
 }
+.tool-card[hidden] { display: none; }
 .tool-photo {
   position: relative;
-  aspect-ratio: 16 / 9;
-  min-height: 104px;
+  aspect-ratio: 16 / 8.5;
+  min-height: 150px;
+  max-height: 230px;
   background: var(--surface);
   overflow: hidden;
 }
@@ -693,6 +738,43 @@ a:hover { color: var(--gold-dark); }
   font-size: 0.68rem;
   line-height: 1.2;
 }
+.analysis-panel {
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.62rem;
+  border: 1px solid var(--line-soft);
+  border-radius: 11px;
+  background: linear-gradient(180deg, #FFFFFF 0%, #F5F7FC 100%);
+}
+.analysis-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+.analysis-title {
+  font-size: 0.62rem;
+  font-weight: 850;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--navy);
+}
+.analysis-verdict {
+  border-radius: 999px;
+  padding: 0.16rem 0.46rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.analysis-verdict.good { color: var(--ok); background: var(--ok-bg); }
+.analysis-verdict.caution { color: var(--caution); background: var(--caution-bg); }
+.analysis-verdict.risk { color: var(--risk); background: var(--risk-bg); }
+.analysis-panel p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.66rem;
+  line-height: 1.35;
+}
 .tool-list {
   margin: 0;
   padding: 0;
@@ -773,8 +855,7 @@ a:hover { color: var(--gold-dark); }
 }
 @media (max-width: 559px) {
   .showcase-body { padding: 0.75rem; }
-  .tool-grid { grid-template-columns: 1fr; }
-  .tool-photo { min-height: 92px; }
+  .tool-photo { min-height: 138px; max-height: 180px; }
   .tool-info { padding: 0.68rem; }
   .tool-facts { grid-template-columns: 1fr 1fr; }
 }
@@ -1365,8 +1446,9 @@ a:hover { color: var(--gold-dark); }
               <span class="showcase-live"><span class="live-dot" aria-hidden="true"></span> Complete flow</span>
             </div>
             <div class="showcase-body">
-              <div class="tool-grid">
-                <article class="tool-card">
+              <div class="gallery-shell" data-gallery>
+                <div class="gallery-window" aria-live="polite">
+                <article class="tool-card" data-slide>
                   <div class="tool-photo"><img src="/coming-soon/images/auction-home.jpg" alt="Distressed auction property preview" width="1024" height="768" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
@@ -1380,11 +1462,15 @@ a:hover { color: var(--gold-dark); }
                       </div>
                       <div class="tool-meta"><span>Norfolk, VA</span><span>Sale Mar 19</span><span>County notice</span></div>
                       <div class="tool-facts"><span><strong>$142k</strong> opening bid</span><span><strong>$245k</strong> ARV</span><span><strong>$31k</strong> rehab</span><span><strong>$72k</strong> equity spread</span></div>
+                      <div class="analysis-panel">
+                        <div class="analysis-head"><span class="analysis-title">SGC intelligent analysis</span><span class="analysis-verdict good">Move fast</span></div>
+                        <p>Strong spread after repairs, verified auction source, and a near-term sale date make this a priority follow.</p>
+                      </div>
                       <ul class="tool-list"><li>Owner: Marvin Cole Trust</li><li>Signal: tax-sale notice + vacant mail flag</li></ul>
                     </div>
                   </div>
                 </article>
-                <article class="tool-card">
+                <article class="tool-card" data-slide hidden>
                   <div class="tool-photo"><img src="/coming-soon/images/deep-scan-home.jpg" alt="Deep property scan house preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
@@ -1398,11 +1484,15 @@ a:hover { color: var(--gold-dark); }
                       </div>
                       <div class="tool-meta"><span>Durham, NC</span><span>1978 build</span><span>3 bd / 2 ba</span></div>
                       <div class="tool-facts"><span><strong>$198k</strong> last sale</span><span><strong>$286k</strong> value</span><span><strong>$52k</strong> rehab</span><span><strong>41 days</strong> market pace</span></div>
+                      <div class="analysis-panel">
+                        <div class="analysis-head"><span class="analysis-title">SGC intelligent analysis</span><span class="analysis-verdict caution">Verify repairs</span></div>
+                        <p>Good owner and history data, but rehab cost leaves a thinner cushion unless the seller discounts.</p>
+                      </div>
                       <ul class="tool-list"><li>Owner: Elise Morgan</li><li>Signal: permit history + narrow margin</li></ul>
                     </div>
                   </div>
                 </article>
-                <article class="tool-card">
+                <article class="tool-card" data-slide hidden>
                   <div class="tool-photo"><img src="/coming-soon/images/drive-home.jpg" alt="Drive for Dollars curbside property preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
@@ -1416,11 +1506,15 @@ a:hover { color: var(--gold-dark); }
                       </div>
                       <div class="tool-meta"><span>Chatham, VA</span><span>GPS 18 ft</span><span>3 photos</span></div>
                       <div class="tool-facts"><span><strong>$96k</strong> est. value</span><span><strong>$22k</strong> repairs</span><span><strong>1,240</strong> sq ft</span><span><strong>Vacant</strong> curb note</span></div>
+                      <div class="analysis-panel">
+                        <div class="analysis-head"><span class="analysis-title">SGC intelligent analysis</span><span class="analysis-verdict good">Add to pipeline</span></div>
+                        <p>Clean curb capture, vacant signal, and low repair estimate make it worth owner outreach.</p>
+                      </div>
                       <ul class="tool-list"><li>Owner: Carter Family LLC</li><li>Next: send to market view + skip trace</li></ul>
                     </div>
                   </div>
                 </article>
-                <article class="tool-card">
+                <article class="tool-card" data-slide hidden>
                   <div class="tool-photo"><img src="/coming-soon/images/pipeline-home.jpg" alt="Pipeline lead property preview" width="1024" height="768" loading="lazy" /></div>
                   <div class="tool-info">
                     <div class="tool-topline">
@@ -1434,12 +1528,31 @@ a:hover { color: var(--gold-dark); }
                       </div>
                       <div class="tool-meta"><span>Tampa, FL</span><span>Email sent</span><span>Buyer list checked</span></div>
                       <div class="tool-facts"><span><strong>$318k</strong> asking</span><span><strong>$342k</strong> ARV</span><span><strong>$44k</strong> rehab</span><span><strong>-$20k</strong> margin</span></div>
+                      <div class="analysis-panel">
+                        <div class="analysis-head"><span class="analysis-title">SGC intelligent analysis</span><span class="analysis-verdict risk">Pass for now</span></div>
+                        <p>Buyer fit is real, but the spread is negative after repairs. Keep it active only for a price drop.</p>
+                      </div>
                       <ul class="tool-list"><li>Owner: Harbor Bend Holdings</li><li>Signal: too tight — hold for price drop</li></ul>
                     </div>
                   </div>
                 </article>
+                </div>
+                <div class="gallery-controls" aria-label="Property preview gallery controls">
+                  <button class="gallery-arrow" type="button" data-gallery-prev aria-label="Previous property preview">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M11.25 4.5L6.75 9l4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div class="gallery-count" aria-label="Choose property preview">
+                    <button class="gallery-dot is-active" type="button" data-gallery-dot aria-label="Show Auction Radar preview"></button>
+                    <button class="gallery-dot" type="button" data-gallery-dot aria-label="Show Deep Scan preview"></button>
+                    <button class="gallery-dot" type="button" data-gallery-dot aria-label="Show Drive for Dollars preview"></button>
+                    <button class="gallery-dot" type="button" data-gallery-dot aria-label="Show Pipeline preview"></button>
+                  </div>
+                  <button class="gallery-arrow" type="button" data-gallery-next aria-label="Next property preview">
+                    <svg width="18" height="18" viewBox="0 0 18 18" fill="none" aria-hidden="true"><path d="M6.75 4.5l4.5 4.5-4.5 4.5" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
               </div>
-              <p class="showcase-note">Four complete functions. Fake demo data. Real product flow.</p>
+              <p class="showcase-note">One property at a time. Fake demo data. Real product flow.</p>
             </div>
           </div>
           <div class="float-card float-a">
@@ -1743,6 +1856,30 @@ a:hover { color: var(--gold-dark); }
             mobile.hidden = true;
           });
         });
+      }
+
+      var gallery = document.querySelector("[data-gallery]");
+      if (gallery) {
+        var slides = Array.prototype.slice.call(gallery.querySelectorAll("[data-slide]"));
+        var dots = Array.prototype.slice.call(gallery.querySelectorAll("[data-gallery-dot]"));
+        var prev = gallery.querySelector("[data-gallery-prev]");
+        var next = gallery.querySelector("[data-gallery-next]");
+        var current = 0;
+
+        function showSlide(index) {
+          if (!slides.length) return;
+          current = (index + slides.length) % slides.length;
+          slides.forEach(function (slide, i) { slide.hidden = i !== current; });
+          dots.forEach(function (dot, i) {
+            dot.classList.toggle("is-active", i === current);
+            dot.setAttribute("aria-current", i === current ? "true" : "false");
+          });
+        }
+
+        if (prev) prev.addEventListener("click", function () { showSlide(current - 1); });
+        if (next) next.addEventListener("click", function () { showSlide(current + 1); });
+        dots.forEach(function (dot, i) { dot.addEventListener("click", function () { showSlide(i); }); });
+        showSlide(0);
       }
 
       var form = document.getElementById("waitlist-form");
