@@ -164,7 +164,7 @@ export default function RehabEstimator({
       {/* Systems grid */}
       <div>
         <div className="text-[10px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--sgc-navy)' }}>
-          Rate Each System — VA/NC Market Rates (May 2026)
+          Rate Each System — Market Rates (May 2026)
         </div>
         <div className="space-y-1.5">
           {DEFAULT_SYSTEMS
@@ -270,7 +270,7 @@ export default function RehabEstimator({
             <div className="px-4 py-2.5 flex items-center justify-between"
               style={{ background: 'var(--sgc-navy)' }}>
               <span className="text-xs font-bold text-white uppercase tracking-wider">Scope of Work Estimate</span>
-              <span className="text-[10px] text-white/70">VA/NC labor + material rates · May 2026</span>
+              <span className="text-[10px] text-white/70">Labor + material rates · May 2026</span>
             </div>
             <div className="divide-y" style={{ borderColor: 'var(--sgc-gray-border)' }}>
               {activeItems.map(item => (
@@ -464,17 +464,10 @@ export default function RehabEstimator({
                       placeholder="City"
                       className="w-full rounded-xl border text-sm px-3 py-2 outline-none"
                       style={{ borderColor: 'var(--sgc-gray-border)' }} />
-                    <div className="grid grid-cols-2 gap-1">
-                      {['VA','NC'].map(s => (
-                        <button key={s} onClick={() => setSOWState(s)}
-                          className="py-2 rounded-xl border text-xs font-bold cursor-pointer"
-                          style={sowState === s
-                            ? { background: 'var(--sgc-navy)', borderColor: 'var(--sgc-navy)', color: 'white' }
-                            : { background: 'white', borderColor: 'var(--sgc-gray-border)', color: 'var(--sgc-gray-mid)' }}>
-                          {s}
-                        </button>
-                      ))}
-                    </div>
+                    <input type="text" value={sowState} onChange={e => setSOWState(e.target.value.toUpperCase().slice(0,2))}
+                      placeholder="VA"
+                      className="w-full rounded-xl border text-sm px-3 py-2 outline-none text-center font-bold"
+                      style={{ borderColor: 'var(--sgc-gray-border)' }} />
                     <input type="text" value={sowZip} onChange={e => setSOWZip(e.target.value)}
                       placeholder="Zip" maxLength={5}
                       className="w-full rounded-xl border text-sm px-3 py-2 outline-none"
