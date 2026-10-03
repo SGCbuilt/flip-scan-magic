@@ -65,7 +65,7 @@ export async function requireUser(
   }
 
   // LEGACY_ANON_UNTIL_PUBLISH — remove this block after the new frontend is published.
-  if (opts.legacyAnonLimit && anonKey && token === anonKey) {
+  if (opts.legacyAnonLimit && isProjectAnonKey(token, anonKey, url)) {
     if (!(await consume('legacy-anon', opts.legacyAnonLimit))) return deny(429, 'Daily limit reached')
     return { ok: true }
   }
