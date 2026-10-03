@@ -178,6 +178,30 @@ export type Database = {
         }
         Relationships: []
       }
+      edge_usage: {
+        Row: {
+          count: number
+          day: string
+          fn: string
+          updated_at: string
+          user_key: string
+        }
+        Insert: {
+          count?: number
+          day?: string
+          fn: string
+          updated_at?: string
+          user_key: string
+        }
+        Update: {
+          count?: number
+          day?: string
+          fn?: string
+          updated_at?: string
+          user_key?: string
+        }
+        Relationships: []
+      }
       email_send_log: {
         Row: {
           created_at: string
@@ -611,6 +635,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      consume_edge_quota: {
+        Args: { _fn: string; _limit: number; _user_key: string }
+        Returns: boolean
+      }
       delete_email: {
         Args: { message_id: number; queue_name: string }
         Returns: boolean

@@ -10,6 +10,8 @@ const isProduction = typeof window !== 'undefined' &&
   !window.location.hostname.includes('localhost') &&
   !window.location.hostname.includes('127.0.0.1')
 
+import { rentcastFetch } from './secureFetch'
+
 const PROXY_URL = '/api/proxy'
 
 export interface ProxyRequest {
@@ -40,6 +42,15 @@ export async function apiCall<T = any>(
 ): Promise<ProxyResponse<T>> {
 
   try {
+    // RentCast always goes through the signed-in `rentcast` edge function (server-side key).
+    if (request.provider === 'rentcast') {
+      const params = Object.fromEntries(Object.entries(request.params || {}).map(([k, v]) => [k, String(v)]))
+      const res = await rentcastFetch(request.endpoint, params)
+      const data = await res.json()
+      if (!res.ok) return { ok: false, data: null, error: data?.error || `rentcast API: HTTP ${res.status}`, raw: data }
+      return { ok: true, data: data as T, raw: data }
+    }
+
     if (isProduction) {
       // ── Production: go through proxy ──────────────────────────────────────
       const res = await fetch(PROXY_URL, {
@@ -100,7 +111,7 @@ export async function apiCall<T = any>(
 const DEV_CONFIGS: Record<string, { base: string; getHeaders: (customKey?: string) => Record<string, string> }> = {
   rentcast: {
     base: 'https://api.rentcast.io/v1',
-    getHeaders: () => ({ 'X-Api-Key': (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast') || '' }),
+    getHeaders: () => ({}), // routed through the rentcast edge function above
   },
   attom: {
     base: 'https://api.gateway.attomdata.com/propertyapi/v1.0.0',

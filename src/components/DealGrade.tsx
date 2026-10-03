@@ -13,7 +13,7 @@ import { computeDealGrade, DealGradeInput, DealGradeResult, GCRisk } from '../li
 const fmt$ = (n: number) => '$' + Math.round(n).toLocaleString()
 
 function getAnthropicKey() {
-  try { return localStorage.getItem('fscan_anthropic') || '' } catch { return '' }
+  return 'server' // Anthropic key lives server-side (anthropic-proxy)
 }
 
 // ── Risk badge ────────────────────────────────────────────────────────────────

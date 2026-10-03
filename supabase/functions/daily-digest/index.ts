@@ -1,3 +1,4 @@
+import { requireUser } from '../_shared/edge-auth.ts'
 /**
  * Daily Digest Edge Function
  *
@@ -190,6 +191,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+  // LEGACY_ANON_UNTIL_PUBLISH: remove legacyAnonLimit after publishing the new frontend
+  const gate = await requireUser(req, 'daily-digest', corsHeaders, { legacyAnonLimit: 3 })
+  if (!gate.ok) return gate.response!
 
   try {
     const RESEND_KEY  = Deno.env.get('RESEND_API_KEY')  || ''

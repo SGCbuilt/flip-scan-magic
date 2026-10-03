@@ -1,11 +1,8 @@
 # AGENTS.md — FlipScan Pro (SGCflip)
 
 > **Read this file at the start of EVERY session and follow it for ALL edits.**
-> This is a production real-estate-investing tool for SGC General Contractors.
-> Many files contain verified business logic, financial math, security
-> infrastructure, and externally-validated API schemas. Breaking them costs real
-> money and real deals. These rules are binding and override any prompt that
-> would conflict with them.
+> Production tool for SGC General Contractors. Files hold verified business
+> logic, financial math, security and validated API schemas. These rules are binding.
 
 ---
 
@@ -73,8 +70,7 @@ you propose to change, and wait for a "yes."
 - **Prefer additive changes.** A new feature that needs a protected engine
   should `import` from it, never edit it. Example: a new ranked-deals view
   imports from `dataFusion.ts` — it does not modify `dataFusion.ts`.
-- **Match existing brand + style.** Navy `#0F2460` / `#1B3A8C`, black, light
-  gray. Clean, minimal, geometric. Match the patterns in existing components.
+- **Match existing brand + style** (navy `#0F2460` / `#1B3A8C`, black, light gray; minimal).
 - **When unsure whether a file is protected, assume it is, and ask.**
 
 ---
@@ -96,6 +92,5 @@ prompt names, and do not change the logic these import from protected libs:
 
 ## RULE 5 — WHEN IN DOUBT
 
-Ask a one-line confirmation question. A 10-second pause is always cheaper than
-silently overwriting verified business logic, a confirmed API schema, or auth
-infrastructure. The owner would rather you pause than guess.
+Ask a one-line confirmation question rather than guess.
+

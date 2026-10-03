@@ -19,6 +19,7 @@
  */
 
 import { buildCostingIntelligence } from './dealPL'
+import { anthropicFetch } from './secureFetch'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -467,22 +468,12 @@ Write exactly this JSON (no markdown):
   "recommendedAction": "[1 specific action: e.g., 'Submit $155k offer contingent on structural engineer report' or 'Pass — carry cost risk exceeds margin at current ARV']"
 }`
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
+      const res = await anthropicFetch({
           model: 'claude-sonnet-4-20250514',
           max_tokens: 500,
           temperature: 0,
           messages: [{ role: 'user', content: prompt }],
-        }),
-        signal: AbortSignal.timeout(18000),
-      })
+        })
 
       if (res.ok) {
         const d = await res.json()

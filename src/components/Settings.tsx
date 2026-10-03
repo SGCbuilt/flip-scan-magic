@@ -392,46 +392,18 @@ export default function Settings() {
         {/* API Keys */}
         {tab === 'keys' && (
           <div className="space-y-3">
-            <KeyField
-              label="RentCast (Comps + AVM)"
-              storageKey="fscan_rentcast"
-              placeholder="Your RentCast API key"
-              docs="https://app.rentcast.io/app/api-keys"
-              description="Powers Deal Scanner, comp auto-pull, ARV estimates, and market data everywhere. Required for core functionality."
-            />
-            <KeyField
-              label="Anthropic Claude"
-              storageKey="fscan_anthropic"
-              placeholder="sk-ant-api03-..."
-              docs="https://console.anthropic.com/settings/keys"
-              description="Powers GC Deal Grade, AI Motivation Score, Market Analysis. ~$0.003/request."
-            />
-            <KeyField
-              label="Tracerfy (Skip Trace)"
-              storageKey="fscan_tracer"
-              placeholder="tracer_live_..."
-              docs="https://tracerfy.com"
-              description="Returns owner name, phone, email, equity, DNC status per property."
-            />
+            <div className="bg-white rounded-2xl border p-4" style={{ borderColor: '#1A7A4A30' }}>
+              <div className="text-sm font-bold" style={{ color: 'var(--sgc-black)' }}>RentCast · Anthropic · Tracerfy</div>
+              <div className="text-xs mt-0.5" style={{ color: 'var(--sgc-gray-mid)' }}>
+                Managed securely on the server. These keys are never stored in your browser.
+              </div>
+            </div>
             <KeyField
               label="PostGrid (Direct Mail)"
               storageKey="fscan_postgrid"
               placeholder="test_sk_... or live_sk_..."
               docs="https://app.postgrid.com/register"
               description="Send physical letters to owner mailing addresses. $1.20/letter, 3-5 day delivery."
-            />
-            <KeyField
-              label="Supabase URL"
-              storageKey="fscan_supabase_url"
-              placeholder="https://xxxx.supabase.co"
-              docs="https://supabase.com/dashboard"
-              description="Auto-set by Lovable when you connect Supabase in Settings → Integrations."
-            />
-            <KeyField
-              label="Supabase Anon Key"
-              storageKey="fscan_supabase_anon"
-              placeholder="eyJhbGci..."
-              description="Auto-set by Lovable. Only needed if configuring manually."
             />
           </div>
         )}

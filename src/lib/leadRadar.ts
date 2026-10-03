@@ -1,3 +1,4 @@
+import { supabase } from '@/integrations/supabase/client'
 /**
  * Lead Radar — Early Signal Detection
  * 
@@ -181,7 +182,7 @@ async function safeFetch(url: string): Promise<any> {
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
-        'Authorization': `Bearer ${anon}`,
+        'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token || anon}`,
         'apikey': anon,
       },
       body: JSON.stringify({ url }),

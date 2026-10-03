@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 interface Body {
   prompt?: string
@@ -112,6 +113,8 @@ async function callGemini(prompt: string, system: string, jsonMode = false): Pro
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'ai-analysis', corsHeaders)
+  if (!gate.ok) return gate.response!
 
   try {
     const body = await req.json() as Body

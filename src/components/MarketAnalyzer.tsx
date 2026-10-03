@@ -163,11 +163,9 @@ export default function MarketAnalyzer() {
                   {keys.anthropic ? 'Claude AI Ready' : 'API Key Required'}
                 </span>
               </div>
-              <button onClick={() => setShowKeys(s => !s)}
-                className="text-[10px] font-semibold cursor-pointer bg-transparent border-none"
-                style={{ color: keys.anthropic ? '#1A7A4A' : '#C0341D' }}>
-                {keys.anthropic ? 'Change' : 'Add Key'}
-              </button>
+              <span className="text-[10px] font-semibold" style={{ color: '#1A7A4A' }}>
+                ✓ Server-managed
+              </span>
             </div>
             {!keys.anthropic && (
               <div className="text-[10px] mt-1" style={{ color: '#C0341D' }}>

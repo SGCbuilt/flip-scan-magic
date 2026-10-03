@@ -119,6 +119,7 @@ function isTrustedPermitEvidenceHost(host: string): boolean {
 }
 
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 interface Body {
   address: string
@@ -1326,6 +1327,8 @@ ${JSON.stringify(context, null, 2)}`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'deep-scan', corsHeaders)
+  if (!gate.ok) return gate.response!
 
   try {
     const body = await req.json() as Body

@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 interface Body {
   address: string
@@ -133,6 +134,8 @@ async function firecrawlPhotos(fullAddress: string, zip?: string): Promise<{ pho
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'property-photos', corsHeaders)
+  if (!gate.ok) return gate.response!
   try {
     const body = await req.json() as Body
     const parts = [body.address, body.city, body.state, body.zip].filter(Boolean).join(', ')

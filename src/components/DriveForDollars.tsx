@@ -226,7 +226,7 @@ function cloneCaptureAnalysis(source: Capture): Partial<Capture> {
 }
 
 function getTracerKey() {
-  try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' }
+  return 'server' // Tracerfy key lives server-side (skip-trace edge function)
 }
 
 const STATE_ABBR = new Set([

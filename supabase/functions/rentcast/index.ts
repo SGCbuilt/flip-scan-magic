@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 const BASE = 'https://api.rentcast.io/v1'
 
@@ -12,10 +13,12 @@ const ENDPOINTS = {
 } as const
 
 // Whitelist of full paths the client may request directly via `path`
-const ALLOWED_PATHS = new Set<string>(Object.values(ENDPOINTS))
+const ALLOWED_PATHS = new Set<string>([...Object.values(ENDPOINTS), '/avm/value/comps'])
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'rentcast', corsHeaders)
+  if (!gate.ok) return gate.response!
 
   try {
     const key = Deno.env.get('RENTCAST_API_KEY')

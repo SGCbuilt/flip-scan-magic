@@ -594,19 +594,16 @@ export default function LeadRadar() {
   const [expandedId, setExpanded]   = useState<string | null>(null)
   const [sources,    setSources]    = useState(RADAR_SOURCES.map(s => ({ ...s })))
   const [progress,   setProgress]   = useState<Record<string, string>>({})
-  const [tracerKey,  setTracerKey]  = useState(() => { try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' } })
+  const [tracerKey,  setTracerKey]  = useState('server') // Tracerfy key lives server-side
   const [showTracerSetup, setShowTracerSetup] = useState(false)
-  const [draftTracerKey, setDraftTracerKey] = useState('')
   const [tracerBalance, setTracerBalance] = useState<{ credits: number } | null>(null)
 
   const saveTracerKey = async (key: string) => {
-    try { localStorage.setItem('fscan_tracer', key.trim()) } catch {}
-    setTracerKey(key.trim())
+    void key
+    setTracerKey('server')
     setShowTracerSetup(false)
-    if (key.trim()) {
-      const bal = await fetchTracerBalance(key.trim())
-      if (bal) setTracerBalance(bal)
-    }
+    const bal = await fetchTracerBalance('server')
+    if (bal) setTracerBalance(bal)
   }
 
   // Filters
@@ -754,7 +751,7 @@ export default function LeadRadar() {
               <div className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--sgc-navy)', letterSpacing: '0.08em' }}>Skip Tracing</div>
               <button onClick={() => setShowTracerSetup(s => !s)}
                 className="text-[10px] cursor-pointer bg-transparent border-none font-semibold"
-                style={{ color: 'var(--sgc-navy)' }}>{tracerKey ? 'Change' : 'Setup'}</button>
+                style={{ color: 'var(--sgc-navy)' }}>{tracerKey ? 'Details' : 'Setup'}</button>
             </div>
             <div className="rounded-xl border p-3" style={{
               borderColor: tracerKey ? '#1A7A4A40' : 'var(--sgc-gray-border)',
@@ -769,21 +766,19 @@ export default function LeadRadar() {
             </div>
             {showTracerSetup && (
               <div className="mt-2 space-y-2">
-                <input className="w-full rounded-lg border text-xs px-3 py-2 outline-none bg-white"
-                  style={{ borderColor: 'var(--sgc-gray-border)' }}
-                  type="password" value={draftTracerKey}
-                  onChange={e => setDraftTracerKey(e.target.value)}
-                  placeholder="Your Tracerfy API key" />
+                <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>
+                  Tracerfy key is managed securely on the server.
+                </div>
                 <div className="flex gap-2">
-                  <button onClick={() => saveTracerKey(draftTracerKey)}
+                  <button onClick={() => saveTracerKey('')}
                     className="flex-1 py-1.5 rounded-lg text-xs font-bold text-white border-none cursor-pointer"
-                    style={{ background: 'var(--sgc-navy)' }}>Save</button>
+                    style={{ background: 'var(--sgc-navy)' }}>Check credits</button>
                   <button onClick={() => setShowTracerSetup(false)}
                     className="px-3 py-1.5 rounded-lg text-xs border-none cursor-pointer"
                     style={{ background: 'var(--sgc-gray-border)' }}>Cancel</button>
                 </div>
                 <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>
-                  TCPA: Skip trace data for personal use only. Always DNC-scrub before calling. Key stored in your browser only.
+                  TCPA: Skip trace data for personal use only. Always DNC-scrub before calling. Key managed securely on the server.
                 </div>
               </div>
             )}

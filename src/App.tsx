@@ -580,10 +580,7 @@ export default function App() {
   const [showFilters,     setShowFilters]     = useState(false)
   const [showAddProperty, setShowAddProperty] = useState(false)
   const [queueBadge,      setQueueBadge]      = useState(0)
-  const [showOnboarding,  setShowOnboarding]  = useState(() => {
-    const hasKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast')
-    return !hasKey
-  })
+  const [showOnboarding,  setShowOnboarding]  = useState(false) // API keys are server-side now
 
   // Track narrow screens — sidebar becomes an overlay drawer on phones
   useEffect(() => {
@@ -637,12 +634,6 @@ export default function App() {
   const handleSearch = async () => {
     const q = params.locationQuery.trim()
     if (!q) { showToast('Enter a location to search', true); return }
-    // Guard: RentCast key required for all search operations
-    const rentcastKey = (import.meta.env.VITE_RENTCAST_KEY as string) || localStorage.getItem('fscan_rentcast') || ''
-    if (!rentcastKey) {
-      toast.error('RentCast API key required — add it in Settings → API Keys → RentCast')
-      return
-    }
     setShowFilters(false)
     setAppState('loading'); setApiErrors([]); setResults([]); setAllAnalyzed([])
     const t0 = Date.now()

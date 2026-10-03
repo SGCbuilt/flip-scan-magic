@@ -12,6 +12,8 @@
  *            FTC one-to-one consent rule effective Jan 27, 2025.
  */
 
+import { skipTraceFetch } from './secureFetch'
+
 export interface SkipTraceResult {
   hit:            boolean
   creditsUsed:    number
@@ -58,20 +60,10 @@ export async function skipTrace(
   zip: string,
   apiKey: string
 ): Promise<SkipTraceResult> {
-  if (!apiKey) {
-    return { hit: false, creditsUsed: 0, owner: null, phones: [], emails: [], property: null, rawData: null, fetchedAt: new Date().toISOString(), error: 'No Tracerfy API key configured' }
-  }
+  void apiKey // key lives server-side (skip-trace edge function)
 
   try {
-    const res = await fetch('https://www.tracerfy.com/v1/api/lead-builder/lookup/', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Api-Key ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ address, city, state, zip_code: zip }),
-      signal: AbortSignal.timeout(15000),
-    })
+    const res = await skipTraceFetch('lookup', { address, city, state, zip_code: zip })
 
     if (!res.ok) {
       const err = await res.text().catch(() => '')
@@ -168,10 +160,8 @@ export interface TracerBalance {
 
 export async function fetchTracerBalance(apiKey: string): Promise<TracerBalance | null> {
   try {
-    const res = await fetch('https://www.tracerfy.com/v1/api/account/summary/', {
-      headers: { 'Authorization': `Api-Key ${apiKey}` },
-      signal: AbortSignal.timeout(8000),
-    })
+    void apiKey
+    const res = await skipTraceFetch('balance')
     if (!res.ok) return null
     const d = await res.json()
     return {

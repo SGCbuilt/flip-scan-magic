@@ -10,8 +10,6 @@
  */
 import { useState } from 'react'
 import { toast } from '../lib/toast'
-import { supabase } from '@/integrations/supabase/client'
-import { pushKeysToCloud } from '../lib/keyVault'
 
 const STEPS = [
   {
@@ -65,12 +63,10 @@ export default function Onboarding({ onDismiss }: Props) {
       return
     }
     if (val) {
-      try { localStorage.setItem(current.key, val) } catch {}
+      // Keys are managed server-side; nothing is stored in the browser.
       toast.success(`${current.title} saved`)
     }
     if (isLast) {
-      const { data } = await supabase.auth.getUser()
-      if (data.user) await pushKeysToCloud(data.user.id)
       onDismiss()
     } else {
       setStep(s => s + 1)
