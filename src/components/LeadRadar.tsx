@@ -596,7 +596,6 @@ export default function LeadRadar() {
   const [progress,   setProgress]   = useState<Record<string, string>>({})
   const [tracerKey,  setTracerKey]  = useState('server') // Tracerfy key lives server-side
   const [showTracerSetup, setShowTracerSetup] = useState(false)
-  const [draftTracerKey, setDraftTracerKey] = useState('')
   const [tracerBalance, setTracerBalance] = useState<{ credits: number } | null>(null)
 
   const saveTracerKey = async (key: string) => {
@@ -768,7 +767,7 @@ export default function LeadRadar() {
             {showTracerSetup && (
               <div className="mt-2 space-y-2">
                 <div className="text-[10px]" style={{ color: 'var(--sgc-gray-mid)' }}>
-                  Tracerfy key is managed securely on the server.{draftTracerKey ? '' : ''}
+                  Tracerfy key is managed securely on the server.
                 </div>
                 <div className="flex gap-2">
                   <button onClick={() => saveTracerKey('')}
