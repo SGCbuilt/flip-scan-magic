@@ -155,20 +155,20 @@ export function completeTouchInPlace(
 }
 
 /**
- * True when the bearer token carries service-role privileges.
- *
- * Cron jobs authenticate with the key stored in the vault, which is not always
- * byte-identical to SUPABASE_SERVICE_ROLE_KEY in the function environment, so a
- * string compare alone is not enough. This probes a table only service_role can
- * read — a real authorization check, not a claim we trust.
+ * True ONLY when the bearer token is the service-role key or the CRON_SECRET.
+ * CRON_SECRET comes from the function env if set, otherwise from the private
+ * cron_config row (checked via verify_cron_secret, executable by service_role only).
  */
 export async function isPrivilegedToken(
   createClientFn: any, url: string, serviceKey: string, token: string,
 ): Promise<boolean> {
-  if (token && token === serviceKey) return true
+  if (!token) return false
+  if (serviceKey && token === serviceKey) return true
+  const envSecret = Deno.env.get('CRON_SECRET')
+  if (envSecret && envSecret.length >= 32 && token === envSecret) return true
   try {
-    const probe = createClientFn(url, token, { auth: { persistSession: false } })
-    const { error } = await probe.from('email_send_state').select('id').limit(1)
-    return !error
+    const admin = createClientFn(url, serviceKey, { auth: { persistSession: false } })
+    const { data, error } = await admin.rpc('verify_cron_secret', { _token: token })
+    return !error && data === true
   } catch { return false }
 }
