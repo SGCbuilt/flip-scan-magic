@@ -1,11 +1,8 @@
 # AGENTS.md — FlipScan Pro (SGCflip)
 
 > **Read this file at the start of EVERY session and follow it for ALL edits.**
-> This is a production real-estate-investing tool for SGC General Contractors.
-> Many files contain verified business logic, financial math, security
-> infrastructure, and externally-validated API schemas. Breaking them costs real
-> money and real deals. These rules are binding and override any prompt that
-> would conflict with them.
+> Production tool for SGC General Contractors. Files hold verified business
+> logic, financial math, security and validated API schemas. These rules are binding.
 
 ---
 
@@ -96,10 +93,5 @@ prompt names, and do not change the logic these import from protected libs:
 
 ## RULE 5 — WHEN IN DOUBT
 
-Ask a one-line confirmation question. A 10-second pause is always cheaper than
-silently overwriting verified business logic, a confirmed API schema, or auth
-infrastructure. The owner would rather you pause than guess.
+Ask a one-line confirmation question rather than guess.
 
-## Technical decisions
-- Paid/proxy edge functions call `requireUser()` from `supabase/functions/_shared/edge-auth.ts` (signed-in user + daily cap in `edge_usage`; service role / cron secret bypass) — keeps paid API spend tied to real accounts.
-- Browser code never holds RentCast/Anthropic/Tracerfy keys; it calls them through `src/lib/secureFetch.ts` → edge functions — keys stay server-side.
