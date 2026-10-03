@@ -78,3 +78,17 @@ export async function requireUser(
   }
   return { ok: true, userId: data.user.id }
 }
+
+// LEGACY_ANON_UNTIL_PUBLISH — the old frontend sends this project's public anon
+// JWT. Matches the env anon key, or a JWT whose claims are role=anon for this
+// project ref. Shared daily cap applies. Remove with the legacy block.
+function isProjectAnonKey(token: string, anonKey: string, url: string): boolean {
+  if (anonKey && token === anonKey) return true
+  try {
+    const ref = new URL(url).hostname.split('.')[0]
+    const part = token.split('.')[1]
+    if (!part) return false
+    const claims = JSON.parse(atob(part.replace(/-/g, '+').replace(/_/g, '/')))
+    return claims?.role === 'anon' && claims?.ref === ref
+  } catch { return false }
+}
