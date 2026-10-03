@@ -70,8 +70,7 @@ you propose to change, and wait for a "yes."
 - **Prefer additive changes.** A new feature that needs a protected engine
   should `import` from it, never edit it. Example: a new ranked-deals view
   imports from `dataFusion.ts` — it does not modify `dataFusion.ts`.
-- **Match existing brand + style.** Navy `#0F2460` / `#1B3A8C`, black, light
-  gray. Clean, minimal, geometric. Match the patterns in existing components.
+- **Match existing brand + style** (navy `#0F2460` / `#1B3A8C`, black, light gray; minimal).
 - **When unsure whether a file is protected, assume it is, and ask.**
 
 ---
