@@ -286,7 +286,7 @@ export default function ListStacking() {
   const [days,       setDays]       = useState(30)
   const [refresh,    setRefresh]    = useState(0)
 
-  const tracerKey = (() => { try { return localStorage.getItem('fscan_tracer') || '' } catch { return '' } })()
+  const tracerKey = 'server' // Tracerfy key lives server-side (skip-trace edge function)
 
   const handleScan = useCallback(async () => {
     setLoading(true)
