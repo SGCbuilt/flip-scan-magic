@@ -20,7 +20,7 @@ function lite(ok: boolean, status: number, data: any): LiteResponse {
   }
 }
 
-async function invoke(fn: string, body: unknown): Promise<LiteResponse> {
+async function invoke(fn: string, body: Record<string, unknown>): Promise<LiteResponse> {
   try {
     const { data, error } = await supabase.functions.invoke(fn, { body })
     if (error) {
