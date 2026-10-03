@@ -14,15 +14,16 @@
  * RentCast is called directly for live market data (it supports CORS).
  */
 
-const RENTCAST_KEY = (import.meta.env.VITE_RENTCAST_KEY as string) || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_rentcast') || '' : '')
+import { rentcastFetch, anthropicFetch } from './secureFetch'
 
 // ── Keys ─────────────────────────────────────────────────────────────────────
 export function getApiKeys() {
   const s = (k: string) => { try { return localStorage.getItem(k) || '' } catch { return '' } }
-  return { anthropic: s('fscan_anthropic') }
+  void s
+  return { anthropic: 'server' } // key lives server-side (anthropic-proxy)
 }
 export function saveApiKey(k: string, v: string) {
-  try { localStorage.setItem(`fscan_${k}`, v.trim()) } catch {}
+  void k; void v // keys are no longer stored in the browser
 }
 
 // ── Cache — same search = identical result ────────────────────────────────────
@@ -75,10 +76,7 @@ async function fetchRentCastMarket(
   const base = { dataType: 'All', historyMonths: '24' }
   const tryFetch = async (p: Record<string,string>) => {
     try {
-      const res = await fetch(
-        `https://api.rentcast.io/v1/markets?${new URLSearchParams({ ...base, ...p })}`,
-        { headers: { 'X-Api-Key': RENTCAST_KEY }, signal: AbortSignal.timeout(12000) }
-      )
+      const res = await rentcastFetch('/markets', { ...base, ...p })
       return res.ok ? await res.json() : null
     } catch { return null }
   }
@@ -233,22 +231,12 @@ Base your data on Census ACS surveys, FBI UCR crime data, BLS unemployment, and 
 }`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
+    const res = await anthropicFetch({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 2000,
         temperature: 0,  // deterministic — same result every time
         messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(30000),
-    })
+      })
 
     if (!res.ok) {
       console.error('[MarketAI] HTTP', res.status, await res.text().catch(() => ''))

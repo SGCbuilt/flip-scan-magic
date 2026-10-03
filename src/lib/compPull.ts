@@ -8,7 +8,7 @@
  * Returns: estimated value + 5 nearby comps with price/sqft
  */
 
-const RENTCAST_KEY = (import.meta.env.VITE_RENTCAST_KEY as string) || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_rentcast') || '' : '')
+import { rentcastFetch as secureRentcast } from './secureFetch'
 
 export interface Comp {
   address:       string
@@ -40,10 +40,7 @@ export interface CompResult {
 
 async function rentcastFetch(path: string, params: Record<string,string>): Promise<any> {
   try {
-    const res = await fetch(
-      `https://api.rentcast.io/v1${path}?${new URLSearchParams(params)}`,
-      { headers: { 'X-Api-Key': RENTCAST_KEY }, signal: AbortSignal.timeout(12000) }
-    )
+    const res = await secureRentcast(path, params)
     return res.ok ? await res.json() : null
   } catch { return null }
 }

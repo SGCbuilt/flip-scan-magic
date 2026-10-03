@@ -13,7 +13,7 @@ const ENDPOINTS = {
 } as const
 
 // Whitelist of full paths the client may request directly via `path`
-const ALLOWED_PATHS = new Set<string>(Object.values(ENDPOINTS))
+const ALLOWED_PATHS = new Set<string>([...Object.values(ENDPOINTS), '/avm/value/comps'])
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })

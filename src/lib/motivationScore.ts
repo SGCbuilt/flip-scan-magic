@@ -12,6 +12,7 @@
 
 import { Lead } from './leadRadar'
 import { SkipTraceResult } from './skipTrace'
+import { anthropicFetch } from './secureFetch'
 
 export interface MotivationScore {
   score:           number       // 0-100
@@ -28,7 +29,7 @@ export interface MotivationScore {
 }
 
 function getApiKey(): string {
-  try { return localStorage.getItem('fscan_anthropic') || '' } catch { return '' }
+  return 'server' // key lives server-side (anthropic-proxy)
 }
 
 export async function computeMotivationScore(
@@ -119,22 +120,12 @@ Return ONLY valid JSON, no markdown:
 }`
 
   try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': key,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true',
-      },
-      body: JSON.stringify({
+    const res = await anthropicFetch({
         model: 'claude-sonnet-4-20250514',
         max_tokens: 800,
         temperature: 0,
         messages: [{ role: 'user', content: prompt }],
-      }),
-      signal: AbortSignal.timeout(20000),
-    })
+      })
 
     if (!res.ok) return null
     const d = await res.json()
