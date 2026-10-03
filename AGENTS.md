@@ -99,3 +99,7 @@ prompt names, and do not change the logic these import from protected libs:
 Ask a one-line confirmation question. A 10-second pause is always cheaper than
 silently overwriting verified business logic, a confirmed API schema, or auth
 infrastructure. The owner would rather you pause than guess.
+
+## Technical decisions
+- Paid/proxy edge functions call `requireUser()` from `supabase/functions/_shared/edge-auth.ts` (signed-in user + daily cap in `edge_usage`; service role / cron secret bypass) — keeps paid API spend tied to real accounts.
+- Browser code never holds RentCast/Anthropic/Tracerfy keys; it calls them through `src/lib/secureFetch.ts` → edge functions — keys stay server-side.
