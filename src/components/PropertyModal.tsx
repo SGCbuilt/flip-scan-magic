@@ -744,9 +744,7 @@ function AITab({ p }: { p: AnalyzedProperty }) {
 
       {error && (
         <div className="p-4 bg-red-950/30 border border-red-800/40 rounded-xl text-xs text-[var(--sgc-danger)] mb-4">
-          {error.includes('VITE_ANTHROPIC_API_KEY')
-            ? '⚠️ Add your Anthropic API key to .env as VITE_ANTHROPIC_API_KEY'
-            : `Error: ${error}`}
+          {`Error: ${error}`}
         </div>
       )}
 

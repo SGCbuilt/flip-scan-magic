@@ -22,12 +22,18 @@
 
 // ── Config ────────────────────────────────────────────────────────────────────
 // Reads from Vite env vars (set by Lovable automatically, or manually in .env)
-const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string | undefined
-const SUPABASE_ANON = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+import { supabase as sbClient } from '@/integrations/supabase/client'
 
-// Also allow runtime keys stored in localStorage (from Configure panel in app)
-function getUrl():  string { return SUPABASE_URL  || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_supabase_url')  || '' : '') }
-function getAnon(): string { return SUPABASE_ANON || (typeof localStorage !== 'undefined' ? localStorage.getItem('fscan_supabase_anon') || '' : '') }
+const SUPABASE_URL  = import.meta.env.VITE_SUPABASE_URL  as string | undefined
+const SUPABASE_ANON = (import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || import.meta.env.VITE_SUPABASE_ANON_KEY) as string | undefined
+
+function getUrl():  string { return SUPABASE_URL  || '' }
+function getAnon(): string { return SUPABASE_ANON || '' }
+
+/** Signed-in user's access token — edge functions reject the bare anon key. */
+async function getAccessToken(): Promise<string> {
+  try { const { data } = await sbClient.auth.getSession(); return data.session?.access_token || '' } catch { return '' }
+}
 
 export function isSupabaseConfigured(): boolean {
   return !!(getUrl() && getAnon())
@@ -58,7 +64,7 @@ export async function callEdgeFunction<T = any>(
       method: 'POST',
       headers: {
         'Content-Type':  'application/json',
-        'Authorization': `Bearer ${anon}`,
+        'Authorization': `Bearer ${(await getAccessToken()) || anon}`,
         'apikey':         anon,
       },
       body: JSON.stringify(body),
