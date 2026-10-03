@@ -1,3 +1,4 @@
+import { requireUser } from '../_shared/edge-auth.ts'
 /**
  * Supabase Edge Function — Government API Proxy
  *
@@ -25,6 +26,9 @@ Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
+  // LEGACY_ANON_UNTIL_PUBLISH: remove legacyAnonLimit after publishing the new frontend
+  const gate = await requireUser(req, 'market-proxy', corsHeaders, { legacyAnonLimit: 200 })
+  if (!gate.ok) return gate.response!
 
   try {
     const body = await req.json()

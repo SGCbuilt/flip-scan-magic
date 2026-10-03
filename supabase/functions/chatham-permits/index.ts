@@ -2,6 +2,7 @@
 // Uses Firecrawl to (1) locate the latest monthly report page/file and
 // (2) return its text so the client can parse it into flip opportunities.
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { requireUser } from '../_shared/edge-auth.ts'
 
 const FIRECRAWL = 'https://api.firecrawl.dev/v2';
 
@@ -41,6 +42,8 @@ function pickReportLink(links: string[] = []): string | null {
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
+  const gate = await requireUser(req, 'chatham-permits', corsHeaders)
+  if (!gate.ok) return gate.response!
   try {
     // Address lookup mode: POST { address: "123 Main St, Pittsboro NC" }
     // Searches Chatham County + permit portals for permit records at that address.

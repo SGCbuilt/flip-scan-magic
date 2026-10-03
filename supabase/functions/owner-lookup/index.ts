@@ -1,4 +1,5 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 // ── Owner Lookup: layered public-record fallback ──────────────────────────
 // Ladder (first hit wins):
@@ -180,6 +181,8 @@ ${context}`
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'owner-lookup', corsHeaders)
+  if (!gate.ok) return gate.response!
   try {
     const { address, city, state, zip } = await req.json() as { address?: string; city?: string; state?: string; zip?: string }
     if (!address || !String(address).trim()) {

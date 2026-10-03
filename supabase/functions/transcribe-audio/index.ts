@@ -1,7 +1,10 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors'
+import { requireUser } from '../_shared/edge-auth.ts'
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders })
+  const gate = await requireUser(req, 'transcribe-audio', corsHeaders)
+  if (!gate.ok) return gate.response!
   try {
     const key = Deno.env.get('LOVABLE_API_KEY')
     if (!key) return new Response(JSON.stringify({ error: 'LOVABLE_API_KEY not configured' }), {
