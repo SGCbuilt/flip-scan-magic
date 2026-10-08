@@ -43,6 +43,19 @@ const TRUSTED_HOSTS = [
   // County auction platforms + statutory TN posting companies
   'realauction.com', 'govease.com', 'lienhub.com',
   'foreclosuretennessee.com', 'betterchoicenotices.com',
+  // Nationwide: county sale platforms, sheriff sale portals, tax-sale vendors
+  'realforeclose.com', 'realtaxdeed.com', 'civilview.com', 'sheriffsaleauction.com',
+  'sri-taxsale.com', 'zeusauction.com', 'grantstreet.com', 'tax-sale.info',
+  'publicsurplus.com', 'govdeals.com', 'bidcorp.com',
+  // Bank-owned / government REO
+  'homepath.fanniemae.com', 'fanniemae.com', 'homesteps.com', 'freddiemac.com',
+  'hudhomestore.com', 'resales.usda.gov',
+  // Statewide public-notice aggregators (newspaper legal notices)
+  'mypublicnotices.com', 'publicnotices.com', 'floridapublicnotices.com',
+  'georgiapublicnotice.com', 'publicnoticecolorado.com', 'njpublicnotices.com',
+  'mdpublicnotices.com', 'scpublicnotices.com', 'ohiopublicnotices.com',
+  'texaspublicnotices.com', 'nypublicnotices.com', 'capublicnotice.com',
+  'columbiaspublicnotice.com', 'legalnotice.org', 'noticeforeclosure.com',
 ]
 
 
@@ -195,6 +208,14 @@ function buildQueries(area: string, state: string, county: string) {
       `site:betterchoicenotices.com ${county || area} tennessee foreclosure`,
       `"${county || area} county" tennessee chancery OR "clerk and master" delinquent tax sale`,
     ] : []),
+    // Pre-foreclosure filings (before a sale date is set)
+    `"lis pendens" OR "notice of default" OR "notice of trustee sale" ${place} ${year}`,
+    // Bank-owned / government REO
+    `site:homepath.fanniemae.com OR site:homesteps.com ${area} ${state}`,
+    `HUD home OR "bank owned" auction ${place} ${year}`,
+    // Tax lien / tax deed sales
+    `"tax lien sale" OR "tax deed sale" ${place} ${year} parcel list`,
+    `site:civilview.com OR site:realforeclose.com ${county || area} ${state}`,
   ]
 }
 
