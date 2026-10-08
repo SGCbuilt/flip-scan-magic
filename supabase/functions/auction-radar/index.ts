@@ -43,6 +43,19 @@ const TRUSTED_HOSTS = [
   // County auction platforms + statutory TN posting companies
   'realauction.com', 'govease.com', 'lienhub.com',
   'foreclosuretennessee.com', 'betterchoicenotices.com',
+  // Nationwide: county sale platforms, sheriff sale portals, tax-sale vendors
+  'realforeclose.com', 'realtaxdeed.com', 'civilview.com', 'sheriffsaleauction.com',
+  'sri-taxsale.com', 'zeusauction.com', 'grantstreet.com', 'tax-sale.info',
+  'publicsurplus.com', 'govdeals.com', 'bidcorp.com',
+  // Bank-owned / government REO
+  'homepath.fanniemae.com', 'fanniemae.com', 'homesteps.com', 'freddiemac.com',
+  'hudhomestore.com', 'resales.usda.gov',
+  // Statewide public-notice aggregators (newspaper legal notices)
+  'mypublicnotices.com', 'publicnotices.com', 'floridapublicnotices.com',
+  'georgiapublicnotice.com', 'publicnoticecolorado.com', 'njpublicnotices.com',
+  'mdpublicnotices.com', 'scpublicnotices.com', 'ohiopublicnotices.com',
+  'texaspublicnotices.com', 'nypublicnotices.com', 'capublicnotice.com',
+  'columbiaspublicnotice.com', 'legalnotice.org', 'noticeforeclosure.com',
 ]
 
 
@@ -195,6 +208,14 @@ function buildQueries(area: string, state: string, county: string) {
       `site:betterchoicenotices.com ${county || area} tennessee foreclosure`,
       `"${county || area} county" tennessee chancery OR "clerk and master" delinquent tax sale`,
     ] : []),
+    // Pre-foreclosure filings (before a sale date is set)
+    `"lis pendens" OR "notice of default" OR "notice of trustee sale" ${place} ${year}`,
+    // Bank-owned / government REO
+    `site:homepath.fanniemae.com OR site:homesteps.com ${area} ${state}`,
+    `HUD home OR "bank owned" auction ${place} ${year}`,
+    // Tax lien / tax deed sales
+    `"tax lien sale" OR "tax deed sale" ${place} ${year} parcel list`,
+    `site:civilview.com OR site:realforeclose.com ${county || area} ${state}`,
   ]
 }
 
@@ -249,17 +270,65 @@ async function fetchPlatformPages(state: string, county: string) {
 }
 
 
+// Free web search (no credits) — DuckDuckGo HTML endpoint. Used when Firecrawl
+// is missing, out of credits, or errors. Returns title/url/snippet only.
+async function freeSearch(q: string): Promise<Array<{ url: string; title: string; description: string }>> {
+  try {
+    const ctrl = new AbortController()
+    const to = setTimeout(() => ctrl.abort(), 12000)
+    const res = await fetch('https://html.duckduckgo.com/html/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+      },
+      body: new URLSearchParams({ q, kl: 'us-en' }).toString(),
+      signal: ctrl.signal,
+    })
+    clearTimeout(to)
+    if (!res.ok) throw new Error('ddg ' + res.status)
+    const html = await res.text()
+    const out: Array<{ url: string; title: string; description: string }> = []
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:class="result__snippet"[^>]*>([\s\S]*?)<\/a>)?/g
+    const strip = (s: string) => (s || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').trim()
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html)) && out.length < 10) {
+      let url = m[1]
+      const u = url.match(/[?&]uddg=([^&]+)/)
+      if (u) url = decodeURIComponent(u[1])
+      if (url.startsWith('//')) url = 'https:' + url
+      if (!/^https?:\/\//.test(url)) continue
+      out.push({ url, title: strip(m[2]), description: strip(m[3] || '') })
+    }
+    if (out.length) return out
+  } catch { /* fall through to Bing */ }
+  // Second free source — Bing RSS feed.
+  try {
+    const r = await fetch('https://www.bing.com/search?format=rss&setlang=en-US&cc=US&q=' + encodeURIComponent(q.replace(/"/g, '')), {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36' },
+    })
+    if (!r.ok) return []
+    const t = await r.text()
+    const out: Array<{ url: string; title: string; description: string }> = []
+    for (const m of t.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?(?:<description>([\s\S]*?)<\/description>)?[\s\S]*?<\/item>/g)) {
+      out.push({ url: m[2].trim(), title: m[1].trim(), description: (m[3] || '').trim() })
+      if (out.length >= 10) break
+    }
+    return out
+  } catch { return [] }
+}
+
 async function searchAuctionNotices(area: string, state: string, county: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { hits: [], debug: { reason: 'FIRECRAWL_API_KEY missing', queriesRun: 0, queriesOk: 0, rawHits: 0 } }
+  let firecrawlDown = !key
 
   const queries = buildQueries(area, state, county)
   let ok = 0
+  let freeQueries = 0
   const hits: Array<{ title: string; description: string; url: string }> = []
   const seen = new Set<string>()
   const searchErrors: string[] = []
 
-  // Throttled: Firecrawl rate-limits bursts, and a 429 wipes the whole scan.
   let cachedQueries = 0
   const collect = (arr: any[]) => {
     for (const r of arr) {
@@ -270,6 +339,13 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
       hits.push({ title: r.title || '', description: body, url })
     }
+  }
+
+  const runFree = async (q: string) => {
+    const arr = await freeSearch(q)
+    freeQueries++
+    if (arr.length) { ok++; await cachePut(`search:${q}`, JSON.stringify(arr)) }
+    collect(arr)
   }
 
   const runQuery = async (q: string, attempt = 0): Promise<void> => {
@@ -284,6 +360,7 @@ async function searchAuctionNotices(area: string, state: string, county: string)
           } catch { /* bad cache row — fall through to a live search */ }
         }
       }
+      if (firecrawlDown) return runFree(q)
       const res = await fetch(FIRECRAWL_SEARCH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -296,7 +373,8 @@ async function searchAuctionNotices(area: string, state: string, county: string)
           return runQuery(q, attempt + 1)
         }
         searchErrors.push(`HTTP ${res.status}: ${txt.slice(0, 140)}`)
-        return
+        if (res.status === 401 || res.status === 402 || res.status === 403) firecrawlDown = true
+        return runFree(q)
       }
       ok++
       const data = await res.json()
@@ -311,16 +389,17 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       collect(arr)
     } catch (e) {
       searchErrors.push(String(e).slice(0, 140))
+      await runFree(q)
     }
   }
 
-
+  // Throttled: both Firecrawl and the free search rate-limit bursts.
   for (let i = 0; i < queries.length; i += 3) {
     await Promise.all(queries.slice(i, i + 3).map(q => runQuery(q)))
-    if (i + 3 < queries.length) await new Promise(r => setTimeout(r, 700))
+    if (i + 3 < queries.length) await new Promise(r => setTimeout(r, firecrawlDown ? 1200 : 700))
   }
 
-  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
+  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, freeQueries, firecrawl: firecrawlDown ? 'unavailable — used free search' : 'ok', rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
 // ── Scrape cache (12h TTL) ────────────────────────────────────────────────

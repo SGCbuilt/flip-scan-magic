@@ -99,8 +99,18 @@ const TYPES = [
 // ── Target markets: curated city lists for the four operating states ──────
 const MARKET_STATES = ['VA', 'NC', 'TN', 'FL'] as const
 const STATE_NAME: Record<string, string> = {
-  VA: 'Virginia', NC: 'North Carolina', TN: 'Tennessee', FL: 'Florida',
+  AL: 'Alabama', AK: 'Alaska', AZ: 'Arizona', AR: 'Arkansas', CA: 'California', CO: 'Colorado',
+  CT: 'Connecticut', DE: 'Delaware', DC: 'District of Columbia', FL: 'Florida', GA: 'Georgia',
+  HI: 'Hawaii', ID: 'Idaho', IL: 'Illinois', IN: 'Indiana', IA: 'Iowa', KS: 'Kansas',
+  KY: 'Kentucky', LA: 'Louisiana', ME: 'Maine', MD: 'Maryland', MA: 'Massachusetts',
+  MI: 'Michigan', MN: 'Minnesota', MS: 'Mississippi', MO: 'Missouri', MT: 'Montana',
+  NE: 'Nebraska', NV: 'Nevada', NH: 'New Hampshire', NJ: 'New Jersey', NM: 'New Mexico',
+  NY: 'New York', NC: 'North Carolina', ND: 'North Dakota', OH: 'Ohio', OK: 'Oklahoma',
+  OR: 'Oregon', PA: 'Pennsylvania', RI: 'Rhode Island', SC: 'South Carolina', SD: 'South Dakota',
+  TN: 'Tennessee', TX: 'Texas', UT: 'Utah', VT: 'Vermont', VA: 'Virginia', WA: 'Washington',
+  WV: 'West Virginia', WI: 'Wisconsin', WY: 'Wyoming',
 }
+const ALL_STATES = Object.keys(STATE_NAME).sort((a, b) => STATE_NAME[a].localeCompare(STATE_NAME[b]))
 const MARKETS: Record<string, string[]> = {
   VA: [
     'Norfolk', 'Virginia Beach', 'Chesapeake', 'Portsmouth', 'Suffolk', 'Hampton',
@@ -759,7 +769,7 @@ export default function AuctionRadar() {
                 onChange={e => { setStateCode(e.target.value); setCity(''); setCustomCity(false) }}
                 className="w-full mt-1 px-2 py-2 text-sm rounded-lg border outline-none cursor-pointer"
                 style={{ borderColor: '#D1D9E6', color: NAVY, background: 'white' }}>
-                {MARKET_STATES.map(s => <option key={s} value={s}>{STATE_NAME[s]} ({s})</option>)}
+                {ALL_STATES.map(s => <option key={s} value={s}>{STATE_NAME[s]} ({s})</option>)}
               </select>
             </div>
             <div className="col-span-2 md:col-span-2">
