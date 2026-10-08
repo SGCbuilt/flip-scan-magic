@@ -286,7 +286,7 @@ async function freeSearch(q: string): Promise<Array<{ url: string; title: string
       signal: ctrl.signal,
     })
     clearTimeout(to)
-    if (!res.ok) return []
+    if (!res.ok) throw new Error('ddg ' + res.status)
     const html = await res.text()
     const out: Array<{ url: string; title: string; description: string }> = []
     const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:class="result__snippet"[^>]*>([\s\S]*?)<\/a>)?/g
