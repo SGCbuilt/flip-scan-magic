@@ -300,6 +300,20 @@ async function freeSearch(q: string): Promise<Array<{ url: string; title: string
       if (!/^https?:\/\//.test(url)) continue
       out.push({ url, title: strip(m[2]), description: strip(m[3] || '') })
     }
+    if (out.length) return out
+  } catch { /* fall through to Bing */ }
+  // Second free source — Bing RSS feed.
+  try {
+    const r = await fetch('https://www.bing.com/search?format=rss&setlang=en-US&cc=US&q=' + encodeURIComponent(q.replace(/"/g, '')), {
+      headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/124 Safari/537.36' },
+    })
+    if (!r.ok) return []
+    const t = await r.text()
+    const out: Array<{ url: string; title: string; description: string }> = []
+    for (const m of t.matchAll(/<item>[\s\S]*?<title>([\s\S]*?)<\/title>[\s\S]*?<link>([\s\S]*?)<\/link>[\s\S]*?(?:<description>([\s\S]*?)<\/description>)?[\s\S]*?<\/item>/g)) {
+      out.push({ url: m[2].trim(), title: m[1].trim(), description: (m[3] || '').trim() })
+      if (out.length >= 10) break
+    }
     return out
   } catch { return [] }
 }
