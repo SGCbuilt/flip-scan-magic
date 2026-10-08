@@ -22,3 +22,5 @@ project_id = "lxdohdgfrrasymqlghfg"
   [functions.waitlist-signup]
     verify_jwt = false
 
+  [functions.auction-collect]
+    verify_jwt = false
