@@ -65,6 +65,122 @@ export type Database = {
         }
         Relationships: []
       }
+      auction_record_events: {
+        Row: {
+          created_at: string
+          detail: string | null
+          event: string
+          id: string
+          record_id: string
+          sale_date: string | null
+        }
+        Insert: {
+          created_at?: string
+          detail?: string | null
+          event: string
+          id?: string
+          record_id: string
+          sale_date?: string | null
+        }
+        Update: {
+          created_at?: string
+          detail?: string | null
+          event?: string
+          id?: string
+          record_id?: string
+          sale_date?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auction_record_events_record_id_fkey"
+            columns: ["record_id"]
+            isOneToOne: false
+            referencedRelation: "auction_records"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auction_records: {
+        Row: {
+          addr_key: string
+          address: string
+          auction_type: string
+          case_number: string | null
+          city: string
+          county: string
+          defendant: string | null
+          detail_url: string | null
+          first_seen_at: string
+          id: string
+          last_seen_at: string
+          lat: number | null
+          lng: number | null
+          opening_bid: number | null
+          origin: string
+          plaintiff: string | null
+          sale_date: string | null
+          source_id: string | null
+          source_url: string | null
+          sources: Json
+          state: string
+          status: string
+          updated_at: string
+          zip: string
+        }
+        Insert: {
+          addr_key: string
+          address: string
+          auction_type?: string
+          case_number?: string | null
+          city?: string
+          county?: string
+          defendant?: string | null
+          detail_url?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          lat?: number | null
+          lng?: number | null
+          opening_bid?: number | null
+          origin?: string
+          plaintiff?: string | null
+          sale_date?: string | null
+          source_id?: string | null
+          source_url?: string | null
+          sources?: Json
+          state?: string
+          status?: string
+          updated_at?: string
+          zip?: string
+        }
+        Update: {
+          addr_key?: string
+          address?: string
+          auction_type?: string
+          case_number?: string | null
+          city?: string
+          county?: string
+          defendant?: string | null
+          detail_url?: string | null
+          first_seen_at?: string
+          id?: string
+          last_seen_at?: string
+          lat?: number | null
+          lng?: number | null
+          opening_bid?: number | null
+          origin?: string
+          plaintiff?: string | null
+          sale_date?: string | null
+          source_id?: string | null
+          source_url?: string | null
+          sources?: Json
+          state?: string
+          status?: string
+          updated_at?: string
+          zip?: string
+        }
+        Relationships: []
+      }
       auction_scrape_cache: {
         Row: {
           content: string
@@ -123,6 +239,101 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      auction_source_runs: {
+        Row: {
+          added: number
+          found: number
+          id: string
+          note: string | null
+          ok: boolean
+          ran_at: string
+          source_id: string
+        }
+        Insert: {
+          added?: number
+          found?: number
+          id?: string
+          note?: string | null
+          ok?: boolean
+          ran_at?: string
+          source_id: string
+        }
+        Update: {
+          added?: number
+          found?: number
+          id?: string
+          note?: string | null
+          ok?: boolean
+          ran_at?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "auction_source_runs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "auction_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      auction_sources: {
+        Row: {
+          auction_type: string
+          county: string
+          created_at: string
+          created_by: string | null
+          enabled: boolean
+          id: string
+          last_count: number
+          last_error: string | null
+          last_ok_at: string | null
+          last_run_at: string | null
+          name: string
+          parser: string
+          state: string
+          status: string
+          updated_at: string
+          url: string
+        }
+        Insert: {
+          auction_type?: string
+          county?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          last_count?: number
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          name: string
+          parser?: string
+          state?: string
+          status?: string
+          updated_at?: string
+          url: string
+        }
+        Update: {
+          auction_type?: string
+          county?: string
+          created_at?: string
+          created_by?: string | null
+          enabled?: boolean
+          id?: string
+          last_count?: number
+          last_error?: string | null
+          last_ok_at?: string | null
+          last_run_at?: string | null
+          name?: string
+          parser?: string
+          state?: string
+          status?: string
+          updated_at?: string
+          url?: string
+        }
+        Relationships: []
       }
       auction_watches: {
         Row: {

@@ -23,6 +23,7 @@ export const DAILY_CAPS: Record<string, number> = {
   'transcribe-audio': 200,
   'skip-trace': 200,
   'daily-digest': 10,
+  'auction-collect': 20,
 }
 
 export interface GateResult {
