@@ -1,107 +1,39 @@
-# Lock down paid services called from the browser
+# SGC Auction Database — be the source, no paid services
 
-Several of the files involved are on the protected list in AGENTS.md. The plan names each one below, and nothing changes until you approve it.
+## Goal
+Build our own nationwide database of foreclosure, pre-foreclosure, bank-owned and tax sale properties. We collect the data ourselves from free public records, store it, and keep it up to date every day. Auction Radar searches our database first, so results are instant and need no paid services.
 
-## What I found (every caller)
+## How it works
+```text
+Free public sources ──► daily collectors ──► SGC Auction Database ──► Auction Radar / Research Agent / Pipeline
+ (county, sheriff,        (run on a schedule,    (one record per property,
+  trustee, notices,        read pages directly,   with sale date, history,
+  HUD/Fannie/Freddie)      no credits)            source proof)
+```
 
-| Function | Called from | How it authenticates today |
-|---|---|---|
-| rentcast | deep-scan, research-agent-run (server) | service key |
-| ai-analysis | Property / Deal screens (`aiAnalysis.ts`) | signed-in user |
-| property-photos | Drive for Dollars, `aiAnalysis.ts`, deep-scan | user / service key |
-| transcribe-audio | Add Property (mobile voice) | signed-in user |
-| market-proxy | Lead Radar area data (`leadRadar.ts`), `supabase.ts` proxyGovApi | **anon key only** |
-| owner-lookup | `ownerLookup.ts`, deep-scan | user / service key |
-| chatham-permits | Chatham Permits screen, research-agent-run | user / service key |
-| deep-scan | Auction Radar, Drive for Dollars, `aiAnalysis.ts`, research-agent-run | user / service key |
-| daily-digest | Morning Brief "Send Email Now" (`supabase.ts`) | **anon key only**, no cron job |
+## What gets built
+1. **Source list:** a list of public websites we collect from, with state, county, auction type and how to read each one. It starts with sources that work everywhere, and you can add new counties from a screen in the app.
+   - HUD homes, Fannie Mae HomePath and Freddie Mac HomeSteps (bank-owned, nationwide)
+   - County sheriff sale sites on common platforms (CivilView, RealForeclose / RealTaxDeed, GovEase, LienHub, Bid4Assets county pages)
+   - Statewide public-notice websites (newspaper legal notices for trustee sales, notices of default and tax sales)
+   - Trustee law firm sale lists already trusted in VA, NC, TN and FL
+2. **Daily collectors:** each morning a scheduled job visits every enabled source with plain page reads (free) and pulls out the address, sale date, opening bid, case number, auction type and a link back to the source. It uses the existing engine already included in the app, and no record is saved without a date and an address or case number.
+3. **The database:** one record per property, matched by address, with:
+   - its status over time (pre-foreclosure, then scheduled, postponed, sold, cancelled)
+   - date first seen and date last confirmed
+   - every source that listed it, kept as proof
+   Records that disappear from their source are marked "no longer listed" instead of being deleted.
+4. **Auction Radar searches our data first:** results for any state, county or city come back instantly from our database. Scoring, Deep Scan and saving to the Pipeline work as they do now. The old live web search becomes an optional "search the web too" button.
+5. **Your own captures count:** properties saved from Drive for Dollars and Chatham Permits are added to the database as owned leads.
+6. **Coverage screen:** shows which states and counties are covered, how many live records each has, when each source last worked, and any broken sources.
 
-The public landing page only calls waitlist-signup, which this change doesn't touch.
+## Honest limits
+- No free source covers every county. We start with sources that cover all states (bank-owned homes and the shared sale platforms) plus your four core states in depth, then add counties over time.
+- Some county sites block automated reading or need a login. Those are marked "manual" instead of being worked around.
+- Paid services stay switched off. The existing hooks are kept but are not needed.
 
-These parts of the app call outside services directly from the browser, using keys stored there:
-- **RentCast:** `rentcast.ts`, `market.ts`, `marketAnalyzer.ts`, `compPull.ts`, `proxyClient.ts`, `App.tsx`
-- **Anthropic:** `dealGrade.ts`, `marketAnalyzer.ts`, `motivationScore.ts`
-- **Tracerfy:** `skipTrace.ts`, `LeadRadar.tsx`, `DriveForDollars.tsx`, `ListStacking.tsx`
-- **Attom:** `proxyClient.ts`
-
-## Backend (goes live immediately)
-
-1. **Shared sign-in check** (`_shared/edge-auth.ts`)
-   - Passes callers using the service key or the cron key (reusing `isPrivilegedToken`). They are not capped.
-   - Otherwise requires a real signed-in user, checked with `auth.getUser`. The bare anon key is rejected.
-   - Then counts one use against that person's daily limit.
-2. **Daily-limit table** (`edge_usage`)
-   - One row per person, function and day, with a counter.
-   - Only the server can access it.
-   - Counting is done by a server-only function that adds one and checks the limit.
-3. **Apply the check to all 9 functions.** The read-only RentCast paths stay whitelisted.
-4. **Temporary transition mode for market-proxy and daily-digest only**
-   - Until you publish, they also accept the old anon-key call, with a shared limit of 200 a day across all anonymous callers. daily-digest anon calls are limited to 3 a day.
-   - Each one is marked `LEGACY_ANON_UNTIL_PUBLISH` so it's easy to remove after you publish.
-5. **New server function `anthropic-proxy`** for deal-grade, market and motivation prompts. It uses the `ANTHROPIC_API_KEY` that's already stored on the server.
-6. **New server function `skip-trace`** for Tracerfy, which needs a server secret (see below).
-
-**Daily limits per person:**
-
-| Function | Uses per day |
-|---|---|
-| rentcast | 400 |
-| market-proxy | 500 |
-| ai-analysis | 150 |
-| anthropic-proxy | 200 |
-| deep-scan | 100 |
-| property-photos | 150 |
-| owner-lookup | 200 |
-| chatham-permits | 200 |
-| transcribe-audio | 200 |
-| skip-trace | 200 |
-| daily-digest | 10 |
-
-## App screens (live only after you publish)
-
-**Protected files I need approval to edit:**
-- **`src/lib/rentcast.ts`, `market.ts`, `compPull.ts`:** swap only the fetch helper so it goes through the `rentcast` function. Same endpoints, same fields, same parameters.
-- **`src/lib/marketAnalyzer.ts`, `dealGrade.ts`, `motivationScore.ts`:** swap only the RentCast and Anthropic fetch calls to the server functions. Prompts and scoring math stay untouched.
-- **`src/lib/proxyClient.ts`:** route RentCast through the server. Attom is left as a provider, with no browser key.
-- **`src/lib/skipTrace.ts`:** call the new `skip-trace` function instead of Tracerfy directly. Request and response fields stay the same.
-- **`src/lib/keyVault.ts`:**
-  - Stop writing keys into browser storage, and clear any old `fscan_*` keys on load.
-  - The `user_api_keys` table rows are left alone.
-- **`src/lib/supabase.ts`:** send the signed-in user's session instead of the anon key, and drop the browser-storage overrides.
-- **`src/lib/leadRadar.ts`, line ~176 only:** send the user session to market-proxy. Dataset IDs and fields stay untouched.
-
-**Regular files:**
-- **`Settings.tsx`:** remove the RentCast, Anthropic, Tracerfy and backend key fields. Show "Managed securely on the server" instead.
-- **`Onboarding.tsx`:** remove the key-entry steps.
-- **`LeadRadar.tsx`, `DriveForDollars.tsx`, `ListStacking.tsx`:** remove the Tracerfy key setup and checks.
-- **`App.tsx`:** remove the browser-key checks.
-- **`DealGrade.tsx`, `MarketAnalyzer.tsx`, `PropertyModal.tsx`:** remove the "add your key" messages.
-- **`vite-env.d.ts`:** remove `VITE_ANTHROPIC_API_KEY` and `VITE_RENTCAST_KEY`.
-
-## Testing (no emails or texts)
-
-I'll call each function three ways: with no token (expect 401), with the anon key (expect 401, except the two transition functions), and as a signed-in user on a harmless request. I'll also confirm the cron key still passes, and check that the daily counter goes up. daily-digest gets only the 401 tests.
-
-## Secrets and what breaks before you publish
-
-**Secrets you must set:**
-- `TRACERFY_API_KEY`: skip tracing stops working until it's added.
-- `ATTOM_API_KEY`: only if you use Attom.
-
-These are already set: `ANTHROPIC_API_KEY`, `RENTCAST_API_KEY` and `LOVABLE_API_KEY`.
-
-**What happens on the live site before you publish:**
-- Nothing breaks for signed-in screens. They already send the user's session.
-- Lead Radar area data and the Morning Brief email button keep working through the transition mode.
-- Browser-direct calls keep working on the old site until you publish.
-
-**After you publish:**
-- Remove the `LEGACY_ANON_UNTIL_PUBLISH` blocks. I can do that when you tell me.
-- Rotate the RentCast and Anthropic keys, since they may have been exposed in browsers.
-
-## Not touched
-
-- Payment, invoice and other business tables.
-- Email sending.
-- Branding and phone numbers.
-- All other logic in the protected engines.
+## Technical details
+- New tables (RLS on; anyone signed in can read, only the system can write): `auction_sources`, `auction_records` (address key unique, status, sale_date, opening_bid, type, county, state, lat/lng nullable), `auction_record_events` (status history), `auction_source_runs` (health log).
+- New edge function `auction-collect`: cron runs it daily at 6:00 AM ET with the existing cron secret. Each source gets a parser type (`json_api`, `html_table`, `notice_text`), with free fetch only and Firecrawl never called. Notice text goes through the existing gateway extraction at temperature 0, and the same validation rules as auction-radar apply.
+- `auction-radar` gains a "db" mode that queries `auction_records` first. The existing live path stays unchanged as a fallback.
+- Protected engine files are not modified. New code imports from them only.
