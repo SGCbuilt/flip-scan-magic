@@ -270,17 +270,51 @@ async function fetchPlatformPages(state: string, county: string) {
 }
 
 
+// Free web search (no credits) — DuckDuckGo HTML endpoint. Used when Firecrawl
+// is missing, out of credits, or errors. Returns title/url/snippet only.
+async function freeSearch(q: string): Promise<Array<{ url: string; title: string; description: string }>> {
+  try {
+    const ctrl = new AbortController()
+    const to = setTimeout(() => ctrl.abort(), 12000)
+    const res = await fetch('https://html.duckduckgo.com/html/', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36',
+      },
+      body: new URLSearchParams({ q, kl: 'us-en' }).toString(),
+      signal: ctrl.signal,
+    })
+    clearTimeout(to)
+    if (!res.ok) return []
+    const html = await res.text()
+    const out: Array<{ url: string; title: string; description: string }> = []
+    const re = /<a[^>]+class="result__a"[^>]+href="([^"]+)"[^>]*>([\s\S]*?)<\/a>[\s\S]*?(?:class="result__snippet"[^>]*>([\s\S]*?)<\/a>)?/g
+    const strip = (s: string) => (s || '').replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&#x27;|&#39;/g, "'").replace(/&quot;/g, '"').trim()
+    let m: RegExpExecArray | null
+    while ((m = re.exec(html)) && out.length < 10) {
+      let url = m[1]
+      const u = url.match(/[?&]uddg=([^&]+)/)
+      if (u) url = decodeURIComponent(u[1])
+      if (url.startsWith('//')) url = 'https:' + url
+      if (!/^https?:\/\//.test(url)) continue
+      out.push({ url, title: strip(m[2]), description: strip(m[3] || '') })
+    }
+    return out
+  } catch { return [] }
+}
+
 async function searchAuctionNotices(area: string, state: string, county: string) {
   const key = Deno.env.get('FIRECRAWL_API_KEY')
-  if (!key) return { hits: [], debug: { reason: 'FIRECRAWL_API_KEY missing', queriesRun: 0, queriesOk: 0, rawHits: 0 } }
+  let firecrawlDown = !key
 
   const queries = buildQueries(area, state, county)
   let ok = 0
+  let freeQueries = 0
   const hits: Array<{ title: string; description: string; url: string }> = []
   const seen = new Set<string>()
   const searchErrors: string[] = []
 
-  // Throttled: Firecrawl rate-limits bursts, and a 429 wipes the whole scan.
   let cachedQueries = 0
   const collect = (arr: any[]) => {
     for (const r of arr) {
@@ -291,6 +325,13 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       const body = String(r.markdown || r.description || r.snippet || '').slice(0, 3500)
       hits.push({ title: r.title || '', description: body, url })
     }
+  }
+
+  const runFree = async (q: string) => {
+    const arr = await freeSearch(q)
+    freeQueries++
+    if (arr.length) { ok++; await cachePut(`search:${q}`, JSON.stringify(arr)) }
+    collect(arr)
   }
 
   const runQuery = async (q: string, attempt = 0): Promise<void> => {
@@ -305,6 +346,7 @@ async function searchAuctionNotices(area: string, state: string, county: string)
           } catch { /* bad cache row — fall through to a live search */ }
         }
       }
+      if (firecrawlDown) return runFree(q)
       const res = await fetch(FIRECRAWL_SEARCH, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
@@ -317,7 +359,8 @@ async function searchAuctionNotices(area: string, state: string, county: string)
           return runQuery(q, attempt + 1)
         }
         searchErrors.push(`HTTP ${res.status}: ${txt.slice(0, 140)}`)
-        return
+        if (res.status === 401 || res.status === 402 || res.status === 403) firecrawlDown = true
+        return runFree(q)
       }
       ok++
       const data = await res.json()
@@ -332,16 +375,17 @@ async function searchAuctionNotices(area: string, state: string, county: string)
       collect(arr)
     } catch (e) {
       searchErrors.push(String(e).slice(0, 140))
+      await runFree(q)
     }
   }
 
-
+  // Throttled: both Firecrawl and the free search rate-limit bursts.
   for (let i = 0; i < queries.length; i += 3) {
     await Promise.all(queries.slice(i, i + 3).map(q => runQuery(q)))
-    if (i + 3 < queries.length) await new Promise(r => setTimeout(r, 700))
+    if (i + 3 < queries.length) await new Promise(r => setTimeout(r, firecrawlDown ? 1200 : 700))
   }
 
-  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
+  return { hits, debug: { queriesRun: queries.length, queriesOk: ok, queriesCached: cachedQueries, freeQueries, firecrawl: firecrawlDown ? 'unavailable — used free search' : 'ok', rawHits: hits.length, searchErrors: searchErrors.slice(0, 5) } }
 }
 
 // ── Scrape cache (12h TTL) ────────────────────────────────────────────────
